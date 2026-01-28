@@ -61,3 +61,42 @@ LOOKBACK_YEARS = int(os.getenv("LOOKBACK_YEARS", "2"))
 
 # Used for daily runs (catch-up safe)
 DAILY_LOOKBACK_DAYS = int(os.getenv("DAILY_LOOKBACK_DAYS", "10"))
+
+# =========================================================
+# DATABASE SETTINGS
+# =========================================================
+
+TABLE_NAME = os.getenv(
+    "TABLE_NAME",
+    "equity_daily_candles_swing_trading"
+)
+
+# =========================================================
+# LOGGING SETTINGS
+# =========================================================
+
+LOG_DIR = os.getenv(
+    "LOG_DIR",
+    str(BASE_DIR / "logs")
+)
+
+# =========================================================
+# VALIDATION
+# =========================================================
+
+def validate_config():
+    """Validate that required configuration is present."""
+    errors = []
+    
+    if not FYERS_CLIENT_ID:
+        errors.append("FYERS_CLIENT_ID not set in environment")
+    
+    if not FYERS_SECRET_KEY:
+        errors.append("FYERS_SECRET_KEY not set in environment")
+    
+    if errors:
+        raise RuntimeError(
+            "Configuration errors:\n" + "\n".join(f"  - {e}" for e in errors)
+        )
+    
+    return True
