@@ -9,7 +9,6 @@
     "label_status": "Connection Status",
     "label_sync_radar": "Sync Radar",
     "label_system_footprint": "System Footprint",
-    "label_sync_history": "Sync History",
     "btn_sync": "Confirm & Sync",
     "engine_standby": "System Standby",
     "engine_active": "Pipeline Active",

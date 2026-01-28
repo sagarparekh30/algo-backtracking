@@ -124,15 +124,21 @@
         }
 
         .dashboard-grid {
-            display: grid;
-            grid-template-columns: 400px 1fr;
+            display: flex;
+            flex-direction: column;
             gap: 2rem;
-            max-width: 1600px;
+            max-width: 1400px;
             margin: 0 auto;
         }
 
+        .panels-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
         @media (max-width: 1200px) {
-            .dashboard-grid {
+            .panels-row {
                 grid-template-columns: 1fr;
             }
         }
@@ -240,19 +246,19 @@
 
         .label {
             font-size: 0.75rem;
-            font-weight: 800;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.15em;
+            letter-spacing: 0.1em;
             color: var(--muted);
             margin-bottom: 0.5rem;
             display: block;
         }
 
         .value-hero {
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif;
             font-size: 2.25rem;
-            font-weight: 900;
-            letter-spacing: -0.05em;
+            font-weight: 700;
+            letter-spacing: -0.02em;
         }
 
         .matrix {
@@ -348,7 +354,7 @@
             color: var(--app-bg);
             padding: 0.75rem 1.5rem;
             border-radius: 12px;
-            font-weight: 900;
+            font-weight: 700;
             text-transform: uppercase;
             font-size: 0.8rem;
             cursor: pointer;
@@ -395,7 +401,7 @@
     <!-- Persistent Sidebar -->
     <aside id="app-sidebar" class="sidebar">
         <div class="p-8 pb-12">
-            <h1 class="header-font text-2xl font-black tracking-tightest uppercase italic" data-ui="app_title">HQ
+            <h1 class="header-font text-2xl font-bold tracking-tight uppercase italic" data-ui="app_title">HQ
                 Station</h1>
         </div>
 
@@ -436,10 +442,22 @@
         </nav>
 
         <div class="p-8 mt-auto border-t border-[var(--border)]">
-            <div class="flex items-center justify-between">
-                <div id="engine-status"
-                    class="text-[9px] font-black uppercase tracking-widest px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg">
-                    Standby</div>
+            <div id="engine-status"
+                class="text-[9px] font-bold uppercase tracking-widest px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg inline-block w-fit">
+                Standby</div>
+        </div>
+    </aside>
+
+    <main class="main-view">
+        <!-- Persistent Header -->
+        <header class="header">
+            <div class="flex items-center gap-6">
+                <button class="menu-btn" onclick="toggleSidebar()">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            d="M4 6h16M4 12h16m-7 6h7"></path>
+                    </svg>
+                </button>
                 <button onclick="toggleTheme()" class="p-2 hover:bg-[var(--app-bg)] rounded-lg transition-all"><svg
                         id="theme-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         stroke-width="2.5">
@@ -447,20 +465,6 @@
                             d="M12 3v1m0 16v1m9-9h1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z">
                         </path>
                     </svg></button>
-            </div>
-        </div>
-    </aside>
-
-    <main class="main-view">
-        <!-- Persistent Header -->
-        <header class="header">
-            <div class="flex items-center gap-4">
-                <button class="menu-btn" onclick="toggleSidebar()">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                            d="M4 6h16M4 12h16m-7 6h7"></path>
-                    </svg>
-                </button>
             </div>
             <div class="flex gap-12">
                 <div><span class="label" data-ui="label_total_records">Total Records</span>
@@ -482,10 +486,11 @@
         <!-- Tab: Data Synchronization -->
         <div id="tab-sync" class="tab-content active">
             <div class="dashboard-grid">
-                <div class="flex flex-col gap-8">
+                <!-- Top Row: Radar & Snapshot -->
+                <div class="panels-row">
                     <div class="panel">
                         <div class="panel-header"><span class="label mb-0" data-ui="label_sync_radar">Sync
-                                Radar</span><span id="percent-val" class="font-black text-blue-500">0%</span></div>
+                                Radar</span><span id="percent-val" class="font-bold text-blue-500">0%</span></div>
                         <div id="grid-matrix" class="matrix"></div>
                     </div>
 
@@ -511,6 +516,10 @@
                             </table>
                         </div>
                     </div>
+                </div>
+
+                <!-- Bottom Row: Coverage & Footprint -->
+                <div class="panels-row">
                     <div class="panel p-8 space-y-6">
                         <div class="flex items-center justify-between border-b border-[var(--border)] pb-4">
                             <span class="label mb-0" data-ui="label_data_horizon">Data Coverage & Horizon</span>
@@ -519,49 +528,28 @@
                         <div class="grid grid-cols-2 gap-8">
                             <div>
                                 <span class="label" data-ui="label_horizon_symbols">Active Symbols</span>
-                                <div class="text-2xl font-black" id="horizon-symbols">0</div>
+                                <div class="text-2xl font-bold" id="horizon-symbols">0</div>
                             </div>
                             <div>
                                 <span class="label" data-ui="label_horizon_density">Data Density</span>
-                                <div class="text-2xl font-black text-emerald-500">HIGH</div>
+                                <div class="text-2xl font-bold text-emerald-500">HIGH</div>
                             </div>
                         </div>
                         <div>
                             <span class="label" data-ui="label_horizon_range">Data Horizon</span>
-                            <div class="text-lg font-black opacity-80" id="horizon-range">--</div>
+                            <div class="text-lg font-bold opacity-80" id="horizon-range">--</div>
                         </div>
                     </div>
 
                     <div class="panel p-8 space-y-4">
                         <span class="label" data-ui="label_system_footprint">System Footprint</span>
                         <div>
-                            <div class="text-xl font-black" id="db-size">0.0 MB</div>
+                            <div class="text-xl font-bold" id="db-size">0.0 MB</div>
                             <div id="table-name" class="text-[10px] mono opacity-30 uppercase">--</div>
                         </div>
                         <div class="pt-4 border-t border-[var(--border)]"><span class="label">Last Interaction</span>
                             <div id="last-sync" class="text-xs font-bold opacity-40">--</div>
                         </div>
-                    </div>
-                </div>
-                <div class="panel">
-                    <div class="panel-header"><span class="label mb-0" data-ui="label_sync_history">Sync
-                            History</span><select id="status-filter"
-                            class="bg-transparent text-xs font-bold outline-none" onchange="filterTable()">
-                            <option value="all">SHOW ALL</option>
-                            <option value="updated">UPDATED</option>
-                        </select></div>
-                    <div class="overflow-y-auto">
-                        <table id="results-table">
-                            <thead>
-                                <tr>
-                                    <th>SYMBOL</th>
-                                    <th>STATUS</th>
-                                    <th>NEW DATA</th>
-                                    <th class="text-right">TIME</th>
-                                </tr>
-                            </thead>
-                            <tbody id="table-body"></tbody>
-                        </table>
                     </div>
                 </div>
             </div>
@@ -644,19 +632,6 @@
                 : `<path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>`;
         }
 
-        function renderTable(resultsMap) {
-            const tbody = document.getElementById('table-body');
-            const filter = document.getElementById('status-filter').value;
-            const entries = Object.entries(resultsMap).reverse();
-            tbody.innerHTML = '';
-            entries.forEach(([sym, stats]) => {
-                if (filter !== 'all' && stats.status !== filter) return;
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td class="font-black">${sym}</td><td><span class="text-[10px] font-black uppercase text-${stats.status === 'updated' ? 'green' : 'muted'}-500">${stats.status}</span></td><td class="mono font-bold">${stats.candles || '--'}</td><td class="text-right opacity-30 text-[10px]">${new Date().toLocaleTimeString()}</td>`;
-                tbody.appendChild(tr);
-            });
-        }
-
         async function updateDashboard() {
             try {
                 const res = await fetch(`${API_URL}/api/status`);
@@ -673,7 +648,6 @@
                         tip.textContent = `${sym}: ${stats.status.toUpperCase()} (${stats.candles})`;
                     }
                 }
-                renderTable(data.symbol_results);
                 document.getElementById('db-rows').textContent = data.total_db_rows.toLocaleString();
                 document.getElementById('stat-candles').textContent = data.total_candles.toLocaleString();
                 document.getElementById('token-status').textContent = data.token_valid ? "Authenticated" : "Expired";
@@ -688,10 +662,10 @@
                 const config = window.uiConfig || {};
                 if (data.is_running) {
                     engineEl.textContent = config.engine_active || "Pipeline Active";
-                    engineEl.className = "text-[9px] font-black tracking-widest px-3 py-1 bg-green-500/10 text-green-400 rounded-lg animate-pulse";
+                    engineEl.className = "text-[9px] font-bold tracking-widest px-3 py-1 bg-green-500/10 text-green-400 rounded-lg animate-pulse inline-block w-fit";
                 } else {
                     engineEl.textContent = config.engine_standby || "Standby";
-                    engineEl.className = "text-[9px] font-black tracking-widest px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg";
+                    engineEl.className = "text-[9px] font-bold tracking-widest px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg inline-block w-fit";
                 }
                 document.getElementById('db-size').textContent = `${data.db_size_mb} MB`;
                 document.getElementById('last-sync').textContent = data.last_run;

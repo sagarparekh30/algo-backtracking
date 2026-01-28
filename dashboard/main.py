@@ -165,10 +165,15 @@ async def get_latest_snapshot():
         import sqlite3
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        # Query 10 most recent records
+        # Query the latest record for each of the 10 most recently updated symbols
         cursor.execute(f"""
             SELECT symbol, trade_date, open, high, low, close, volume 
             FROM {TABLE_NAME} 
+            WHERE ROWID IN (
+                SELECT MAX(ROWID) 
+                FROM {TABLE_NAME} 
+                GROUP BY symbol
+            )
             ORDER BY ROWID DESC 
             LIMIT 10
         """)
