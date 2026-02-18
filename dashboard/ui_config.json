@@ -1,9 +1,13 @@
 {
     "app_title": "HQ Station",
     "nav_sync": "Data Synchronization",
+    "nav_sync_short": "Data",
     "nav_strategies": "Swing Strategies",
+    "nav_strategies_short": "Signals",
     "nav_backtest": "Backtesting Results",
+    "nav_backtest_short": "Test",
     "nav_portfolio": "Live Execution",
+    "nav_portfolio_short": "Live",
     "label_total_records": "Total Records",
     "label_new_records": "New Records",
     "label_status": "Connection Status",
@@ -16,5 +20,14 @@
     "label_data_horizon": "Data Coverage & Horizon",
     "label_horizon_range": "Data Horizon",
     "label_horizon_symbols": "Active Symbols",
-    "label_horizon_density": "Data Density"
+    "label_horizon_density": "Data Density",
+    "label_strategy_hub": "Signal Hub",
+    "label_strategy_selector": "Active Strategy:",
+    "label_sig_symbol": "SYMBOL",
+    "label_sig_price": "ENTRY PRICE",
+    "label_sig_rsi": "METHODOLOGY",
+    "label_sig_trend": "TREND STATUS",
+    "btn_scan": "Run Strategy Scan",
+    "strat_golden_rsi": "Golden RSI (Mean Reversion)",
+    "strat_sma_cross": "SMA 20/50 Cross (Momentum)"
 }

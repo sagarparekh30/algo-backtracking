@@ -15,6 +15,7 @@ from pydantic import BaseModel
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.settings import TOKEN_PATH, LOG_DIR, DB_PATH, TABLE_NAME
+from strategies.swing_executor import StrategyManager
 
 app = FastAPI(title="Trading HQ Dashboard")
 
@@ -192,6 +193,17 @@ async def get_latest_snapshot():
         ]
     except Exception as e:
         print(f"Snapshot Error: {e}")
+        return []
+
+@app.get("/api/signals")
+async def get_signals(strategy: str = "golden_rsi"):
+    """Returns swing trading signals using the selected strategy."""
+    try:
+        manager = StrategyManager()
+        signals = manager.get_signals(strategy)
+        return signals
+    except Exception as e:
+        print(f"Signal Error: {e}")
         return []
 
 @app.get("/api/status", response_model=SummaryResponse)

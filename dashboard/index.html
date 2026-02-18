@@ -20,19 +20,20 @@
             --blue: #2563eb;
             --green: #10b981;
             --red: #ef4444;
-            --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            --sidebar-width: 280px;
+            --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --header-height: 70px;
+            --nav-height: 75px;
         }
 
         .dark {
             --app-bg: #09090b;
             --app-text: #f4f4f5;
             --card-bg: #111113;
-            --border: #222226;
+            --border: #1e1e21;
             --accent: #fafafa;
             --muted: #52525b;
             --blue: #3b82f6;
-            --card-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+            --card-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.3);
         }
 
         body {
@@ -44,8 +45,10 @@
             -webkit-font-smoothing: antialiased;
             margin: 0;
             display: flex;
-            overflow: hidden;
+            flex-direction: column;
             height: 100vh;
+            overflow: hidden;
+            user-select: none;
         }
 
         .header-font {
@@ -56,67 +59,96 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
-        /* Sidebar */
-        .sidebar {
-            width: var(--sidebar-width);
-            background: var(--card-bg);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            z-index: 100;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 1rem 1.75rem;
-            color: var(--muted);
-            font-weight: 700;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            border-left: 3px solid transparent;
-        }
-
-        .nav-item:hover {
-            color: var(--app-text);
-            background: rgba(0, 0, 0, 0.02);
-        }
-
-        .dark .nav-item:hover {
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        .nav-item.active {
-            color: var(--blue);
-            background: rgba(37, 99, 235, 0.05);
-            border-left-color: var(--blue);
-        }
-
-        /* Main Content */
+        /* Main View Container */
         .main-view {
             flex: 1;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1.25rem 2.5rem;
-            border-bottom: 1px solid var(--border);
-            background: var(--card-bg);
-            z-index: 50;
-        }
-
-        .tab-content {
-            flex: 1;
+            height: 100%;
             overflow-y: auto;
-            padding: 2rem;
+            padding-top: var(--header-height);
+            padding-bottom: var(--nav-height);
+        }
+
+        /* Fixed Header */
+        .app-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--header-height);
+            background: rgba(var(--app-bg), 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            z-index: 1000;
+        }
+
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: var(--nav-height);
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding-bottom: env(safe-area-inset-bottom);
+            z-index: 1000;
+        }
+
+        .nav-tab {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: var(--muted);
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            width: 25%;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .nav-tab.active {
+            color: var(--blue);
+        }
+
+        .nav-tab svg {
+            width: 24px;
+            height: 24px;
+            transition: transform 0.2s;
+        }
+
+        .nav-tab:active svg {
+            transform: scale(0.9);
+        }
+
+        /* Layout & Panels */
+        .tab-content {
             display: none;
+            padding: 1.5rem;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .tab-content.active {
@@ -126,161 +158,54 @@
         .dashboard-grid {
             display: flex;
             flex-direction: column;
-            gap: 2rem;
-            max-width: 1400px;
+            gap: 1.5rem;
+            max-width: 600px;
             margin: 0 auto;
-        }
-
-        .panels-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-        }
-
-        @media (max-width: 1200px) {
-            .panels-row {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 768px) {
-            :root {
-                --sidebar-width: 100%;
-            }
-
-            .sidebar {
-                position: fixed;
-                left: -100%;
-                top: 0;
-                bottom: 0;
-                height: 100vh;
-                width: 280px;
-                transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                box-shadow: 20px 0 50px rgba(0, 0, 0, 0.1);
-            }
-
-            .sidebar.open {
-                left: 0;
-            }
-
-            .sidebar-overlay {
-                display: none;
-                position: fixed;
-                inset: 0;
-                background: rgba(0, 0, 0, 0.4);
-                backdrop-filter: blur(4px);
-                z-index: 90;
-            }
-
-            .sidebar-overlay.open {
-                display: block;
-            }
-
-            .header {
-                padding: 1rem;
-                gap: 1rem;
-                flex-wrap: wrap;
-            }
-
-            .header .flex.gap-12 {
-                gap: 1.5rem;
-                width: 100%;
-                justify-content: space-between;
-                order: 2;
-            }
-
-            .value-hero {
-                font-size: 1.5rem;
-            }
-
-            .label {
-                font-size: 0.65rem;
-                margin-bottom: 0.25rem;
-            }
-
-            .tab-content {
-                padding: 1rem;
-            }
-
-            .panel-header {
-                padding: 1rem;
-            }
-
-            .matrix {
-                gap: 4px;
-                padding: 1rem;
-            }
-        }
-
-        .menu-btn {
-            display: none;
-            padding: 0.5rem;
-            color: var(--muted);
-            cursor: pointer;
-        }
-
-        @media (max-width: 768px) {
-            .menu-btn {
-                display: block;
-            }
         }
 
         .panel {
             background: var(--card-bg);
             border: 1px solid var(--border);
-            border-radius: 24px;
-            display: flex;
-            flex-direction: column;
+            border-radius: 28px;
             overflow: hidden;
             box-shadow: var(--card-shadow);
         }
 
         .panel-header {
-            padding: 1.5rem;
+            padding: 1.25rem 1.5rem;
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(0, 0, 0, 0.02);
         }
 
         .label {
-            font-size: 0.75rem;
-            font-weight: 700;
+            font-size: 11px;
+            font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.1em;
             color: var(--muted);
-            margin-bottom: 0.5rem;
-            display: block;
+            margin-bottom: 4px;
         }
 
         .value-hero {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 2.25rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
+            font-size: 1.75rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
         }
 
         .matrix {
             display: grid;
             grid-template-columns: repeat(10, 1fr);
-            gap: 8px;
-            padding: 1.5rem;
+            gap: 6px;
+            padding: 1.25rem;
         }
 
         .dot {
             aspect-ratio: 1;
-            border-radius: 6px;
+            border-radius: 8px;
             background: var(--border);
             transition: all 0.2s;
-            cursor: pointer;
-            position: relative;
-        }
-
-        .dot:hover {
-            transform: scale(1.1);
-            z-index: 10;
-            border: 2px solid var(--app-text);
         }
 
         .dot.active {
@@ -298,83 +223,62 @@
             opacity: 0.3;
         }
 
-        .tooltip {
-            position: absolute;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
+        .btn-sync {
             background: var(--accent);
             color: var(--app-bg);
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 0.7rem;
-            font-weight: 700;
-            white-space: nowrap;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
-            z-index: 100;
+            padding: 12px 24px;
+            border-radius: 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
         }
 
-        .dot:hover .tooltip {
-            opacity: 1;
+        .btn-sync:active {
+            transform: scale(0.96);
+        }
+
+        .btn-sync:disabled {
+            opacity: 0.3;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.9rem;
         }
 
         th {
             text-align: left;
-            padding: 1.25rem;
-            position: sticky;
-            top: 0;
-            background: var(--card-bg);
+            padding: 1rem;
             color: var(--muted);
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            font-weight: 800;
+            font-size: 10px;
+            font-weight: 900;
             border-bottom: 1px solid var(--border);
-            z-index: 10;
         }
 
         td {
-            padding: 1rem 1.25rem;
+            padding: 1rem;
             border-bottom: 1px solid var(--border);
+            font-size: 13px;
         }
 
-        tr:hover {
-            background: rgba(0, 0, 0, 0.01);
-        }
-
-        .btn-sync {
-            background: var(--accent);
-            color: var(--app-bg);
-            padding: 0.75rem 1.5rem;
-            border-radius: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-sync:hover {
-            transform: translateY(-1px);
-        }
-
-        .btn-sync:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
+        .empty-state {
+            padding: 4rem 2rem;
+            text-align: center;
+            background: var(--card-bg);
+            border-radius: 32px;
+            border: 2px dashed var(--border);
+            color: var(--muted);
         }
 
         @keyframes pulse {
 
             0%,
             100% {
-                opacity: 0.5;
+                opacity: 0.6;
             }
 
             50% {
@@ -382,174 +286,121 @@
             }
         }
 
-        .empty-state {
-            height: 300px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            border: 2px dashed var(--border);
-            border-radius: 24px;
-            color: var(--muted);
+        /* Utility classes */
+        .glass {
+            background: rgba(var(--card-bg), 0.7);
+            backdrop-filter: blur(10px);
         }
+
+        .shadow-inner {
+            box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+        }
+
+        /* Hide scrollbar */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+
+        * {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
     </style>
 </head>
 
-<body class="dark h-full">
-    <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
-
-    <!-- Persistent Sidebar -->
-    <aside id="app-sidebar" class="sidebar">
-        <div class="p-8 pb-12">
-            <h1 class="header-font text-2xl font-bold tracking-tight uppercase italic" data-ui="app_title">HQ
-                Station</h1>
+<body class="dark overflow-hidden">
+    <!-- Fixed App Header -->
+    <header class="app-header">
+        <div class="flex flex-col">
+            <h1 class="header-font text-xl font-bold tracking-tight uppercase italic leading-none" data-ui="app_title">
+                HQ Station</h1>
+            <div id="engine-status" class="text-[9px] font-black uppercase tracking-widest opacity-40 mt-1">Standby
+            </div>
         </div>
-
-        <nav class="flex-1">
-            <div class="nav-item active" onclick="switchTab('sync', this)" data-ui="nav_sync">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+        <div class="flex items-center gap-4">
+            <button onclick="toggleTheme()"
+                class="p-3 hover:bg-[var(--app-bg)] rounded-2xl transition-all border border-[var(--border)] active:scale-90">
+                <svg id="theme-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    stroke-width="2.5">
+                    <path
+                        d="M12 3v1m0 16v1m9-9h1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z">
                     </path>
                 </svg>
-                Data Synchronization
-            </div>
-            <div class="nav-item" onclick="switchTab('strategies', this)" data-ui="nav_strategies">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
-                    </path>
-                </svg>
-                Swing Strategies
-            </div>
-            <div class="nav-item" onclick="switchTab('backtest', this)" data-ui="nav_backtest">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                        d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                        d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
-                </svg>
-                Backtesting Results
-            </div>
-            <div class="nav-item" onclick="switchTab('portfolio', this)" data-ui="nav_portfolio">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-                    </path>
-                </svg>
-                Live Execution
-            </div>
-        </nav>
-
-        <div class="p-8 mt-auto border-t border-[var(--border)]">
-            <div id="engine-status"
-                class="text-[9px] font-bold uppercase tracking-widest px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg inline-block w-fit">
-                Standby</div>
+            </button>
+            <button id="start-btn" onclick="startBackfill()" class="btn-sync" data-ui="btn_sync">Sync</button>
         </div>
-    </aside>
+    </header>
 
     <main class="main-view">
-        <!-- Persistent Header -->
-        <header class="header">
-            <div class="flex items-center gap-6">
-                <button class="menu-btn" onclick="toggleSidebar()">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                            d="M4 6h16M4 12h16m-7 6h7"></path>
-                    </svg>
-                </button>
-                <button onclick="toggleTheme()" class="p-2 hover:bg-[var(--app-bg)] rounded-lg transition-all"><svg
-                        id="theme-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                        stroke-width="2.5">
-                        <path
-                            d="M12 3v1m0 16v1m9-9h1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z">
-                        </path>
-                    </svg></button>
-            </div>
-            <div class="flex gap-12">
-                <div><span class="label" data-ui="label_total_records">Total Records</span>
+        <!-- Hero Stats Card -->
+        <div class="px-6 mb-4">
+            <div class="panel p-6 flex justify-between items-center shadow-inner">
+                <div class="flex flex-col">
+                    <span class="label" data-ui="label_total_records">Total Records</span>
                     <div class="value-hero" id="db-rows">0</div>
                 </div>
-                <div><span class="label" data-ui="label_new_records">New Records</span>
+                <div class="h-12 w-[1px] bg-[var(--border)]"></div>
+                <div class="flex flex-col items-end">
+                    <span class="label" data-ui="label_new_records">New Records</span>
                     <div class="value-hero text-blue-500" id="stat-candles">0</div>
                 </div>
-                <div><span class="label" data-ui="label_status">Connection Status</span>
-                    <div class="value-hero" id="token-status">--</div>
-                </div>
             </div>
-            <div class="flex items-center gap-4">
-                <button id="start-btn" onclick="startBackfill()" class="btn-sync" data-ui="btn_sync">Confirm &
-                    Sync</button>
-            </div>
-        </header>
+        </div>
 
         <!-- Tab: Data Synchronization -->
         <div id="tab-sync" class="tab-content active">
             <div class="dashboard-grid">
-                <!-- Top Row: Radar & Snapshot -->
-                <div class="panels-row">
-                    <div class="panel">
-                        <div class="panel-header"><span class="label mb-0" data-ui="label_sync_radar">Sync
-                                Radar</span><span id="percent-val" class="font-bold text-blue-500">0%</span></div>
-                        <div id="grid-matrix" class="matrix"></div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="label mb-0" data-ui="label_sync_radar">Sync Radar</span>
+                        <span id="percent-val" class="font-bold text-blue-500 text-sm">0%</span>
                     </div>
+                    <div id="grid-matrix" class="matrix"></div>
+                </div>
 
-                    <!-- Latest Snapshot Panel -->
-                    <div class="panel">
-                        <div class="panel-header"><span class="label mb-0" data-ui="label_latest_snapshot">Latest Candle
-                                Snapshot</span></div>
-                        <div class="overflow-hidden">
-                            <table class="text-[10px]" style="font-size: 10px;">
-                                <thead>
-                                    <tr>
-                                        <th class="p-2 py-3">SYM</th>
-                                        <th class="p-2 py-3">CLOSE</th>
-                                        <th class="p-2 py-3">VOL</th>
-                                        <th class="p-2 py-3 text-right">DATE</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="snapshot-body">
-                                    <tr>
-                                        <td colspan="4" class="p-8 text-center opacity-20 italic">Awaiting data...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="label mb-0" data-ui="label_latest_snapshot">Snapshot</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>SYM</th>
+                                    <th>CLOSE</th>
+                                    <th>VOL</th>
+                                    <th class="text-right">DATE</th>
+                                </tr>
+                            </thead>
+                            <tbody id="snapshot-body">
+                                <tr>
+                                    <td colspan="4" class="p-8 text-center opacity-20 italic">Awaiting data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <!-- Bottom Row: Coverage & Footprint -->
-                <div class="panels-row">
-                    <div class="panel p-8 space-y-6">
-                        <div class="flex items-center justify-between border-b border-[var(--border)] pb-4">
-                            <span class="label mb-0" data-ui="label_data_horizon">Data Coverage & Horizon</span>
-                            <span class="text-[10px] uppercase font-black opacity-20">Global View</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-8">
-                            <div>
-                                <span class="label" data-ui="label_horizon_symbols">Active Symbols</span>
-                                <div class="text-2xl font-bold" id="horizon-symbols">0</div>
-                            </div>
-                            <div>
-                                <span class="label" data-ui="label_horizon_density">Data Density</span>
-                                <div class="text-2xl font-bold text-emerald-500">HIGH</div>
-                            </div>
+                <div class="panel p-6 space-y-4">
+                    <div class="flex items-center justify-between border-b border-[var(--border)] pb-4">
+                        <span class="label mb-0" data-ui="label_data_horizon">Coverage</span>
+                        <span id="token-status"
+                            class="text-[10px] font-black uppercase text-emerald-500">Connected</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <span class="label" data-ui="label_horizon_symbols">Symbols</span>
+                            <div class="text-xl font-bold" id="horizon-symbols">0</div>
                         </div>
                         <div>
-                            <span class="label" data-ui="label_horizon_range">Data Horizon</span>
-                            <div class="text-lg font-bold opacity-80" id="horizon-range">--</div>
+                            <span class="label" data-ui="label_system_footprint">Size</span>
+                            <div class="text-xl font-bold" id="db-size">0.0 MB</div>
                         </div>
                     </div>
-
-                    <div class="panel p-8 space-y-4">
-                        <span class="label" data-ui="label_system_footprint">System Footprint</span>
-                        <div>
-                            <div class="text-xl font-bold" id="db-size">0.0 MB</div>
-                            <div id="table-name" class="text-[10px] mono opacity-30 uppercase">--</div>
-                        </div>
-                        <div class="pt-4 border-t border-[var(--border)]"><span class="label">Last Interaction</span>
-                            <div id="last-sync" class="text-xs font-bold opacity-40">--</div>
-                        </div>
+                    <div class="pt-2">
+                        <span class="label" data-ui="label_horizon_range">Data Horizon</span>
+                        <div class="text-xs font-bold opacity-60" id="horizon-range">--</div>
                     </div>
                 </div>
             </div>
@@ -557,62 +408,106 @@
 
         <!-- Tab: Strategies -->
         <div id="tab-strategies" class="tab-content">
-            <div class="empty-state">
-                <svg class="w-12 h-12 mb-4 opacity-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                </svg>
-                <div class="font-black uppercase tracking-widest text-xs">Strategy Hub Planning</div>
-                <div class="text-[10px] mt-2 opacity-30">Phase 2: Define your swing logic and indicators.</div>
+            <div class="dashboard-grid">
+                <div class="panel p-6">
+                    <div class="flex flex-col gap-4 mb-6">
+                        <h2 class="text-xl font-bold" data-ui="label_strategy_hub">Strategy Hub</h2>
+                        <div
+                            class="flex items-center justify-between gap-3 p-3 bg-[var(--app-bg)] rounded-2xl border border-[var(--border)]">
+                            <span class="text-[10px] uppercase font-black opacity-40 ml-2"
+                                data-ui="label_strategy_selector">Strategy</span>
+                            <select id="strategy-select"
+                                class="bg-transparent text-xs font-bold outline-none cursor-pointer flex-1 text-right pr-2">
+                                <option value="golden_rsi" data-ui="strat_golden_rsi">Golden RSI</option>
+                                <option value="sma_cross" data-ui="strat_sma_cross">SMA 20/50 Cross</option>
+                            </select>
+                        </div>
+                        <button onclick="runStrategyScan()" id="scan-btn" class="btn-sync w-full"
+                            data-ui="btn_scan">Scan Universe</button>
+                    </div>
+
+                    <div class="overflow-hidden rounded-2xl border border-[var(--border)]">
+                        <table>
+                            <tbody id="signals-body">
+                                <tr>
+                                    <td class="p-12 text-center opacity-20 italic">Run a scan to find opportunities.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Tab: Backtest -->
         <div id="tab-backtest" class="tab-content">
-            <div class="empty-state">
-                <svg class="w-12 h-12 mb-4 opacity-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M9 17v-2m3 2v-4m3 2v-6m-8 9h11a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2z">
-                    </path>
-                </svg>
-                <div class="font-black uppercase tracking-widest text-xs">Backtest Studio Future</div>
-                <div class="text-[10px] mt-2 opacity-30">Phase 3: Deep performance analytics and PNL simulation.</div>
+            <div class="dashboard-grid">
+                <div class="empty-state">
+                    <div class="font-black uppercase tracking-widest text-[10px] opacity-40">Backtest Studio</div>
+                    <div class="text-xs mt-2 opacity-30">Coming in Phase 3</div>
+                </div>
             </div>
         </div>
 
         <!-- Tab: Portfolio -->
         <div id="tab-portfolio" class="tab-content">
-            <div class="empty-state">
-                <svg class="w-12 h-12 mb-4 opacity-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z">
-                    </path>
-                </svg>
-                <div class="font-black uppercase tracking-widest text-xs">Broker Bridge Execution</div>
-                <div class="text-[10px] mt-2 opacity-30">Phase 4: Place orders directly on your FYERS terminal.</div>
+            <div class="dashboard-grid">
+                <div class="empty-state">
+                    <div class="font-black uppercase tracking-widest text-[10px] opacity-40">Live Execution</div>
+                    <div class="text-xs mt-2 opacity-30">Coming in Phase 4</div>
+                </div>
             </div>
         </div>
     </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <div class="nav-tab active" onclick="switchTab('sync', this)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                </path>
+            </svg>
+            <span data-ui="nav_sync_short">Data</span>
+        </div>
+        <div class="nav-tab" onclick="switchTab('strategies', this)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z">
+                </path>
+            </svg>
+            <span data-ui="nav_strategies_short">Signals</span>
+        </div>
+        <div class="nav-tab" onclick="switchTab('backtest', this)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                </path>
+            </svg>
+            <span data-ui="nav_backtest_short">Test</span>
+        </div>
+        <div class="nav-tab" onclick="switchTab('portfolio', this)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                </path>
+            </svg>
+            <span data-ui="nav_portfolio_short">Live</span>
+        </div>
+    </nav>
 
     <script>
         const API_URL = window.location.origin;
         let currentData = null;
 
-        function toggleSidebar() {
-            const sidebar = document.getElementById('app-sidebar');
-            const overlay = document.getElementById('sidebar-overlay');
-            sidebar.classList.toggle('open');
-            overlay.classList.toggle('open');
-        }
-
         function switchTab(id, el) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll('.nav-tab').forEach(n => n.classList.remove('active'));
             document.getElementById(`tab-${id}`).classList.add('active');
             el.classList.add('active');
 
-            // Auto close on mobile
-            if (window.innerWidth <= 768) toggleSidebar();
+            // Scroll to top of main view when switching
+            document.querySelector('.main-view').scrollTo(0, 0);
         }
 
         const matrix = document.getElementById('grid-matrix');
@@ -620,7 +515,6 @@
             const dot = document.createElement('div');
             dot.className = 'dot';
             dot.id = `dot-${i}`;
-            dot.innerHTML = `<div class="tooltip" id="tip-${i}">Pending...</div>`;
             matrix.appendChild(dot);
         }
 
@@ -632,49 +526,81 @@
                 : `<path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>`;
         }
 
+        async function runStrategyScan() {
+            const btn = document.getElementById('scan-btn');
+            const tbody = document.getElementById('signals-body');
+            const strategy = document.getElementById('strategy-select').value;
+
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+            tbody.innerHTML = `<tr><td class="p-12 text-center opacity-40 italic animate-pulse">Running ${strategy.replace('_', ' ').toUpperCase()} scan...</td></tr>`;
+
+            try {
+                const res = await fetch(`${API_URL}/api/signals?strategy=${strategy}`);
+                const signals = await res.json();
+
+                if (signals.length === 0) {
+                    tbody.innerHTML = '<tr><td class="p-12 text-center opacity-20 italic">No signals found.</td></tr>';
+                } else {
+                    tbody.innerHTML = signals.map(s => `
+                        <tr class="hover:bg-blue-500/5 transition-colors">
+                            <td class="p-4">
+                                <div class="font-bold text-base">${s.symbol}</div>
+                                <div class="text-[9px] font-black uppercase opacity-30 mt-1">${s.trend}</div>
+                            </td>
+                            <td class="p-4 text-right">
+                                <div class="font-black text-blue-500 text-sm">₹${s.price.toLocaleString()}</div>
+                                <div class="text-[9px] font-bold opacity-40 mt-1">${s.metric}</div>
+                                <button onclick="openChart('${s.symbol}')" class="mt-2 text-[9px] font-black uppercase tracking-widest text-blue-400 bg-blue-500/5 px-3 py-2 rounded-lg border border-blue-500/10 active:scale-95">Chart</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {
+                tbody.innerHTML = '<tr><td class="p-12 text-center text-red-500 italic">Scan failed.</td></tr>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Scan Universe';
+            }
+        }
+
+        function openChart(symbol) {
+            const url = `https://www.tradingview.com/chart/?symbol=NSE:${symbol.replace('&', '_').replace('-', '_')}`;
+            window.open(url, '_blank');
+        }
+
         async function updateDashboard() {
             try {
                 const res = await fetch(`${API_URL}/api/status`);
                 const data = await res.json();
-                currentData = data;
+
+                document.getElementById('db-rows').textContent = data.total_db_rows.toLocaleString();
+                document.getElementById('stat-candles').textContent = data.total_candles.toLocaleString();
+
+                const tokenEl = document.getElementById('token-status');
+                tokenEl.textContent = data.token_valid ? "Connected" : "Expired";
+                tokenEl.className = `text-[10px] font-black uppercase ${data.token_valid ? 'text-emerald-500' : 'text-red-500'}`;
+
                 const results = Object.entries(data.symbol_results);
                 for (let i = 0; i < 100; i++) {
                     const dot = document.getElementById(`dot-${i}`);
-                    const tip = document.getElementById(`tip-${i}`);
-                    dot.className = 'dot';
-                    if (results[i]) {
-                        const [sym, stats] = results[i];
-                        dot.classList.add(stats.status);
-                        tip.textContent = `${sym}: ${stats.status.toUpperCase()} (${stats.candles})`;
+                    if (dot) {
+                        dot.className = 'dot';
+                        if (results[i]) dot.classList.add(results[i][1].status);
                     }
                 }
-                document.getElementById('db-rows').textContent = data.total_db_rows.toLocaleString();
-                document.getElementById('stat-candles').textContent = data.total_candles.toLocaleString();
-                document.getElementById('token-status').textContent = data.token_valid ? "Authenticated" : "Expired";
-                document.getElementById('token-status').className = `value-hero ${data.token_valid ? 'text-emerald-500' : 'text-red-500'}`;
 
-                // Robust progress calculation
-                const total = data.total_symbols || 100;
-                const percent = Math.min(100, data.processed > 0 ? Math.round((data.processed / total) * 100) : 0);
+                const percent = Math.min(100, data.processed > 0 ? Math.round((data.processed / (data.total_symbols || 100)) * 100) : 0);
                 document.getElementById('percent-val').textContent = `${percent}%`;
 
                 const engineEl = document.getElementById('engine-status');
-                const config = window.uiConfig || {};
-                if (data.is_running) {
-                    engineEl.textContent = config.engine_active || "Pipeline Active";
-                    engineEl.className = "text-[9px] font-bold tracking-widest px-3 py-1 bg-green-500/10 text-green-400 rounded-lg animate-pulse inline-block w-fit";
-                } else {
-                    engineEl.textContent = config.engine_standby || "Standby";
-                    engineEl.className = "text-[9px] font-bold tracking-widest px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg inline-block w-fit";
-                }
-                document.getElementById('db-size').textContent = `${data.db_size_mb} MB`;
-                document.getElementById('last-sync').textContent = data.last_run;
+                engineEl.textContent = data.is_running ? "Pipeline Active" : "Standby";
+                engineEl.className = `text-[9px] font-black uppercase tracking-widest mt-1 ${data.is_running ? 'text-emerald-500 animate-pulse' : 'opacity-40'}`;
 
-                // Data Horizon
+                document.getElementById('db-size').textContent = `${data.db_size_mb} MB`;
                 document.getElementById('horizon-symbols').textContent = data.unique_symbols;
                 document.getElementById('horizon-range').textContent = `${data.min_date} → ${data.max_date}`;
 
-                // Update Snapshot
                 updateSnapshot();
             } catch (e) { }
         }
@@ -687,25 +613,13 @@
                 if (snapshot.length > 0) {
                     tbody.innerHTML = snapshot.map(s => `
                         <tr>
-                            <td class="font-black p-2 py-3">${s.symbol}</td>
-                            <td class="font-bold p-2 py-3 text-blue-500">${s.close.toFixed(2)}</td>
-                            <td class="mono p-2 py-3 opacity-60">${(s.volume / 1000000).toFixed(1)}M</td>
-                            <td class="text-right p-2 py-3 opacity-30">${s.date}</td>
+                            <td class="font-black p-4">${s.symbol}</td>
+                            <td class="font-bold p-4 text-blue-500">₹${s.close.toFixed(0)}</td>
+                            <td class="mono p-4 opacity-40 text-[10px]">${(s.volume / 1000000).toFixed(1)}M</td>
+                            <td class="text-right p-4 opacity-20 text-[10px]">${s.date.split('-').slice(1).join('/')}</td>
                         </tr>
                     `).join('');
                 }
-            } catch (e) { }
-        }
-
-        async function loadUIConfig() {
-            try {
-                const res = await fetch(`${API_URL}/api/ui_config`);
-                const config = await res.json();
-                window.uiConfig = config;
-                document.querySelectorAll('[data-ui]').forEach(el => {
-                    const key = el.getAttribute('data-ui');
-                    if (config[key]) el.textContent = config[key];
-                });
             } catch (e) { }
         }
 
@@ -714,8 +628,8 @@
             catch (e) { }
         }
 
-        loadUIConfig();
-        setInterval(updateDashboard, 2000);
+        // Initialize
+        setInterval(updateDashboard, 5000);
         updateDashboard();
     </script>
 </body>
