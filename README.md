@@ -1,6 +1,6 @@
 # Algorithmic Trading - FYERS Data Backfill
 
-A Python-based system for fetching and storing historical equity market data from FYERS API for algorithmic trading strategies.
+A Python-based system for fetching and storing historical equity market data from FYERS API for algorithmic trading strategies. Please find the details below.
 
 ## 📋 Features
 
