@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
 from fyers_apiv3 import fyersModel
 
+import load_env  # Auto-load .env file
+
 from config.settings import (
     FYERS_CLIENT_ID,
     FYERS_SECRET_KEY,

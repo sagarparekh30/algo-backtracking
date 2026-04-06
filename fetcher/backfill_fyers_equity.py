@@ -8,6 +8,10 @@ from typing import List, Tuple, Optional
 
 from fyers_apiv3 import fyersModel
 
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import load_env  # Auto-load .env file
+
 from config.settings import (
     DB_PATH,
     SYMBOL_FILE,

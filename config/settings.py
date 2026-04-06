@@ -84,6 +84,36 @@ LOG_DIR = os.getenv(
 # VALIDATION
 # =========================================================
 
+# =========================================================
+# TELEGRAM
+# =========================================================
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# =========================================================
+# RISK MANAGEMENT
+# =========================================================
+
+INITIAL_CAPITAL = float(os.getenv("INITIAL_CAPITAL", "500000"))
+RISK_PER_TRADE_PCT = float(os.getenv("RISK_PER_TRADE_PCT", "1.0"))
+MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", "10"))
+ATR_PERIOD = int(os.getenv("ATR_PERIOD", "14"))
+ATR_MULTIPLIER = float(os.getenv("ATR_MULTIPLIER", "2.0"))
+REWARD_RISK_RATIO = float(os.getenv("REWARD_RISK_RATIO", "2.0"))
+MAX_HOLD_DAYS = int(os.getenv("MAX_HOLD_DAYS", "20"))
+
+# =========================================================
+# BACKTEST
+# =========================================================
+
+# Optional override: set to ISO date string e.g. "2023-01-01"
+BACKTEST_START_DATE = os.getenv("BACKTEST_START_DATE")
+
+# =========================================================
+# VALIDATION
+# =========================================================
+
 def validate_config():
     """Validate that required configuration is present."""
     errors = []

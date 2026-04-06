@@ -1,0 +1,417 @@
+"""
+Backtesting engine — simulates strategy signals on historical data
+without look-ahead bias.
+
+Entry:  signal generated on bar N → entry at bar N+1 open price
+Exits:
+  - Stop loss: bar low <= stop_loss price
+  - Target:    bar high >= target price
+  - Time:      max hold days exceeded, exit at close
+"""
+
+import os
+import sys
+import sqlite3
+import logging
+import math
+from datetime import datetime
+
+import pandas as pd
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import load_env  # noqa: F401
+
+from config.settings import DB_PATH, TABLE_NAME, INITIAL_CAPITAL, MAX_HOLD_DAYS
+from risk.manager import RiskManager
+
+logger = logging.getLogger(__name__)
+
+# Minimum history required before generating signals
+MIN_HISTORY = 200
+
+
+class BacktestEngine:
+    """
+    Event-driven backtesting engine that simulates one trade per symbol
+    at a time (no simultaneous positions per symbol).
+    """
+
+    def __init__(
+        self,
+        db_path: str = None,
+        table_name: str = None,
+        risk_manager: RiskManager = None,
+    ):
+        self.db_path = db_path or DB_PATH
+        self.table_name = table_name or TABLE_NAME
+        self.risk_manager = risk_manager or RiskManager()
+        self.initial_capital = self.risk_manager.capital
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def run(
+        self,
+        strategy_id: str,
+        symbol: str = None,
+        start_date: str = None,
+        end_date: str = None,
+    ) -> dict:
+        """
+        Run a backtest for a strategy.
+
+        Args:
+            strategy_id: Strategy key (e.g. 'golden_rsi').
+            symbol: If provided, only backtest this symbol; else all symbols.
+            start_date: ISO date string filter (optional).
+            end_date: ISO date string filter (optional).
+
+        Returns:
+            dict with keys: trades, metrics, equity_curve, per_symbol
+        """
+        all_trades = []
+        per_symbol = {}
+
+        try:
+            conn = sqlite3.connect(self.db_path)
+
+            if symbol:
+                symbols = [symbol]
+            else:
+                symbols = pd.read_sql(
+                    f"SELECT DISTINCT symbol FROM {self.table_name}", conn
+                )["symbol"].tolist()
+
+            for sym in symbols:
+                try:
+                    df = self._load_symbol_data(sym, start_date, end_date, conn)
+                    if df is None or len(df) < MIN_HISTORY + 5:
+                        continue
+
+                    trades = self._simulate_symbol(df, sym, strategy_id)
+                    if trades:
+                        all_trades.extend(trades)
+                        per_symbol[sym] = self._calculate_metrics(
+                            trades, self.initial_capital
+                        )
+                except Exception as e:
+                    logger.error(f"Backtest error for {sym}: {e}")
+
+            conn.close()
+        except Exception as e:
+            logger.error(f"BacktestEngine.run error: {e}")
+
+        metrics = self._calculate_metrics(all_trades, self.initial_capital)
+        equity_curve = self._build_equity_curve(all_trades, self.initial_capital)
+
+        return {
+            "trades": all_trades,
+            "metrics": metrics,
+            "equity_curve": equity_curve,
+            "per_symbol": per_symbol,
+        }
+
+    # ------------------------------------------------------------------
+    # Data loading
+    # ------------------------------------------------------------------
+
+    def _load_symbol_data(
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+        conn: sqlite3.Connection = None,
+    ) -> pd.DataFrame | None:
+        """Load OHLCV data for a symbol from the database."""
+        try:
+            close_conn = False
+            if conn is None:
+                conn = sqlite3.connect(self.db_path)
+                close_conn = True
+
+            query = (
+                f"SELECT trade_date, open, high, low, close, volume "
+                f"FROM {self.table_name} WHERE symbol = ? ORDER BY trade_date ASC"
+            )
+            df = pd.read_sql(query, conn, params=(symbol,))
+
+            if close_conn:
+                conn.close()
+
+            if df.empty:
+                return None
+
+            df["trade_date"] = pd.to_datetime(df["trade_date"])
+
+            if start_date:
+                df = df[df["trade_date"] >= pd.to_datetime(start_date)]
+            if end_date:
+                df = df[df["trade_date"] <= pd.to_datetime(end_date)]
+
+            df = df.reset_index(drop=True)
+            return df if len(df) > 0 else None
+
+        except Exception as e:
+            logger.error(f"_load_symbol_data error for {symbol}: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # Simulation
+    # ------------------------------------------------------------------
+
+    def _simulate_symbol(
+        self, df: pd.DataFrame, symbol: str, strategy_id: str
+    ) -> list:
+        """
+        Simulate trading on a single symbol's price history.
+
+        No look-ahead bias:
+          - Signal generated at bar i using df.iloc[:i+1]
+          - Entry is at bar i+1 open price
+
+        Returns:
+            List of trade dicts.
+        """
+        trades = []
+        in_trade = False
+        entry_price = 0.0
+        stop_loss = 0.0
+        target = 0.0
+        shares = 0
+        entry_date = None
+        entry_idx = 0
+        max_hold = MAX_HOLD_DAYS
+
+        n = len(df)
+
+        for i in range(MIN_HISTORY, n - 1):
+            # ---- If not in a trade, check for a new signal ----
+            if not in_trade:
+                df_window = df.iloc[: i + 1].copy()
+                signal = self._get_strategy_signal(df_window, symbol, strategy_id)
+
+                if signal is not None:
+                    # Entry at next bar's open
+                    next_bar = df.iloc[i + 1]
+                    entry_price = float(next_bar["open"])
+
+                    atr_val = signal.get("atr", 0.0) or 0.0
+                    trade_params = self.risk_manager.get_trade_params(
+                        entry_price, atr_val
+                    )
+
+                    stop_loss = trade_params["stop_loss"]
+                    target = trade_params["target"]
+                    shares = trade_params["shares"]
+
+                    if shares <= 0 or stop_loss >= entry_price:
+                        continue  # Skip invalid trade
+
+                    entry_date = next_bar["trade_date"]
+                    entry_idx = i + 1
+                    in_trade = True
+
+            # ---- If in a trade, check for exit ----
+            elif in_trade:
+                current_bar = df.iloc[i]
+                bars_held = i - entry_idx
+
+                exit_price = None
+                exit_reason = None
+
+                # Check stop loss (low touched or broke stop)
+                if float(current_bar["low"]) <= stop_loss:
+                    exit_price = stop_loss
+                    exit_reason = "Stop Loss"
+
+                # Check target (high reached target)
+                elif float(current_bar["high"]) >= target:
+                    exit_price = target
+                    exit_reason = "Target Hit"
+
+                # Check max hold days
+                elif bars_held >= max_hold:
+                    exit_price = float(current_bar["close"])
+                    exit_reason = "Max Hold Days"
+
+                if exit_price is not None:
+                    pnl = (exit_price - entry_price) * shares
+                    pnl_pct = ((exit_price - entry_price) / entry_price) * 100.0
+
+                    trades.append(
+                        {
+                            "symbol": symbol,
+                            "entry_date": entry_date.strftime("%Y-%m-%d")
+                            if hasattr(entry_date, "strftime")
+                            else str(entry_date),
+                            "exit_date": current_bar["trade_date"].strftime(
+                                "%Y-%m-%d"
+                            )
+                            if hasattr(current_bar["trade_date"], "strftime")
+                            else str(current_bar["trade_date"]),
+                            "entry_price": round(entry_price, 2),
+                            "exit_price": round(exit_price, 2),
+                            "stop_loss": round(stop_loss, 2),
+                            "target": round(target, 2),
+                            "shares": shares,
+                            "pnl": round(pnl, 2),
+                            "pnl_pct": round(pnl_pct, 2),
+                            "exit_reason": exit_reason,
+                            "hold_days": bars_held,
+                        }
+                    )
+                    in_trade = False
+                    entry_price = stop_loss = target = 0.0
+                    shares = 0
+
+        return trades
+
+    # ------------------------------------------------------------------
+    # Strategy signal dispatcher
+    # ------------------------------------------------------------------
+
+    def _get_strategy_signal(
+        self, df_window: pd.DataFrame, symbol: str, strategy_id: str
+    ) -> dict | None:
+        """
+        Generate a signal using the strategies defined in swing_executor.
+
+        Args:
+            df_window: Data available up to current bar (no look-ahead).
+            symbol: Symbol name.
+            strategy_id: Strategy key.
+
+        Returns:
+            Signal dict (including atr key) or None.
+        """
+        try:
+            # Lazy import to avoid circular dependency
+            from strategies.swing_executor import StrategyManager
+
+            mgr = StrategyManager()
+            strategy_fn = mgr._get_strategy_fn(strategy_id)
+            if strategy_fn is None:
+                return None
+
+            return strategy_fn(df_window, symbol)
+        except Exception as e:
+            logger.debug(f"Signal error for {symbol} ({strategy_id}): {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # Metrics
+    # ------------------------------------------------------------------
+
+    def _calculate_metrics(self, trades: list, initial_capital: float) -> dict:
+        """
+        Compute aggregate performance metrics from a list of trades.
+
+        Args:
+            trades: List of trade dicts from _simulate_symbol.
+            initial_capital: Starting capital.
+
+        Returns:
+            Metrics dict.
+        """
+        if not trades:
+            return {
+                "total_trades": 0,
+                "win_count": 0,
+                "loss_count": 0,
+                "win_rate": 0.0,
+                "total_pnl": 0.0,
+                "total_pnl_pct": 0.0,
+                "avg_pnl_per_trade": 0.0,
+                "max_drawdown": 0.0,
+                "max_drawdown_pct": 0.0,
+                "sharpe_ratio": 0.0,
+                "profit_factor": 0.0,
+                "best_trade": 0.0,
+                "worst_trade": 0.0,
+                "avg_hold_days": 0.0,
+            }
+
+        pnls = [t["pnl"] for t in trades]
+        pnl_pcts = [t["pnl_pct"] for t in trades]
+        hold_days = [t["hold_days"] for t in trades]
+
+        wins = [p for p in pnls if p > 0]
+        losses = [p for p in pnls if p <= 0]
+
+        total_pnl = sum(pnls)
+        total_pnl_pct = (total_pnl / initial_capital) * 100.0
+
+        win_rate = (len(wins) / len(pnls)) * 100.0 if pnls else 0.0
+        avg_pnl = total_pnl / len(pnls) if pnls else 0.0
+
+        gross_profit = sum(wins) if wins else 0.0
+        gross_loss = abs(sum(losses)) if losses else 0.0
+        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else float("inf")
+
+        # Sharpe ratio (daily returns, annualised)
+        if len(pnl_pcts) > 1:
+            mean_ret = np.mean(pnl_pcts)
+            std_ret = np.std(pnl_pcts, ddof=1)
+            sharpe = (mean_ret / std_ret) * math.sqrt(252) if std_ret > 0 else 0.0
+        else:
+            sharpe = 0.0
+
+        # Max drawdown on equity curve
+        equity = initial_capital
+        peak = initial_capital
+        max_dd = 0.0
+        max_dd_pct = 0.0
+        for pnl in pnls:
+            equity += pnl
+            if equity > peak:
+                peak = equity
+            dd = peak - equity
+            dd_pct = (dd / peak) * 100.0 if peak > 0 else 0.0
+            if dd > max_dd:
+                max_dd = dd
+                max_dd_pct = dd_pct
+
+        return {
+            "total_trades": len(trades),
+            "win_count": len(wins),
+            "loss_count": len(losses),
+            "win_rate": round(win_rate, 1),
+            "total_pnl": round(total_pnl, 2),
+            "total_pnl_pct": round(total_pnl_pct, 2),
+            "avg_pnl_per_trade": round(avg_pnl, 2),
+            "max_drawdown": round(max_dd, 2),
+            "max_drawdown_pct": round(max_dd_pct, 2),
+            "sharpe_ratio": round(sharpe, 2),
+            "profit_factor": round(profit_factor, 2) if profit_factor != float("inf") else 999.0,
+            "best_trade": round(max(pnls), 2),
+            "worst_trade": round(min(pnls), 2),
+            "avg_hold_days": round(sum(hold_days) / len(hold_days), 1) if hold_days else 0.0,
+        }
+
+    # ------------------------------------------------------------------
+    # Equity curve
+    # ------------------------------------------------------------------
+
+    def _build_equity_curve(self, trades: list, initial_capital: float) -> list:
+        """
+        Build an equity curve list sorted by exit date.
+
+        Returns:
+            List of {date: str, equity: float}
+        """
+        if not trades:
+            return [{"date": datetime.today().strftime("%Y-%m-%d"), "equity": initial_capital}]
+
+        # Sort by exit date
+        sorted_trades = sorted(trades, key=lambda t: t["exit_date"])
+
+        equity = initial_capital
+        curve = [{"date": sorted_trades[0]["entry_date"], "equity": equity}]
+
+        for trade in sorted_trades:
+            equity += trade["pnl"]
+            curve.append({"date": trade["exit_date"], "equity": round(equity, 2)})
+
+        return curve

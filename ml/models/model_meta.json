@@ -1,0 +1,56 @@
+{
+  "trained_at": "2026-04-06T10:40:03.744969",
+  "symbols_used": 99,
+  "training_samples": 23600,
+  "test_samples": 5900,
+  "positive_rate_pct": 26.36,
+  "accuracy": 0.6783,
+  "precision_buy": 0.3948,
+  "recall_buy": 0.4141,
+  "f1_buy": 0.4043,
+  "auc_roc": 0.6354,
+  "forward_days": 5,
+  "target_return_pct": 2.0,
+  "top_features": [
+    {
+      "name": "atr_norm",
+      "importance": 0.103
+    },
+    {
+      "name": "dist_sma200",
+      "importance": 0.0754
+    },
+    {
+      "name": "bb_width",
+      "importance": 0.0577
+    },
+    {
+      "name": "minus_di",
+      "importance": 0.0471
+    },
+    {
+      "name": "hi_lo_range_norm",
+      "importance": 0.0439
+    },
+    {
+      "name": "ret_20d",
+      "importance": 0.0407
+    },
+    {
+      "name": "macd_line_norm",
+      "importance": 0.0393
+    },
+    {
+      "name": "dist_ema55",
+      "importance": 0.0393
+    },
+    {
+      "name": "ret_10d",
+      "importance": 0.039
+    },
+    {
+      "name": "adx_val",
+      "importance": 0.0379
+    }
+  ]
+}
