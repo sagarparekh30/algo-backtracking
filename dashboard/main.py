@@ -350,6 +350,148 @@ async def get_all_signals():
         return {}
 
 
+@app.get("/api/combined/signals")
+async def combined_signals():
+    """
+    Combined signals: strategy setup + ML probability filter.
+
+    Flow:
+      1. Run all 16 strategies → find stocks with a valid entry setup
+      2. Score each of those stocks through the ML model
+      3. Keep only stocks where ML probability >= regime-adjusted BUY threshold
+      4. Return sorted by probability desc, then strategy count desc
+
+    Each result includes the full trade plan (entry, stop, target) from the
+    strategy PLUS the ML conviction score and expected return %.
+    """
+    import pandas as pd
+    from ml.model import MLPredictor, THRESHOLDS
+    from ml.regime import compute_regime
+
+    # ── Step 1: Market regime ───────────────────────────────────────────
+    try:
+        regime_data = compute_regime()
+        regime      = regime_data.get("regime", "Neutral")
+    except Exception:
+        regime_data = {}
+        regime      = "Neutral"
+
+    buy_thresh, avoid_thresh = THRESHOLDS.get(regime, THRESHOLDS["Neutral"])
+
+    # ── Step 2: Run all strategies ──────────────────────────────────────
+    try:
+        manager     = StrategyManager()
+        all_signals = manager.get_all_signals()   # {strategy_id: [signal, ...]}
+    except Exception as e:
+        return {"error": f"Strategy scan failed: {e}", "results": []}
+
+    # Collect per-symbol: all strategies that fired + best trade params
+    symbol_map: dict = {}
+    for strategy_id, signals in all_signals.items():
+        for sig in signals:
+            sym = sig.get("symbol", "")
+            if not sym:
+                continue
+            if sym not in symbol_map:
+                symbol_map[sym] = {
+                    "strategies": [],
+                    "entry":      sig.get("entry"),
+                    "stop_loss":  sig.get("stop_loss"),
+                    "target":     sig.get("target"),
+                    "atr":        sig.get("atr"),
+                }
+            symbol_map[sym]["strategies"].append(strategy_id)
+
+    if not symbol_map:
+        return {"results": [], "count": 0, "regime": regime_data,
+                "message": "No strategy signals found today"}
+
+    # ── Step 3: Load ML model ────────────────────────────────────────────
+    predictor = MLPredictor()
+    if not predictor.load():
+        return {"error": "ML model not trained — POST /api/ml/train first",
+                "results": []}
+
+    engine = get_engine()
+
+    # ── Step 4: Score each symbol with the ML model ──────────────────────
+    results = []
+    for sym, info in symbol_map.items():
+        try:
+            df = pd.read_sql(
+                f"SELECT trade_date, open, high, low, close, volume "
+                f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
+                engine, params={"sym": sym},
+            )
+            if df.empty or len(df) < 260:
+                continue
+
+            ml = predictor.predict_symbol(df, sym, regime=regime)
+            if "error" in ml:
+                continue
+
+            prob = ml.get("buy_probability", 0)
+
+            # Only keep if ML agrees with the strategy (above regime BUY threshold)
+            if prob < buy_thresh:
+                continue
+
+            # Live price overlay
+            price        = ml.get("price", 0)
+            price_source = "last_close"
+            tick         = live_feed.get(sym)
+            if tick and tick.get("ltp"):
+                ltp          = float(tick["ltp"])
+                price        = ltp
+                price_source = "live"
+                exp_ret      = ml.get("expected_return_pct")
+                if exp_ret is not None and ltp > 0:
+                    ml["price_target"] = round(ltp * (1 + exp_ret / 100), 2)
+
+            strategy_count = len(info["strategies"])
+
+            results.append({
+                "symbol":              sym,
+                "buy_probability":     prob,
+                "confidence":          ml.get("confidence"),
+                "expected_return_pct": ml.get("expected_return_pct"),
+                "price_target":        ml.get("price_target"),
+                "price":               price,
+                "price_source":        price_source,
+                # Trade plan from strategy
+                "entry":               info["entry"],
+                "stop_loss":           info["stop_loss"],
+                "target":              info["target"],
+                "atr":                 info["atr"],
+                # Strategy agreement
+                "strategies":          info["strategies"],
+                "strategy_count":      strategy_count,
+                "regime":              regime,
+                "buy_threshold_used":  buy_thresh,
+            })
+
+        except Exception as e:
+            print(f"Combined signal error for {sym}: {e}")
+
+    # Sort: primary = ML probability, secondary = strategy count
+    results.sort(
+        key=lambda x: (x["buy_probability"], x["strategy_count"]),
+        reverse=True,
+    )
+
+    total_strategy_signals = sum(len(v) for v in all_signals.values())
+
+    return {
+        "results":                results,
+        "count":                  len(results),
+        "regime":                 regime_data,
+        "buy_threshold":          buy_thresh,
+        "symbols_with_signals":   len(symbol_map),
+        "ml_confirmed":           len(results),
+        "total_strategy_signals": total_strategy_signals,
+    }
+
+
 @app.get("/api/backtest")
 async def run_backtest(strategy: str = "golden_rsi", symbol: str = None):
     """

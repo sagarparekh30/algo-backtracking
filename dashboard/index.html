@@ -137,11 +137,132 @@
       background: var(--s1);
       border-top: 1px solid var(--border);
       display: flex;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
       z-index: 50;
+    }
+    .nav::-webkit-scrollbar { display: none; }
+
+    /* ── Mode toggle (Strategy / AI-Confirmed) ── */
+    .mode-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--s2);
+      color: var(--txt3);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .mode-btn-active {
+      background: var(--s3);
+      border-color: var(--sig);
+      color: var(--sig);
+    }
+
+    /* ── Combined signal card ── */
+    .comb-card {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .comb-card:last-child { border-bottom: none; }
+    .comb-card-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .comb-symbol {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: .3px;
+    }
+    .comb-prob-wrap {
+      flex: 1;
+    }
+    .comb-prob-bar-bg {
+      height: 6px;
+      background: var(--s3);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .comb-prob-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .4s;
+    }
+    .comb-prob-pct {
+      font-size: 18px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .comb-conf-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    .comb-strategies {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+    .strat-tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 7px;
+      border-radius: 5px;
+      background: var(--sig-d);
+      color: var(--sig);
+      border: 1px solid rgba(16,185,129,.2);
+    }
+    .comb-trade-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+    .comb-trade-cell {
+      background: var(--s2);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .comb-trade-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--txt3);
+      margin-bottom: 3px;
+    }
+    .comb-trade-val {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .comb-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
     }
 
     .nav-btn {
-      flex: 1;
+      flex: 0 0 calc(100vw / 6);
+      min-width: 56px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -159,6 +280,7 @@
       -webkit-tap-highlight-color: transparent;
       transition: color .2s;
       position: relative;
+      scroll-snap-align: start;
     }
     .nav-btn svg { width: 22px; height: 22px; transition: transform .2s; }
     .nav-btn:active svg { transform: scale(.9); }
@@ -177,6 +299,7 @@
     .nav-btn[data-tab="bt"]      { --c: var(--bt);   }
     .nav-btn[data-tab="live"]    { --c: var(--live); }
     .nav-btn[data-tab="ml"]      { --c: #6366f1;     }
+    .nav-btn[data-tab="execute"] { --c: #f43f5e;     }
 
     .nav-btn.active { color: var(--c); }
     .nav-btn.active::before { background: var(--c); opacity: 1; }
@@ -838,11 +961,10 @@
     <div class="tab-banner" style="--banner-from:#052e16;--banner-to:#042010;">
       <div>
         <div class="tab-banner-title">Signal Scanner</div>
-        <div class="tab-banner-sub">6 strategies · Nifty 100</div>
+        <div class="tab-banner-sub">16 strategies · Nifty 100</div>
       </div>
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(16,185,129,.4)" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
     </div>
-
     <div class="page">
       <div class="card card-accent-sig card-p" style="display:flex;flex-direction:column;gap:12px;">
         <div class="field" style="--focus-color:var(--sig)">
@@ -882,7 +1004,6 @@
           Scan Universe
         </button>
       </div>
-
       <div class="card">
         <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Results</span>
@@ -1258,6 +1379,73 @@
     </div>
   </div>
 
+  <!-- ───────────── TAB: EXECUTE ───────────── -->
+  <div id="tab-execute" class="tab">
+    <div class="tab-banner" style="--banner-from:#2d0a14;--banner-to:#1a0509;">
+      <div>
+        <div class="tab-banner-title">Execute</div>
+        <div class="tab-banner-sub">Strategy setup · AI validated · Ready to trade</div>
+      </div>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(244,63,94,.4)" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+    </div>
+
+    <div class="page">
+
+      <!-- Regime card -->
+      <div class="card card-p" style="display:flex;align-items:center;gap:14px;">
+        <div id="exec-regime-dot" style="width:12px;height:12px;border-radius:50%;background:var(--txt3);flex-shrink:0;box-shadow:0 0 8px var(--txt3);"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:700;" id="exec-regime-label">— Market</div>
+          <div style="font-size:11px;color:var(--txt2);" id="exec-regime-sub">Load regime to see market breadth</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:10px;color:var(--txt3);margin-bottom:2px;">BUY threshold</div>
+          <div style="font-size:20px;font-weight:800;color:#f43f5e;font-family:'JetBrains Mono',monospace;" id="exec-threshold">—</div>
+        </div>
+      </div>
+
+      <!-- Run button -->
+      <button class="btn btn-full" id="exec-run-btn" onclick="runExecute()"
+        style="background:linear-gradient(135deg,#f43f5e,#6366f1);color:#fff;font-weight:700;border:none;font-size:15px;padding:14px;">
+        <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+        Find Today's Best Trades
+      </button>
+
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;" id="exec-stats">
+        <div class="card card-p" style="text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--sig);" id="exec-stat-hits">—</div>
+          <div style="font-size:10px;color:var(--txt3);margin-top:2px;">Strategy Hits</div>
+        </div>
+        <div class="card card-p" style="text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--live);" id="exec-stat-symbols">—</div>
+          <div style="font-size:10px;color:var(--txt3);margin-top:2px;">Stocks Fired</div>
+        </div>
+        <div class="card card-p" style="text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:#f43f5e;" id="exec-stat-confirmed">—</div>
+          <div style="font-size:10px;color:var(--txt3);margin-top:2px;">AI Confirmed</div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="card">
+        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">High-Conviction Trades</span>
+          <span id="exec-count" style="font-size:11px;font-weight:600;color:var(--txt3);">—</span>
+        </div>
+        <div class="divider"></div>
+        <div id="exec-body">
+          <div class="empty">
+            <div class="empty-icon" style="background:rgba(244,63,94,.1);">🎯</div>
+            <div class="empty-title">Ready to scan</div>
+            <div class="empty-sub">Tap the button above — strategies find the setup, AI validates the edge. Only the best trades make it through.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div><!-- /scroll -->
 
 <!-- ══════════════════════════════════ NAV -->
@@ -1281,6 +1469,10 @@
   <button class="nav-btn" data-tab="ml" onclick="go('ml',this)">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/></svg>
     AI
+  </button>
+  <button class="nav-btn" data-tab="execute" onclick="go('execute',this)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+    Execute
   </button>
 </nav>
 
@@ -1319,7 +1511,8 @@ function go(id, el) {
   document.getElementById('tab-' + id).classList.add('active');
   el.classList.add('active');
   document.querySelector('.scroll').scrollTo(0, 0);
-  if (id === 'live') { loadWatchlist(); refreshLive(); }
+  if (id === 'live')    { loadWatchlist(); refreshLive(); }
+  if (id === 'execute') { loadExecuteRegime(); }
 }
 
 // ── Clock ──────────────────────────────────────────────
@@ -1994,6 +2187,169 @@ async function refreshScheduler() {
       });
     }
   } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════
+// EXECUTE TAB — Strategy + AI Combined
+// ══════════════════════════════════════════════════════
+
+async function loadExecuteRegime() {
+  try {
+    const d = await j(`${API}/api/ml/regime`);
+    const regime = d.regime || 'Unknown';
+    const colors = { Bull:'var(--green)', Neutral:'var(--live)', Bear:'var(--red)' };
+    const dot = document.getElementById('exec-regime-dot');
+    dot.style.background  = colors[regime] || 'var(--txt3)';
+    dot.style.boxShadow   = `0 0 10px ${colors[regime] || 'var(--txt3)'}`;
+    set('exec-regime-label', regime + ' Market');
+    set('exec-regime-sub', `${d.breadth_pct || 0}% stocks above SMA50 · ${d.volatility_label || ''} volatility · ${d.symbols_checked || 0} stocks analysed`);
+    const thresh = { Bull:'55%', Neutral:'60%', Bear:'65%' };
+    set('exec-threshold', thresh[regime] || '60%');
+  } catch(e) {}
+}
+
+function _probColor(p) {
+  if (p >= 0.70) return 'var(--green)';
+  if (p >= 0.60) return '#22d3ee';
+  if (p >= 0.50) return 'var(--live)';
+  return 'var(--txt3)';
+}
+
+function _confBadgeStyle(conf) {
+  const map = {
+    'Very High': 'background:rgba(16,185,129,.2);color:var(--green);',
+    'High':      'background:rgba(34,211,238,.15);color:#22d3ee;',
+    'Moderate':  'background:rgba(245,158,11,.15);color:var(--live);',
+    'Low':       'background:var(--s3);color:var(--txt3);',
+    'Very Low':  'background:var(--s3);color:var(--txt3);',
+  };
+  return map[conf] || 'background:var(--s3);color:var(--txt3);';
+}
+
+function _stratLabel(id) {
+  const labels = {
+    golden_rsi:'Golden RSI', sma_cross:'SMA Cross', macd_cross:'MACD Cross',
+    bollinger_bounce:'BB Bounce', breakout:'Breakout', volume_surge:'Vol Surge',
+    golden_cross:'Golden Cross', supertrend:'Supertrend', stochastic:'Stochastic',
+    adx_trend:'ADX Trend', hammer:'Hammer', bullish_engulfing:'Engulfing',
+    squeeze:'Squeeze', ema_ribbon:'EMA Ribbon', high_52w:'52W High', cci_bounce:'CCI Bounce',
+  };
+  return labels[id] || id;
+}
+
+async function runExecute() {
+  const btn  = document.getElementById('exec-run-btn');
+  const body = document.getElementById('exec-body');
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Scanning 100 stocks…';
+  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1.2s linear infinite;font-size:32px;">⚡</div><div class="empty-title">Running 16 strategies + AI filter</div><div class="empty-sub">Analysing all 100 Nifty stocks — takes 30–90 seconds</div></div>';
+
+  try {
+    const d = await j(`${API}/api/combined/signals`);
+
+    // Stats
+    set('exec-stat-hits',      d.total_strategy_signals || 0);
+    set('exec-stat-symbols',   d.symbols_with_signals   || 0);
+    set('exec-stat-confirmed', d.ml_confirmed           || 0);
+    set('exec-count', (d.count || 0) + ' trade ideas');
+
+    // Refresh regime from response
+    if (d.regime) {
+      const regime = d.regime.regime || 'Unknown';
+      const colors = { Bull:'var(--green)', Neutral:'var(--live)', Bear:'var(--red)' };
+      const dot = document.getElementById('exec-regime-dot');
+      dot.style.background = colors[regime] || 'var(--txt3)';
+      dot.style.boxShadow  = `0 0 10px ${colors[regime] || 'var(--txt3)'}`;
+      set('exec-regime-label', regime + ' Market');
+      set('exec-regime-sub', `${d.regime.breadth_pct||0}% stocks above SMA50 · ${d.regime.volatility_label||''} volatility`);
+      const thresh = { Bull:'55%', Neutral:'60%', Bear:'65%' };
+      set('exec-threshold', thresh[regime] || '60%');
+    }
+
+    if (!d.results || !d.results.length) {
+      const pct = Math.round((d.buy_threshold || 0) * 100);
+      const mkt  = d.regime && d.regime.regime ? d.regime.regime : '';
+      body.innerHTML = `<div class="empty"><div class="empty-icon" style="background:rgba(244,63,94,.1);">🔍</div><div class="empty-title">No confirmed trades today</div><div class="empty-sub">Strategies found ${d.symbols_with_signals||0} setups but none cleared the ${pct}% AI threshold in the current ${mkt} market. Try again tomorrow or after new data loads.</div></div>`;
+      return;
+    }
+
+    body.innerHTML = d.results.map((r, i) => {
+      const prob  = r.buy_probability || 0;
+      const pct   = Math.round(prob * 100);
+      const color = _probColor(prob);
+      const conf  = r.confidence || '';
+      const fmt   = v => v != null ? '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:2}) : '—';
+
+      const stratTags = (r.strategies || []).map(s =>
+        `<span class="strat-tag">${_stratLabel(s)}</span>`
+      ).join('');
+      const multiTag = r.strategy_count > 1
+        ? `<span class="strat-tag" style="background:rgba(244,63,94,.2);color:#fb7185;border-color:rgba(244,63,94,.3);">⚡ ${r.strategy_count} strategies</span>`
+        : '';
+
+      const priceLabel = r.price_source === 'live'
+        ? `<span style="color:var(--green);font-size:10px;font-weight:700;">●LIVE</span>`
+        : `<span style="color:var(--txt3);font-size:10px;">(last close)</span>`;
+
+      const expRet = r.expected_return_pct != null
+        ? `<span style="color:var(--green);font-size:12px;font-weight:700;">+${r.expected_return_pct}% AI target</span>`
+        : '';
+
+      const rankBadge = i < 3
+        ? `<span style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:5px;background:rgba(244,63,94,.2);color:#f43f5e;margin-left:6px;">#${i+1}</span>`
+        : '';
+
+      return `
+        <div class="comb-card">
+          <div class="comb-card-top">
+            <div style="display:flex;align-items:center;">
+              <div class="comb-symbol">${r.symbol}</div>${rankBadge}
+            </div>
+            <div class="comb-prob-wrap">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;">
+                <span style="font-size:10px;color:var(--txt3);">AI probability</span>
+                <span class="comb-prob-pct" style="color:${color};">${pct}%</span>
+              </div>
+              <div class="comb-prob-bar-bg">
+                <div class="comb-prob-bar-fill" style="width:${pct}%;background:${color};"></div>
+              </div>
+            </div>
+            <div class="comb-conf-badge" style="${_confBadgeStyle(conf)}">${conf}</div>
+          </div>
+
+          <div class="comb-strategies">${multiTag}${stratTags}</div>
+
+          <div class="comb-trade-grid">
+            <div class="comb-trade-cell">
+              <div class="comb-trade-label">Entry</div>
+              <div class="comb-trade-val">${fmt(r.entry || r.price)}</div>
+            </div>
+            <div class="comb-trade-cell">
+              <div class="comb-trade-label">Stop Loss</div>
+              <div class="comb-trade-val" style="color:var(--red);">${fmt(r.stop_loss)}</div>
+            </div>
+            <div class="comb-trade-cell">
+              <div class="comb-trade-label">Target</div>
+              <div class="comb-trade-val" style="color:var(--green);">${fmt(r.target || r.price_target)}</div>
+            </div>
+          </div>
+
+          <div class="comb-footer">
+            <div style="display:flex;align-items:center;gap:6px;">
+              ${priceLabel}
+              <span style="font-size:13px;font-weight:700;">${fmt(r.price)}</span>
+            </div>
+            ${expRet}
+          </div>
+        </div>`;
+    }).join('');
+
+  } catch(e) {
+    body.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">Error</div><div class="empty-sub">${e.message || 'Check that ML model is trained'}</div></div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg> Find Today\'s Best Trades';
+  }
 }
 
 // ── Init ───────────────────────────────────────────────

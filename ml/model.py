@@ -217,9 +217,22 @@ class MLPredictor:
         r2   = round(r2_score(y_reg_te, y_reg_pred), 4)
 
         # ── 6. Feature importances ─────────────────────────────────────
-        rf_clf = base_clf_pipeline.named_steps["clf"]
+        # calibrated_clf is Pipeline(scaler, CalibratedClassifierCV(RF))
+        # Average importances across the calibrated estimators' folds.
+        try:
+            cal_step = calibrated_clf.named_steps["clf"]   # CalibratedClassifierCV
+            # Each calibrated_classifiers_ item is a _CalibratedClassifier;
+            # the actual RF lives at .estimator inside each one.
+            importances = np.mean(
+                [cc.estimator.feature_importances_
+                 for cc in cal_step.calibrated_classifiers_],
+                axis=0,
+            )
+        except Exception as e:
+            logger.warning(f"Feature importance extraction failed: {e}")
+            importances = np.zeros(len(FEATURE_NAMES))
         top_features = sorted(
-            zip(FEATURE_NAMES, rf_clf.feature_importances_),
+            zip(FEATURE_NAMES, importances),
             key=lambda x: x[1], reverse=True,
         )[:10]
 
