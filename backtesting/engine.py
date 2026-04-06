@@ -11,7 +11,6 @@ Exits:
 
 import os
 import sys
-import sqlite3
 import logging
 import math
 from datetime import datetime
@@ -22,7 +21,8 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # noqa: F401
 
-from config.settings import DB_PATH, TABLE_NAME, INITIAL_CAPITAL, MAX_HOLD_DAYS
+from config.settings import TABLE_NAME, INITIAL_CAPITAL, MAX_HOLD_DAYS
+from db.connection import get_engine
 from risk.manager import RiskManager
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,6 @@ class BacktestEngine:
         table_name: str = None,
         risk_manager: RiskManager = None,
     ):
-        self.db_path = db_path or DB_PATH
         self.table_name = table_name or TABLE_NAME
         self.risk_manager = risk_manager or RiskManager()
         self.initial_capital = self.risk_manager.capital
@@ -75,7 +74,7 @@ class BacktestEngine:
         per_symbol = {}
 
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = get_engine()
 
             if symbol:
                 symbols = [symbol]
@@ -86,7 +85,7 @@ class BacktestEngine:
 
             for sym in symbols:
                 try:
-                    df = self._load_symbol_data(sym, start_date, end_date, conn)
+                    df = self._load_symbol_data(sym, start_date, end_date)
                     if df is None or len(df) < MIN_HISTORY + 5:
                         continue
 
@@ -99,7 +98,6 @@ class BacktestEngine:
                 except Exception as e:
                     logger.error(f"Backtest error for {sym}: {e}")
 
-            conn.close()
         except Exception as e:
             logger.error(f"BacktestEngine.run error: {e}")
 
@@ -120,25 +118,17 @@ class BacktestEngine:
     def _load_symbol_data(
         self,
         symbol: str,
-        start_date: str,
-        end_date: str,
-        conn: sqlite3.Connection = None,
+        start_date: str = None,
+        end_date: str = None,
     ) -> pd.DataFrame | None:
         """Load OHLCV data for a symbol from the database."""
         try:
-            close_conn = False
-            if conn is None:
-                conn = sqlite3.connect(self.db_path)
-                close_conn = True
-
+            engine = get_engine()
             query = (
                 f"SELECT trade_date, open, high, low, close, volume "
-                f"FROM {self.table_name} WHERE symbol = ? ORDER BY trade_date ASC"
+                f"FROM {self.table_name} WHERE symbol = %(sym)s ORDER BY trade_date ASC"
             )
-            df = pd.read_sql(query, conn, params=(symbol,))
-
-            if close_conn:
-                conn.close()
+            df = pd.read_sql(query, engine, params={"sym": symbol})
 
             if df.empty:
                 return None

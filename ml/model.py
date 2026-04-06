@@ -19,7 +19,6 @@ import os
 import sys
 import json
 import logging
-import sqlite3
 
 import numpy as np
 import pandas as pd
@@ -28,7 +27,8 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # noqa: F401
 
-from config.settings import DB_PATH, TABLE_NAME, BASE_DIR
+from config.settings import TABLE_NAME, BASE_DIR
+from db.connection import get_conn, get_engine
 from ml.features import compute_features, FEATURE_NAMES
 
 logger = logging.getLogger(__name__)
@@ -93,11 +93,10 @@ class MLPredictor:
         X_test_all,  y_clf_test_all,  y_reg_test_all  = [], [], []
 
         try:
-            conn    = sqlite3.connect(DB_PATH)
+            engine  = get_engine()
             symbols = pd.read_sql(
-                f"SELECT DISTINCT symbol FROM {TABLE_NAME}", conn
+                f"SELECT DISTINCT symbol FROM {TABLE_NAME}", engine
             )["symbol"].tolist()
-            conn.close()
         except Exception as e:
             return {"error": f"DB error: {e}"}
 
@@ -106,13 +105,12 @@ class MLPredictor:
 
         for sym in symbols:
             try:
-                conn = sqlite3.connect(DB_PATH)
-                df   = pd.read_sql(
+                engine = get_engine()
+                df     = pd.read_sql(
                     f"SELECT trade_date, open, high, low, close, volume "
-                    f"FROM {TABLE_NAME} WHERE symbol = ? ORDER BY trade_date ASC",
-                    conn, params=(sym,),
+                    f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
+                    engine, params={"sym": sym},
                 )
-                conn.close()
 
                 if len(df) < MIN_ROWS + FORWARD_DAYS:
                     continue
@@ -166,29 +164,28 @@ class MLPredictor:
             f"(most-recent 20% per symbol) | Positive rate: {pos_rate:.1f}%"
         )
 
-        # ── 1. Train base classifier ────────────────────────────────────
-        base_clf_pipeline = Pipeline([
+        # ── 1. Build calibrated classifier pipeline ─────────────────────
+        # CalibratedClassifierCV wraps the RF *before* fitting and uses
+        # internal cv=5 folds — compatible with scikit-learn >= 1.4.
+        calibrated_clf = Pipeline([
             ("scaler", RobustScaler()),
-            ("clf", RandomForestClassifier(
-                n_estimators=300,
-                max_depth=10,
-                min_samples_leaf=8,
-                max_features="sqrt",
-                class_weight="balanced",
-                random_state=42,
-                n_jobs=-1,
+            ("clf", CalibratedClassifierCV(
+                RandomForestClassifier(
+                    n_estimators=300,
+                    max_depth=10,
+                    min_samples_leaf=8,
+                    max_features="sqrt",
+                    class_weight="balanced",
+                    random_state=42,
+                    n_jobs=-1,
+                ),
+                method="isotonic",
+                cv=5,
             )),
         ])
-        base_clf_pipeline.fit(X_train, y_clf_tr)
+        calibrated_clf.fit(X_train, y_clf_tr)
 
-        # ── 2. Calibrate probabilities (isotonic regression) ───────────
-        # CalibratedClassifierCV with cv='prefit' wraps an already-fitted pipeline
-        calibrated_clf = CalibratedClassifierCV(
-            base_clf_pipeline, method="isotonic", cv="prefit"
-        )
-        calibrated_clf.fit(X_test, y_clf_te)   # calibrate on held-out test set
-
-        # ── 3. Evaluate classifier on test set ─────────────────────────
+        # ── 2. Evaluate on held-out walk-forward test set ──────────────
         y_proba_test  = calibrated_clf.predict_proba(X_test)[:, 1]
         y_pred_test   = (y_proba_test >= 0.60).astype(int)
         clf_report    = classification_report(y_clf_te, y_pred_test, output_dict=True)
@@ -373,23 +370,22 @@ class MLPredictor:
 
         results = []
         try:
-            conn    = sqlite3.connect(DB_PATH)
+            engine  = get_engine()
             symbols = pd.read_sql(
-                f"SELECT DISTINCT symbol FROM {TABLE_NAME}", conn
+                f"SELECT DISTINCT symbol FROM {TABLE_NAME}", engine
             )["symbol"].tolist()
 
             for sym in symbols:
                 df = pd.read_sql(
                     f"SELECT trade_date, open, high, low, close, volume "
-                    f"FROM {TABLE_NAME} WHERE symbol = ? ORDER BY trade_date ASC",
-                    conn, params=(sym,),
+                    f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
+                    engine, params={"sym": sym},
                 )
                 if len(df) >= MIN_ROWS:
                     r = self.predict_symbol(df, sym, regime=regime)
                     if "error" not in r:
                         results.append(r)
 
-            conn.close()
         except Exception as e:
             logger.error(f"predict_all error: {e}")
 

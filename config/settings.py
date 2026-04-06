@@ -23,10 +23,14 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 # If ENV variables are present → use them
 # Otherwise → fall back to sensible local defaults
 
-DB_PATH = os.getenv(
-    "DB_PATH",
-    str(BASE_DIR / "data" / "marketdata.db")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://trading:trading@localhost:5432/trading"
 )
+
+# Legacy alias — kept so any remaining references don't crash at import time.
+# All modules should use DATABASE_URL directly.
+DB_PATH = DATABASE_URL
 
 TOKEN_PATH = os.getenv(
     "TOKEN_PATH",
@@ -56,11 +60,27 @@ FYERS_REDIRECT_URI = os.getenv(
 # These control HOW MUCH data is fetched,
 # not WHERE or HOW.
 
-# Used only for one-time historical backfill
-LOOKBACK_YEARS = int(os.getenv("LOOKBACK_YEARS", "2"))
+# Historical backfill — Fyers provides up to ~10 years of daily data.
+# NSE was founded in 1994, so 10 years is the practical maximum from Fyers.
+# Set LOOKBACK_YEARS=10 for maximum history; reduce if you want faster initial sync.
+LOOKBACK_YEARS = int(os.getenv("LOOKBACK_YEARS", "10"))
 
-# Used for daily runs (catch-up safe)
+# Used for daily incremental runs (catch-up safe)
 DAILY_LOOKBACK_DAYS = int(os.getenv("DAILY_LOOKBACK_DAYS", "10"))
+
+# =========================================================
+# SCHEDULER SETTINGS
+# =========================================================
+
+# Daily data update — time in IST (HH:MM), runs after market close
+SCHEDULER_DATA_UPDATE_TIME = os.getenv("SCHEDULER_DATA_UPDATE_TIME", "16:00")
+
+# Weekly ML retrain — day (mon/tue/.../sun) + time in IST
+SCHEDULER_ML_RETRAIN_DAY  = os.getenv("SCHEDULER_ML_RETRAIN_DAY",  "sun")
+SCHEDULER_ML_RETRAIN_TIME = os.getenv("SCHEDULER_ML_RETRAIN_TIME", "22:00")
+
+# Set to "false" to disable auto-scheduler entirely
+SCHEDULER_ENABLED = os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"
 
 # =========================================================
 # DATABASE SETTINGS

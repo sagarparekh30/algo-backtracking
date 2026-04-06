@@ -11,7 +11,6 @@ No external API needed — derived entirely from the SQLite DB.
 
 import os
 import sys
-import sqlite3
 import logging
 
 import numpy as np
@@ -20,7 +19,8 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # noqa: F401
 
-from config.settings import DB_PATH, TABLE_NAME
+from config.settings import TABLE_NAME
+from db.connection import get_engine
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +46,9 @@ def compute_regime() -> dict:
             as_of_date      : str   — most recent trade date in DB
     """
     try:
-        conn = sqlite3.connect(DB_PATH)
+        engine  = get_engine()
         symbols = pd.read_sql(
-            f"SELECT DISTINCT symbol FROM {TABLE_NAME}", conn
+            f"SELECT DISTINCT symbol FROM {TABLE_NAME}", engine
         )["symbol"].tolist()
 
         above, below = 0, 0
@@ -59,8 +59,8 @@ def compute_regime() -> dict:
             try:
                 df = pd.read_sql(
                     f"SELECT trade_date, high, low, close FROM {TABLE_NAME} "
-                    f"WHERE symbol = ? ORDER BY trade_date ASC LIMIT 300",
-                    conn, params=(sym,),
+                    f"WHERE symbol = %(sym)s ORDER BY trade_date ASC LIMIT 300",
+                    engine, params={"sym": sym},
                 )
                 if len(df) < 55:
                     continue
@@ -93,8 +93,6 @@ def compute_regime() -> dict:
 
             except Exception:
                 continue
-
-        conn.close()
 
         total = above + below
         breadth_pct = round((above / total * 100) if total > 0 else 0, 1)

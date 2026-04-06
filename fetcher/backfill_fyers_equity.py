@@ -1,6 +1,5 @@
 import json
 import time
-import sqlite3
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -13,7 +12,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # Auto-load .env file
 
 from config.settings import (
-    DB_PATH,
     SYMBOL_FILE,
     LOOKBACK_YEARS,
     FYERS_CLIENT_ID,
@@ -22,6 +20,7 @@ from config.settings import (
     LOG_DIR,
     validate_config
 )
+from db.connection import get_conn
 
 # ===============================
 # LOGGING SETUP
@@ -159,34 +158,33 @@ def generate_date_chunks(start_date: datetime, end_date: datetime, chunk_days: i
     return chunks
 
 
-def connect_db() -> sqlite3.Connection:
-    """Connect to the database and apply optimizations."""
-    conn = sqlite3.connect(DB_PATH)
-    # Performance optimizations for SQLite
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
-    return conn
+def connect_db():
+    """Return a new PostgreSQL connection."""
+    return get_conn()
 
 
-def insert_candle(cursor: sqlite3.Cursor, row: tuple) -> None:
-    """Insert a candle into the database."""
+def insert_candle(cursor, row: tuple) -> None:
+    """Insert a candle into the database, ignoring duplicates."""
     sql = f"""
-    INSERT OR IGNORE INTO {TABLE_NAME}
+    INSERT INTO {TABLE_NAME}
     (symbol, trade_date, open, high, low, close, volume, source)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (symbol, trade_date) DO NOTHING
     """
     cursor.execute(sql, row)
 
 
-def get_last_date(cursor: sqlite3.Cursor, symbol: str) -> Optional[datetime]:
+def get_last_date(cursor, symbol: str) -> Optional[datetime]:
     """Query the database for the last trade date of a specific symbol."""
-    sql = f"SELECT MAX(trade_date) FROM {TABLE_NAME} WHERE symbol = ?"
+    sql = f"SELECT MAX(trade_date) FROM {TABLE_NAME} WHERE symbol = %s"
     cursor.execute(sql, (symbol,))
     result = cursor.fetchone()
-    
+
     if result and result[0]:
-        return datetime.strptime(result[0], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        d = result[0]
+        if hasattr(d, "strftime"):   # already a date object from psycopg2
+            return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+        return datetime.strptime(str(d), "%Y-%m-%d").replace(tzinfo=timezone.utc)
     return None
 
 

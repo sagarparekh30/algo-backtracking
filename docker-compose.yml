@@ -1,0 +1,78 @@
+version: "3.9"
+
+# =============================================================
+# Trading HQ — Docker Compose
+#
+# Services:
+#   db    — PostgreSQL 16 (persistent volume)
+#   app   — FastAPI dashboard + scheduler
+#
+# Usage:
+#   docker compose up --build          # first run
+#   docker compose up -d               # detached
+#   docker compose down                # stop
+#   docker compose down -v             # stop + delete DB volume
+#
+# Required env variables (copy .env.example → .env and fill in):
+#   FYERS_CLIENT_ID, FYERS_SECRET_KEY
+# =============================================================
+
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       trading
+      POSTGRES_USER:     trading
+      POSTGRES_PASSWORD: trading
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"    # host:5433 → container:5432 (use 5433 since local postgres owns 5432)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trading -d trading"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Application ──────────────────────────────────────
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env                 # your secrets (FYERS_CLIENT_ID, etc.)
+    environment:
+      DATABASE_URL:          postgresql://trading:trading@db:5432/trading
+      LOG_DIR:               /app/logs
+      ENV:                   docker
+      # Scheduler — runs inside the app process
+      SCHEDULER_ENABLED:     "true"
+      SCHEDULER_DATA_UPDATE_TIME: "16:00"
+      SCHEDULER_ML_RETRAIN_DAY:   "sun"
+      SCHEDULER_ML_RETRAIN_TIME:  "22:00"
+    volumes:
+      - app_logs:/app/logs
+      - app_models:/app/ml/models
+      - ./auth:/app/auth           # bind-mount local auth/ so token.json is always in sync
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+# ── Volumes ──────────────────────────────────────────────────
+volumes:
+  pgdata:
+    driver: local
+  app_logs:
+    driver: local
+  app_models:
+    driver: local

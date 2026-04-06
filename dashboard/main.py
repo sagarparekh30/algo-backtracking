@@ -3,7 +3,6 @@ import json
 import asyncio
 import subprocess
 import re
-import sqlite3
 from datetime import datetime
 from typing import List, Optional, Dict
 
@@ -16,10 +15,23 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # noqa: F401
 
-from config.settings import TOKEN_PATH, LOG_DIR, DB_PATH, TABLE_NAME
+from config.settings import TOKEN_PATH, LOG_DIR, TABLE_NAME
+from db.connection import get_conn, get_engine
 from strategies.swing_executor import StrategyManager, STRATEGY_DESCRIPTIONS
 
 app = FastAPI(title="Trading HQ Dashboard")
+
+
+@app.on_event("startup")
+async def startup_event():
+    from scheduler.auto_scheduler import start_scheduler
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    from scheduler.auto_scheduler import stop_scheduler
+    stop_scheduler()
 
 # Enable CORS for local development
 app.add_middleware(
@@ -66,8 +78,19 @@ class DailyRunState:
     last_result: dict = {}
 
 
+class YFinanceState:
+    is_running = False
+    last_run = "Never"
+    last_result: dict = {}
+    processed = 0
+    total = 0
+    current_symbol = "Idle"
+    total_new_candles = 0
+
+
 state = DashboardState()
 daily_run_state = DailyRunState()
+yf_state = YFinanceState()
 
 
 # -------------------------------------------------------
@@ -99,19 +122,28 @@ class SummaryResponse(BaseModel):
 # -------------------------------------------------------
 
 def get_db_stats():
-    """Fetch database health metrics."""
-    if os.path.exists(DB_PATH):
-        state.db_size_mb = round(os.path.getsize(DB_PATH) / (1024 * 1024), 2)
-
+    """Fetch database health metrics from PostgreSQL."""
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_conn()
         cursor = conn.cursor()
-        cursor.execute(f"SELECT COUNT(*), COUNT(DISTINCT symbol), MIN(trade_date), MAX(trade_date) FROM {TABLE_NAME}")
+
+        # Table size
+        cursor.execute(
+            "SELECT pg_total_relation_size(%s) / 1048576.0",
+            (TABLE_NAME,),
+        )
+        row = cursor.fetchone()
+        state.db_size_mb = round(float(row[0] or 0), 2)
+
+        cursor.execute(
+            f"SELECT COUNT(*), COUNT(DISTINCT symbol), "
+            f"MIN(trade_date), MAX(trade_date) FROM {TABLE_NAME}"
+        )
         rows, syms, d1, d2 = cursor.fetchone()
-        state.total_db_rows = rows or 0
+        state.total_db_rows  = rows or 0
         state.unique_symbols = syms or 0
-        state.min_date = d1 or "N/A"
-        state.max_date = d2 or "N/A"
+        state.min_date = str(d1) if d1 else "N/A"
+        state.max_date = str(d2) if d2 else "N/A"
         conn.close()
     except Exception as e:
         print(f"DB Stat Error: {e}")
@@ -192,32 +224,20 @@ async def get_ui_config():
 @app.get("/api/latest_snapshot")
 async def get_latest_snapshot():
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute(f"""
+        import pandas as pd
+        engine = get_engine()
+        df = pd.read_sql(f"""
             SELECT symbol, trade_date, open, high, low, close, volume
-            FROM {TABLE_NAME}
-            WHERE ROWID IN (
-                SELECT MAX(ROWID)
+            FROM (
+                SELECT DISTINCT ON (symbol)
+                    symbol, trade_date, open, high, low, close, volume
                 FROM {TABLE_NAME}
-                GROUP BY symbol
-            )
-            ORDER BY ROWID DESC
+                ORDER BY symbol, trade_date DESC
+            ) latest
+            ORDER BY trade_date DESC
             LIMIT 10
-        """)
-        rows = cursor.fetchall()
-        conn.close()
-        return [
-            {
-                "symbol": r[0],
-                "date": r[1],
-                "open": r[2],
-                "high": r[3],
-                "low": r[4],
-                "close": r[5],
-                "volume": r[6]
-            } for r in rows
-        ]
+        """, engine)
+        return df.to_dict(orient="records")
     except Exception as e:
         print(f"Snapshot Error: {e}")
         return []
@@ -279,7 +299,7 @@ async def run_backfill_task():
     state.last_run = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         process = await asyncio.create_subprocess_exec(
-            "python", "-u", BACKFILL_SCRIPT,
+            sys.executable, "-u", BACKFILL_SCRIPT,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -561,11 +581,37 @@ async def ml_train_status():
     }
 
 
+def _overlay_live_prices(results: list) -> list:
+    """
+    Replace the DB close price with the live feed LTP wherever available.
+    Adds a 'price_source' field: 'live' | 'last_close'.
+    Also adjusts price_target using the live price so it's accurate.
+    """
+    live_prices = live_feed.get_all()   # {symbol: {ltp, ...}} or {}
+
+    for r in results:
+        sym  = r.get("symbol", "")
+        tick = live_prices.get(sym)
+        if tick and tick.get("ltp"):
+            ltp = float(tick["ltp"])
+            r["price"]        = ltp
+            r["price_source"] = "live"
+            r["updated_at"]   = tick.get("updated_at", "")
+            # Recompute price target from live price + expected return
+            exp_ret = r.get("expected_return_pct")
+            if exp_ret is not None and ltp > 0:
+                r["price_target"] = round(ltp * (1 + exp_ret / 100), 2)
+        else:
+            r["price_source"] = "last_close"
+
+    return results
+
+
 @app.get("/api/ml/predict")
 async def ml_predict_all():
     """
     Run ML predictions for all symbols, regime-adjusted thresholds.
-    Returns list sorted by buy_probability descending + regime context.
+    Prices are overlaid with live feed LTP where the feed is running.
     """
     try:
         from ml.model import MLPredictor
@@ -576,9 +622,17 @@ async def ml_predict_all():
             return {"error": "Model not trained yet — POST /api/ml/train first", "results": []}
 
         regime_data = compute_regime()
-        regime = regime_data.get("regime", "Neutral")
-        results = predictor.predict_all(regime=regime)
-        return {"results": results, "count": len(results), "regime": regime_data}
+        regime      = regime_data.get("regime", "Neutral")
+        results     = predictor.predict_all(regime=regime)
+        results     = _overlay_live_prices(results)
+
+        live_count = sum(1 for r in results if r.get("price_source") == "live")
+        return {
+            "results":    results,
+            "count":      len(results),
+            "regime":     regime_data,
+            "live_count": live_count,
+        }
     except Exception as e:
         print(f"ML Predict Error: {e}")
         return {"error": str(e), "results": []}
@@ -586,33 +640,45 @@ async def ml_predict_all():
 
 @app.get("/api/ml/predict/{symbol}")
 async def ml_predict_symbol(symbol: str):
-    """Run ML prediction for a single symbol."""
+    """Run ML prediction for a single symbol with live price overlay."""
     try:
-        import sqlite3
         import pandas as pd
         from ml.model import MLPredictor
         from ml.regime import compute_regime
-        from config.settings import DB_PATH, TABLE_NAME
 
         predictor = MLPredictor()
         if not predictor.load():
             return {"error": "Model not trained yet — POST /api/ml/train first"}
 
         regime_data = compute_regime()
-        regime = regime_data.get("regime", "Neutral")
+        regime      = regime_data.get("regime", "Neutral")
 
-        conn = sqlite3.connect(DB_PATH)
-        df = pd.read_sql(
+        engine = get_engine()
+        df     = pd.read_sql(
             f"SELECT trade_date, open, high, low, close, volume "
-            f"FROM {TABLE_NAME} WHERE symbol = ? ORDER BY trade_date ASC",
-            conn, params=(symbol.upper(),),
+            f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
+            engine, params={"sym": symbol.upper()},
         )
-        conn.close()
 
         if df.empty:
             return {"error": f"No data found for {symbol}"}
 
-        return predictor.predict_symbol(df, symbol.upper(), regime=regime)
+        result = predictor.predict_symbol(df, symbol.upper(), regime=regime)
+
+        # Overlay live price if feed is running for this symbol
+        tick = live_feed.get(symbol.upper())
+        if tick and tick.get("ltp"):
+            ltp = float(tick["ltp"])
+            result["price"]        = ltp
+            result["price_source"] = "live"
+            result["updated_at"]   = tick.get("updated_at", "")
+            exp_ret = result.get("expected_return_pct")
+            if exp_ret is not None and ltp > 0:
+                result["price_target"] = round(ltp * (1 + exp_ret / 100), 2)
+        else:
+            result["price_source"] = "last_close"
+
+        return result
     except Exception as e:
         print(f"ML Predict Symbol Error: {e}")
         return {"error": str(e)}
@@ -651,6 +717,117 @@ async def ml_reliability():
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+# -------------------------------------------------------
+# Yahoo Finance backfill endpoints
+# -------------------------------------------------------
+
+async def _run_yfinance_task():
+    yf_state.is_running = True
+    yf_state.last_run = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    yf_state.processed = 0
+    yf_state.total_new_candles = 0
+    yf_state.current_symbol = "Starting…"
+
+    def progress_cb(processed, total, symbol, total_new):
+        yf_state.processed = processed
+        yf_state.total = total
+        yf_state.current_symbol = symbol
+        yf_state.total_new_candles = total_new
+
+    try:
+        from fetcher.yfinance_fetcher import run_yfinance_backfill
+        result = run_yfinance_backfill(progress_cb=progress_cb)
+        yf_state.last_result = result
+        yf_state.current_symbol = "Done"
+    except Exception as e:
+        print(f"YFinance backfill error: {e}")
+        yf_state.last_result = {"error": str(e)}
+        yf_state.current_symbol = "Error"
+    finally:
+        yf_state.is_running = False
+
+
+@app.post("/api/start_yfinance_backfill")
+async def start_yfinance_backfill(background_tasks: BackgroundTasks):
+    """
+    Fetch full historical data (up to 30 years) for all symbols from Yahoo Finance.
+    Runs in background — poll /api/yfinance/status for progress.
+    """
+    if yf_state.is_running:
+        return {"message": "Yahoo Finance backfill already running", "status": "busy"}
+    background_tasks.add_task(_run_yfinance_task)
+    return {"message": "Yahoo Finance backfill started", "status": "started"}
+
+
+@app.get("/api/yfinance/status")
+async def yfinance_status():
+    """Return Yahoo Finance backfill progress."""
+    pct = round(yf_state.processed / yf_state.total * 100, 1) if yf_state.total > 0 else 0
+    return {
+        "is_running":       yf_state.is_running,
+        "last_run":         yf_state.last_run,
+        "processed":        yf_state.processed,
+        "total":            yf_state.total,
+        "pct":              pct,
+        "current_symbol":   yf_state.current_symbol,
+        "total_new_candles":yf_state.total_new_candles,
+        "last_result":      yf_state.last_result,
+    }
+
+
+@app.get("/api/db/sources")
+async def db_sources():
+    """Return row counts grouped by data source."""
+    try:
+        conn = get_conn()
+        cursor = conn.cursor()
+        cursor.execute(
+            f"SELECT source, COUNT(*) as rows, COUNT(DISTINCT symbol) as symbols, "
+            f"MIN(trade_date) as from_date, MAX(trade_date) as to_date "
+            f"FROM {TABLE_NAME} GROUP BY source ORDER BY rows DESC"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            {"source": r[0], "rows": r[1], "symbols": r[2],
+             "from_date": r[3], "to_date": r[4]}
+            for r in rows
+        ]
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# -------------------------------------------------------
+# Scheduler endpoints
+# -------------------------------------------------------
+
+@app.get("/api/scheduler/status")
+async def scheduler_status():
+    """Return auto-scheduler status, next run times, and last results."""
+    from scheduler.auto_scheduler import get_scheduler_status
+    return get_scheduler_status()
+
+
+@app.post("/api/scheduler/run_data_update")
+async def scheduler_run_data_now(background_tasks: BackgroundTasks):
+    """Manually trigger a data update right now (outside schedule)."""
+    from scheduler.auto_scheduler import trigger_data_update_now, _state
+    if _state.data_update_running:
+        return {"message": "Data update already running", "status": "busy"}
+    background_tasks.add_task(trigger_data_update_now)
+    return {"message": "Data update triggered", "status": "started"}
+
+
+@app.post("/api/scheduler/run_ml_retrain")
+async def scheduler_run_ml_now(background_tasks: BackgroundTasks):
+    """Manually trigger an ML retrain right now (outside schedule)."""
+    from scheduler.auto_scheduler import trigger_ml_retrain_now, _state
+    if _state.ml_retrain_running:
+        return {"message": "ML retrain already running", "status": "busy"}
+    background_tasks.add_task(trigger_ml_retrain_now)
+    return {"message": "ML retrain triggered", "status": "started"}
 
 
 # -------------------------------------------------------

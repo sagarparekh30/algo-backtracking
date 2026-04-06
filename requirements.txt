@@ -13,3 +13,14 @@ numpy>=1.26.0
 # ML prediction
 scikit-learn>=1.4.0
 joblib>=1.3.0
+
+# Auto-scheduler
+apscheduler>=3.10.0
+pytz>=2024.1
+
+# Yahoo Finance
+yfinance>=1.0.0
+
+# PostgreSQL
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.0

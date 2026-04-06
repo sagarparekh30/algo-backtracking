@@ -20,7 +20,6 @@ Strategy Manager — scans market data for swing trading signals.
   16. cci_bounce        — CCI crosses up from below -100
 """
 
-import sqlite3
 import pandas as pd
 import numpy as np
 import os
@@ -30,7 +29,8 @@ import logging
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # noqa: F401
 
-from config.settings import DB_PATH, TABLE_NAME, ATR_PERIOD, ATR_MULTIPLIER, REWARD_RISK_RATIO
+from config.settings import TABLE_NAME, ATR_PERIOD, ATR_MULTIPLIER, REWARD_RISK_RATIO
+from db.connection import get_engine
 from strategies.indicators import (
     rsi, ema, sma, macd, bollinger_bands, atr, volume_surge,
     stochastic, adx, supertrend, cci, keltner_channels,
@@ -60,7 +60,6 @@ STRATEGY_DESCRIPTIONS = {
 
 class StrategyManager:
     def __init__(self):
-        self.db_path = DB_PATH
         self.table_name = TABLE_NAME
 
     # ── Public API ─────────────────────────────────────────────────────
@@ -74,16 +73,16 @@ class StrategyManager:
             return signals
 
         try:
-            conn = sqlite3.connect(self.db_path)
+            engine  = get_engine()
             symbols = pd.read_sql(
-                f"SELECT DISTINCT symbol FROM {self.table_name}", conn
+                f"SELECT DISTINCT symbol FROM {self.table_name}", engine
             )["symbol"].tolist()
 
             for symbol in symbols:
                 try:
                     df = pd.read_sql(
-                        f"SELECT * FROM {self.table_name} WHERE symbol = ? ORDER BY trade_date ASC",
-                        conn, params=(symbol,),
+                        f"SELECT * FROM {self.table_name} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
+                        engine, params={"sym": symbol},
                     )
                     sig = strategy_fn(df, symbol)
                     if sig:
@@ -91,7 +90,6 @@ class StrategyManager:
                 except Exception as e:
                     logger.error(f"Error scanning {symbol} with {strategy_id}: {e}")
 
-            conn.close()
         except Exception as e:
             logger.error(f"Strategy scan error ({strategy_id}): {e}")
 

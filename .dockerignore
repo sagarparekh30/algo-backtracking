@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Data files (large, mounted via volumes in prod)
+data/*.db
+data/*.csv
+
+# Logs
+logs/
+
+# ML models (mounted via volume)
+ml/models/*.joblib
+ml/models/*.json
+
+# Auth tokens (mounted via volume, never bake into image)
+auth/token.json
+auth/*.json
+
+# Local env
+.env
+*.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Mac
+.DS_Store

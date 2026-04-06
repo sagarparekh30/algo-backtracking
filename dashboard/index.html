@@ -1,637 +1,2008 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
-
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TRADING HQ | DATA STATION</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap"
-        rel="stylesheet">
-    <style>
-        :root {
-            --app-bg: #f4f4f5;
-            --app-text: #09090b;
-            --card-bg: #ffffff;
-            --border: #e4e4e7;
-            --accent: #18181b;
-            --muted: #71717a;
-            --blue: #2563eb;
-            --green: #10b981;
-            --red: #ef4444;
-            --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-            --header-height: 70px;
-            --nav-height: 75px;
-        }
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <title>Apex Trading</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        .dark {
-            --app-bg: #09090b;
-            --app-text: #f4f4f5;
-            --card-bg: #111113;
-            --border: #1e1e21;
-            --accent: #fafafa;
-            --muted: #52525b;
-            --blue: #3b82f6;
-            --card-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.3);
-        }
+    /* ═══════════════════════════════════════════
+       DESIGN TOKENS
+    ═══════════════════════════════════════════ */
+    :root {
+      --bg:       #07080f;
+      --s1:       #0c0f1a;
+      --s2:       #111827;
+      --s3:       #1a2235;
+      --border:   #1e2a3d;
+      --border2:  #243044;
 
-        body {
-            background-color: var(--app-bg);
-            color: var(--app-text);
-            transition: all 0.3s ease;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 16px;
-            -webkit-font-smoothing: antialiased;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-            user-select: none;
-        }
+      --txt:      #e2e8f6;
+      --txt2:     #94a3b8;
+      --txt3:     #4b5e7a;
 
-        .header-font {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-        }
+      /* tab accent colours */
+      --data:     #3b82f6;
+      --data-d:   rgba(59,130,246,.12);
+      --sig:      #10b981;
+      --sig-d:    rgba(16,185,129,.12);
+      --bt:       #8b5cf6;
+      --bt-d:     rgba(139,92,246,.12);
+      --live:     #f59e0b;
+      --live-d:   rgba(245,158,11,.12);
 
-        .mono {
-            font-family: 'JetBrains Mono', monospace;
-        }
+      --green:    #10b981;
+      --green-d:  rgba(16,185,129,.15);
+      --red:      #f43f5e;
+      --red-d:    rgba(244,63,94,.15);
 
-        /* Main View Container */
-        .main-view {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            overflow-y: auto;
-            padding-top: var(--header-height);
-            padding-bottom: var(--nav-height);
-        }
+      --nav-h:    64px;
+      --hdr-h:    58px;
+    }
 
-        /* Fixed Header */
-        .app-header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: var(--header-height);
-            background: rgba(var(--app-bg), 0.8);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 1.5rem;
-            z-index: 1000;
-        }
+    body {
+      background: var(--bg);
+      color: var(--txt);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
 
-        /* Bottom Navigation */
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: var(--nav-height);
-            background: var(--card-bg);
-            border-top: 1px solid var(--border);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            padding-bottom: env(safe-area-inset-bottom);
-            z-index: 1000;
-        }
+    /* ═══════════════════════════════════════════
+       HEADER
+    ═══════════════════════════════════════════ */
+    .hdr {
+      height: var(--hdr-h);
+      background: var(--s1);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 50;
+    }
+    .hdr::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, var(--data), var(--sig), var(--bt), var(--live));
+      opacity: .6;
+    }
 
-        .nav-tab {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            color: var(--muted);
-            font-size: 10px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            cursor: pointer;
-            width: 25%;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+    .logo {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c4b5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
 
-        .nav-tab.active {
-            color: var(--blue);
-        }
+    .hdr-right { display: flex; align-items: center; gap: 8px; }
 
-        .nav-tab svg {
-            width: 24px;
-            height: 24px;
-            transition: transform 0.2s;
-        }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: .3px;
+    }
+    .chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .chip-green { background: var(--green-d); color: var(--green); border: 1px solid rgba(16,185,129,.25); }
+    .chip-red   { background: var(--red-d);   color: var(--red);   border: 1px solid rgba(244,63,94,.25); }
+    .chip-gray  { background: var(--s3);       color: var(--txt2);  border: 1px solid var(--border); }
+    .chip-amber { background: var(--live-d);   color: var(--live);  border: 1px solid rgba(245,158,11,.25); }
 
-        .nav-tab:active svg {
-            transform: scale(0.9);
-        }
+    .hdr-clock {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--txt3);
+      letter-spacing: .5px;
+    }
 
-        /* Layout & Panels */
-        .tab-content {
-            display: none;
-            padding: 1.5rem;
-            animation: slideUp 0.3s ease-out;
-        }
+    /* ═══════════════════════════════════════════
+       SCROLL AREA
+    ═══════════════════════════════════════════ */
+    .scroll {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-bottom: calc(var(--nav-h) + 8px);
+    }
+    .scroll::-webkit-scrollbar { display: none; }
 
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
+    /* ═══════════════════════════════════════════
+       BOTTOM NAV
+    ═══════════════════════════════════════════ */
+    .nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: var(--nav-h);
+      background: var(--s1);
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 50;
+    }
 
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+    .nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      border: none;
+      background: none;
+      color: var(--txt3);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      transition: color .2s;
+      position: relative;
+    }
+    .nav-btn svg { width: 22px; height: 22px; transition: transform .2s; }
+    .nav-btn:active svg { transform: scale(.9); }
 
-        .tab-content.active {
-            display: block;
-        }
+    .nav-btn::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 20%; right: 20%;
+      height: 2px;
+      border-radius: 0 0 4px 4px;
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .nav-btn[data-tab="data"]    { --c: var(--data); }
+    .nav-btn[data-tab="signals"] { --c: var(--sig);  }
+    .nav-btn[data-tab="bt"]      { --c: var(--bt);   }
+    .nav-btn[data-tab="live"]    { --c: var(--live); }
+    .nav-btn[data-tab="ml"]      { --c: #6366f1;     }
 
-        .dashboard-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            max-width: 600px;
-            margin: 0 auto;
-        }
+    .nav-btn.active { color: var(--c); }
+    .nav-btn.active::before { background: var(--c); opacity: 1; }
 
-        .panel {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 28px;
-            overflow: hidden;
-            box-shadow: var(--card-shadow);
-        }
+    /* ═══════════════════════════════════════════
+       TABS
+    ═══════════════════════════════════════════ */
+    .tab { display: none; }
+    .tab.active { display: block; }
 
-        .panel-header {
-            padding: 1.25rem 1.5rem;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+    /* ═══════════════════════════════════════════
+       SECTION + PAGE LAYOUT
+    ═══════════════════════════════════════════ */
+    .page { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 
-        .label {
-            font-size: 11px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--muted);
-            margin-bottom: 4px;
-        }
+    .section-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--txt3);
+      letter-spacing: .7px;
+      text-transform: uppercase;
+    }
 
-        .value-hero {
-            font-size: 1.75rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-        }
+    /* ═══════════════════════════════════════════
+       CARDS
+    ═══════════════════════════════════════════ */
+    .card {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .card-p { padding: 16px; }
 
-        .matrix {
-            display: grid;
-            grid-template-columns: repeat(10, 1fr);
-            gap: 6px;
-            padding: 1.25rem;
-        }
+    /* Accent top border */
+    .card-accent-data  { border-top: 2px solid var(--data); }
+    .card-accent-sig   { border-top: 2px solid var(--sig);  }
+    .card-accent-bt    { border-top: 2px solid var(--bt);   }
+    .card-accent-live  { border-top: 2px solid var(--live); }
 
-        .dot {
-            aspect-ratio: 1;
-            border-radius: 8px;
-            background: var(--border);
-            transition: all 0.2s;
-        }
+    /* ═══════════════════════════════════════════
+       STAT TILES
+    ═══════════════════════════════════════════ */
+    .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-        .dot.active {
-            background: var(--blue);
-            box-shadow: 0 0 15px var(--blue);
-            animation: pulse 1s infinite;
-        }
+    .tile {
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .tile::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: var(--accent-color, transparent);
+      opacity: .6;
+    }
+    .tile-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--txt3);
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .tile-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -1px;
+      color: var(--txt);
+    }
+    .tile-value.accent { color: var(--accent-color); }
+    .tile-sub {
+      font-size: 10px;
+      color: var(--txt3);
+      margin-top: 3px;
+    }
 
-        .dot.updated {
-            background: var(--green);
-        }
+    /* ═══════════════════════════════════════════
+       BUTTONS
+    ═══════════════════════════════════════════ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: none;
+      border-radius: 12px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+      -webkit-tap-highlight-color: transparent;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: .35; cursor: not-allowed; }
+    .btn:not(:disabled):active { transform: scale(.97); }
+    .btn-full { width: 100%; }
 
-        .dot.uptodate {
-            background: var(--muted);
-            opacity: 0.3;
-        }
+    .btn-data  { background: var(--data);  color: #fff;         padding: 11px 20px; }
+    .btn-sig   { background: var(--sig);   color: #022c22;      padding: 11px 20px; }
+    .btn-bt    { background: var(--bt);    color: #fff;         padding: 11px 20px; }
+    .btn-live  { background: var(--live);  color: #431407;      padding: 11px 20px; }
+    .btn-green { background: var(--green); color: #022c22;      padding: 11px 20px; }
+    .btn-red   { background: var(--red-d); color: var(--red);   padding: 11px 20px; border: 1px solid rgba(244,63,94,.3); }
+    .btn-ghost { background: var(--s3);    color: var(--txt2);  padding: 11px 20px; border: 1px solid var(--border2); }
+    .btn-sm   { padding: 7px 14px; font-size: 12px; border-radius: 9px; }
+    .btn-xs   { padding: 5px 10px; font-size: 11px; border-radius: 7px; }
 
-        .btn-sync {
-            background: var(--accent);
-            color: var(--app-bg);
-            padding: 12px 24px;
-            border-radius: 16px;
-            font-weight: 800;
-            text-transform: uppercase;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
-        }
+    /* ═══════════════════════════════════════════
+       INPUTS / SELECTS
+    ═══════════════════════════════════════════ */
+    .field {
+      background: var(--s2);
+      border: 1px solid var(--border2);
+      border-radius: 12px;
+      padding: 11px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .field:focus-within { border-color: var(--focus-color, var(--data)); }
+    .field-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--txt3);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .field select, .field input {
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--txt);
+      font-size: 13px;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      width: 100%;
+    }
+    .field select option { background: var(--s2); }
 
-        .btn-sync:active {
-            transform: scale(0.96);
-        }
+    .input-bare {
+      background: var(--s2);
+      border: 1px solid var(--border2);
+      border-radius: 12px;
+      padding: 11px 14px;
+      color: var(--txt);
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      width: 100%;
+      transition: border-color .15s;
+    }
+    .input-bare::placeholder { color: var(--txt3); }
+    .input-bare:focus { border-color: var(--data); }
 
-        .btn-sync:disabled {
-            opacity: 0.3;
-        }
+    /* ═══════════════════════════════════════════
+       PROGRESS BAR
+    ═══════════════════════════════════════════ */
+    .progress-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .progress-track {
+      height: 5px;
+      background: var(--s3);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width .5s cubic-bezier(.4,0,.2,1);
+    }
+    @keyframes shimmer {
+      0%   { opacity: .6; }
+      50%  { opacity: 1; box-shadow: 0 0 10px currentColor; }
+      100% { opacity: .6; }
+    }
+    .shimmer { animation: shimmer 1.8s ease-in-out infinite; }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
+    /* ═══════════════════════════════════════════
+       DIVIDER
+    ═══════════════════════════════════════════ */
+    .divider { height: 1px; background: var(--border); }
 
-        th {
-            text-align: left;
-            padding: 1rem;
-            color: var(--muted);
-            font-size: 10px;
-            font-weight: 900;
-            border-bottom: 1px solid var(--border);
-        }
+    /* ═══════════════════════════════════════════
+       ROWS (info / signal / price)
+    ═══════════════════════════════════════════ */
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .row:last-child { border-bottom: none; }
+    .row-label { font-size: 12px; color: var(--txt2); }
+    .row-value { font-size: 13px; font-weight: 600; }
 
-        td {
-            padding: 1rem;
-            border-bottom: 1px solid var(--border);
-            font-size: 13px;
-        }
+    /* ═══════════════════════════════════════════
+       BADGE
+    ═══════════════════════════════════════════ */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 5px;
+      letter-spacing: .3px;
+    }
+    .badge-data  { background: var(--data-d); color: var(--data);  }
+    .badge-sig   { background: var(--sig-d);  color: var(--sig);   }
+    .badge-bt    { background: var(--bt-d);   color: var(--bt);    }
+    .badge-live  { background: var(--live-d); color: var(--live);  }
+    .badge-green { background: var(--green-d);color: var(--green); }
+    .badge-red   { background: var(--red-d);  color: var(--red);   }
+    .badge-gray  { background: var(--s3);     color: var(--txt2);  border:1px solid var(--border2); }
 
-        .empty-state {
-            padding: 4rem 2rem;
-            text-align: center;
-            background: var(--card-bg);
-            border-radius: 32px;
-            border: 2px dashed var(--border);
-            color: var(--muted);
-        }
+    /* ═══════════════════════════════════════════
+       TABLES
+    ═══════════════════════════════════════════ */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      padding: 9px 14px;
+      text-align: left;
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--txt3);
+      letter-spacing: .7px;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      background: var(--s2);
+    }
+    td { padding: 11px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr.tr-win { background: rgba(16,185,129,.04); }
+    tr.tr-loss { background: rgba(244,63,94,.04); }
+    tr.tr-win td:first-child { border-left: 2px solid var(--green); }
+    tr.tr-loss td:first-child { border-left: 2px solid var(--red); }
 
-        @keyframes pulse {
+    /* ═══════════════════════════════════════════
+       EMPTY STATE
+    ═══════════════════════════════════════════ */
+    .empty {
+      padding: 44px 20px;
+      text-align: center;
+    }
+    .empty-icon {
+      width: 48px; height: 48px;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      margin: 0 auto 14px;
+    }
+    .empty-title { font-size: 14px; font-weight: 600; color: var(--txt); margin-bottom: 5px; }
+    .empty-sub { font-size: 12px; color: var(--txt3); line-height: 1.6; }
 
-            0%,
-            100% {
-                opacity: 0.6;
-            }
+    /* ═══════════════════════════════════════════
+       SPINNER
+    ═══════════════════════════════════════════ */
+    .spin {
+      width: 15px; height: 15px;
+      border: 2px solid var(--border2);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: _spin .65s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes _spin { to { transform: rotate(360deg); } }
 
-            50% {
-                opacity: 1;
-            }
-        }
+    /* ═══════════════════════════════════════════
+       METRICS GRID (Backtest)
+    ═══════════════════════════════════════════ */
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric {
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .metric-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--txt3);
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      margin-bottom: 8px;
+    }
+    .metric-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -1px;
+    }
+    .metric-sub { font-size: 11px; color: var(--txt3); margin-top: 4px; }
 
-        /* Utility classes */
-        .glass {
-            background: rgba(var(--card-bg), 0.7);
-            backdrop-filter: blur(10px);
-        }
+    /* ═══════════════════════════════════════════
+       SIGNAL CARD
+    ═══════════════════════════════════════════ */
+    .signal-item {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .signal-item:last-child { border-bottom: none; }
+    .sig-name { font-size: 15px; font-weight: 700; letter-spacing: -.3px; }
+    .sig-meta { font-size: 11px; color: var(--txt3); margin-top: 3px; }
+    .sig-tags { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+    .sig-price { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 600; color: var(--sig); }
+    .sig-levels { font-size: 10px; color: var(--txt3); margin-top: 4px; text-align: right; }
 
-        .shadow-inner {
-            box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
-        }
+    /* ═══════════════════════════════════════════
+       LIVE PRICE ROW
+    ═══════════════════════════════════════════ */
+    @keyframes flash-g { 0%{background:rgba(16,185,129,.18)} 100%{background:transparent} }
+    @keyframes flash-r { 0%{background:rgba(244,63,94,.18)}  100%{background:transparent} }
+    .fup   { animation: flash-g .7s ease-out; }
+    .fdown { animation: flash-r .7s ease-out; }
 
-        /* Hide scrollbar */
-        ::-webkit-scrollbar {
-            display: none;
-        }
+    /* ═══════════════════════════════════════════
+       WATCHLIST CHIPS
+    ═══════════════════════════════════════════ */
+    .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chip-sym {
+      display: flex; align-items: center; gap: 5px;
+      background: var(--s2);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--txt);
+    }
+    .chip-sym button {
+      background: none; border: none; color: var(--txt3);
+      cursor: pointer; font-size: 15px; line-height: 1;
+      padding: 0 1px;
+    }
+    .chip-sym button:hover { color: var(--red); }
 
-        * {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-    </style>
-    </style>
+    /* ═══════════════════════════════════════════
+       RUNNING BANNER
+    ═══════════════════════════════════════════ */
+    .run-banner {
+      background: var(--data-d);
+      border: 1px solid rgba(59,130,246,.2);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 12px; font-weight: 500;
+      color: var(--data);
+    }
+
+    /* ═══════════════════════════════════════════
+       MARKET STATUS BAR
+    ═══════════════════════════════════════════ */
+    .mkt-bar {
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 13px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .mkt-dot {
+      width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+    }
+    .mkt-dot.open  { background: var(--green); box-shadow: 0 0 8px var(--green); animation: shimmer 2s infinite; }
+    .mkt-dot.closed{ background: var(--txt3); }
+
+    /* ═══════════════════════════════════════════
+       DESCRIPTION BOX
+    ═══════════════════════════════════════════ */
+    .desc-box {
+      background: var(--s2);
+      border-left: 3px solid var(--sig);
+      border-radius: 0 10px 10px 0;
+      padding: 11px 14px;
+      font-size: 12px;
+      color: var(--txt2);
+      line-height: 1.65;
+    }
+
+    /* ═══════════════════════════════════════════
+       TABS — PAGE HEADER BANNER
+    ═══════════════════════════════════════════ */
+    .tab-banner {
+      background: linear-gradient(135deg, var(--banner-from), var(--banner-to));
+      padding: 20px 18px 16px;
+      display: flex; align-items: flex-end; justify-content: space-between;
+    }
+    .tab-banner-title {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -.5px;
+      color: #fff;
+    }
+    .tab-banner-sub { font-size: 12px; color: rgba(255,255,255,.55); margin-top: 3px; }
+  </style>
 </head>
+<body>
 
-<body class="dark overflow-hidden">
-    <!-- Fixed App Header -->
-    <header class="app-header">
-        <div class="flex flex-col">
-            <h1 class="header-font text-xl font-bold tracking-tight uppercase italic leading-none" data-ui="app_title">
-                HQ Station</h1>
-            <div id="engine-status" class="text-[9px] font-black uppercase tracking-widest opacity-40 mt-1">Standby
-            </div>
+<!-- ══════════════════════════════════ HEADER -->
+<header class="hdr">
+  <div class="logo">APEX</div>
+  <div class="hdr-right">
+    <span class="hdr-clock" id="hdr-clock">--:--:--</span>
+    <div id="mkt-chip" class="chip chip-gray">
+      <span class="chip-dot" id="mkt-chip-dot" style="background:var(--txt3)"></span>
+      <span id="mkt-chip-txt">NSE</span>
+    </div>
+    <div id="token-chip" class="chip chip-green">
+      <span class="chip-dot" style="background:var(--green)"></span>
+      <span>Auth</span>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════ SCROLL -->
+<div class="scroll">
+
+  <!-- ───────────── TAB: DATA ───────────── -->
+  <div id="tab-data" class="tab active">
+    <div class="tab-banner" style="--banner-from:#0f1f4a;--banner-to:#0c1a3a;">
+      <div>
+        <div class="tab-banner-title">Data Station</div>
+        <div class="tab-banner-sub">NSE historical · Nifty 100</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;color:var(--data);" id="hdr-rows">—</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px;">TOTAL RECORDS</div>
+      </div>
+    </div>
+
+    <div class="page">
+      <!-- Running banner -->
+      <div id="run-banner" style="display:none;" class="run-banner">
+        <div class="spin" style="color:var(--data)"></div>
+        <span>Syncing — <strong id="cur-sym">...</strong></span>
+      </div>
+
+      <!-- Tiles -->
+      <div class="tiles">
+        <div class="tile" style="--accent-color:var(--data)">
+          <div class="tile-label">New Records</div>
+          <div class="tile-value accent" id="t-new">—</div>
+          <div class="tile-sub">This sync</div>
         </div>
-        <div class="flex items-center gap-4">
-            <button onclick="toggleTheme()"
-                class="p-3 hover:bg-[var(--app-bg)] rounded-2xl transition-all border border-[var(--border)] active:scale-90">
-                <svg id="theme-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                    stroke-width="2.5">
-                    <path
-                        d="M12 3v1m0 16v1m9-9h1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z">
-                    </path>
-                </svg>
+        <div class="tile" style="--accent-color:var(--sig)">
+          <div class="tile-label">Symbols</div>
+          <div class="tile-value" id="t-syms">—</div>
+          <div class="tile-sub">Tracked</div>
+        </div>
+        <div class="tile" style="--accent-color:var(--bt)">
+          <div class="tile-label">DB Size</div>
+          <div class="tile-value" id="t-size">—</div>
+          <div class="tile-sub">On disk</div>
+        </div>
+        <div class="tile" style="--accent-color:var(--live)">
+          <div class="tile-label">Last Sync</div>
+          <div class="tile-value" id="t-last" style="font-size:14px;">—</div>
+          <div class="tile-sub" id="t-expiry">—</div>
+        </div>
+      </div>
+
+      <!-- Sync progress card -->
+      <div class="card card-accent-data">
+        <div class="card-p">
+          <div class="progress-meta" style="margin-bottom:10px;">
+            <div>
+              <div style="font-size:13px;font-weight:600;" id="prog-label">Ready to sync</div>
+              <div style="font-size:11px;color:var(--txt3);margin-top:2px;" id="prog-counts">—</div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;color:var(--data);" id="prog-pct">0%</div>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="prog-bar" style="width:0%;background:var(--data);"></div>
+          </div>
+          <div style="display:flex;gap:14px;margin-top:10px;">
+            <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt3);">
+              <span style="width:7px;height:7px;border-radius:50%;background:var(--data);display:inline-block;"></span>Syncing
+            </div>
+            <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt3);">
+              <span style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;"></span>Updated
+            </div>
+            <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt3);">
+              <span style="width:7px;height:7px;border-radius:50%;background:var(--txt3);display:inline-block;"></span>Current
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div style="padding:12px 16px;display:flex;gap:8px;">
+          <button class="btn btn-data btn-full" id="sync-btn" onclick="startSync()">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Sync Data
+          </button>
+          <button class="btn btn-ghost btn-full" id="daily-btn" onclick="triggerDailyRun()">
+            ✦ Daily Run
+          </button>
+        </div>
+      </div>
+
+      <!-- DB info -->
+      <div class="card">
+        <div class="row" style="padding:14px 16px 8px;">
+          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Database</span>
+          <span class="badge badge-data" id="tbl-name">—</span>
+        </div>
+        <div class="row"><span class="row-label">Data Range</span><span class="row-value mono" style="font-size:12px;" id="data-range">—</span></div>
+        <div class="row"><span class="row-label">Token Expiry</span><span class="row-value" id="tok-exp">—</span></div>
+      </div>
+
+      <!-- Yahoo Finance Deep History card -->
+      <div class="card" style="border-top:2px solid #f59e0b;">
+        <div class="card-p" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <div>
+              <div style="font-size:13px;font-weight:600;">Yahoo Finance — Deep History</div>
+              <div style="font-size:11px;color:var(--txt3);margin-top:3px;">Fetches up to 30 years of NSE data (free, no auth required)</div>
+            </div>
+            <div id="yf-chip" class="chip chip-gray" style="flex-shrink:0;">
+              <span class="chip-dot" style="background:var(--txt3)"></span>
+              <span>Idle</span>
+            </div>
+          </div>
+
+          <!-- Source breakdown -->
+          <div id="yf-sources" style="display:none;background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+            <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Data in DB by Source</div>
+            <div id="yf-sources-body"></div>
+          </div>
+
+          <!-- Progress -->
+          <div id="yf-progress-wrap" style="display:none;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:12px;font-weight:500;" id="yf-cur-sym">Starting…</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:var(--live);" id="yf-pct">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill shimmer" id="yf-bar" style="width:0%;background:var(--live);"></div>
+            </div>
+            <div style="font-size:11px;color:var(--txt3);margin-top:6px;">
+              <span id="yf-proc">0</span>/<span id="yf-tot">0</span> symbols ·
+              <span id="yf-new" style="color:var(--live);font-weight:600;">0</span> new candles added
+            </div>
+          </div>
+
+          <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:9px 12px;font-size:11px;color:var(--txt2);line-height:1.6;">
+            <strong style="color:var(--live);">Run once</strong> to pull 25–30 years of history per symbol.
+            After that, the <strong style="color:var(--txt);">Daily Fyers sync</strong> keeps data current with accurate exchange prices.
+            Yahoo prices are adjusted for splits/dividends — Fyers prices are raw.
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-full" id="yf-btn" onclick="startYFinance()"
+              style="background:var(--live);color:#431407;padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Fetch Full History (Yahoo Finance)
             </button>
-            <button id="start-btn" onclick="startBackfill()" class="btn-sync" data-ui="btn_sync">Sync</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadDbSources()" title="Refresh source breakdown">↺</button>
+          </div>
         </div>
-    </header>
+      </div>
 
-    <main class="main-view">
-        <!-- Hero Stats Card -->
-        <div class="px-6 mb-4">
-            <div class="panel p-6 flex justify-between items-center shadow-inner">
-                <div class="flex flex-col">
-                    <span class="label" data-ui="label_total_records">Total Records</span>
-                    <div class="value-hero" id="db-rows">0</div>
-                </div>
-                <div class="h-12 w-[1px] bg-[var(--border)]"></div>
-                <div class="flex flex-col items-end">
-                    <span class="label" data-ui="label_new_records">New Records</span>
-                    <div class="value-hero text-blue-500" id="stat-candles">0</div>
-                </div>
+      <!-- Auto-Scheduler card -->
+      <div class="card card-accent-data">
+        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Auto-Scheduler</span>
+          <span id="sched-status-chip" class="chip chip-gray">
+            <span class="chip-dot" style="background:var(--txt3)"></span>
+            <span>Loading…</span>
+          </span>
+        </div>
+        <div class="divider"></div>
+        <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;">
+          <!-- Data update job -->
+          <div style="background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <div style="font-size:12px;font-weight:600;">Daily Data Update</div>
+                <div style="font-size:10px;color:var(--txt3);margin-top:2px;" id="sched-data-schedule">Mon–Fri 4:00 PM IST</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:10px;color:var(--txt3);">Next run</div>
+                <div style="font-size:11px;font-weight:600;color:var(--data);" id="sched-data-next">—</div>
+              </div>
             </div>
-        </div>
-
-        <!-- Tab: Data Synchronization -->
-        <div id="tab-sync" class="tab-content active">
-            <div class="dashboard-grid">
-                <div class="panel">
-                    <div class="panel-header">
-                        <span class="label mb-0" data-ui="label_sync_radar">Sync Radar</span>
-                        <span id="percent-val" class="font-bold text-blue-500 text-sm">0%</span>
-                    </div>
-                    <div id="grid-matrix" class="matrix"></div>
-                </div>
-
-                <div class="panel">
-                    <div class="panel-header">
-                        <span class="label mb-0" data-ui="label_latest_snapshot">Snapshot</span>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>SYM</th>
-                                    <th>CLOSE</th>
-                                    <th>VOL</th>
-                                    <th class="text-right">DATE</th>
-                                </tr>
-                            </thead>
-                            <tbody id="snapshot-body">
-                                <tr>
-                                    <td colspan="4" class="p-8 text-center opacity-20 italic">Awaiting data...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="panel p-6 space-y-4">
-                    <div class="flex items-center justify-between border-b border-[var(--border)] pb-4">
-                        <span class="label mb-0" data-ui="label_data_horizon">Coverage</span>
-                        <span id="token-status"
-                            class="text-[10px] font-black uppercase text-emerald-500">Connected</span>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <span class="label" data-ui="label_horizon_symbols">Symbols</span>
-                            <div class="text-xl font-bold" id="horizon-symbols">0</div>
-                        </div>
-                        <div>
-                            <span class="label" data-ui="label_system_footprint">Size</span>
-                            <div class="text-xl font-bold" id="db-size">0.0 MB</div>
-                        </div>
-                    </div>
-                    <div class="pt-2">
-                        <span class="label" data-ui="label_horizon_range">Data Horizon</span>
-                        <div class="text-xs font-bold opacity-60" id="horizon-range">--</div>
-                    </div>
-                </div>
+            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
+              <div style="font-size:10px;color:var(--txt3);">Last: <span id="sched-data-last" style="color:var(--txt2);">Never</span>
+                · <span id="sched-data-candles" style="color:var(--data);font-weight:600;"></span></div>
+              <div id="sched-data-running" style="display:none;" class="chip chip-amber" style="font-size:10px;">
+                <div class="spin" style="width:10px;height:10px;border-width:1.5px;color:var(--live);"></div>
+                <span>Running</span>
+              </div>
             </div>
-        </div>
-
-        <!-- Tab: Strategies -->
-        <div id="tab-strategies" class="tab-content">
-            <div class="dashboard-grid">
-                <div class="panel p-6">
-                    <div class="flex flex-col gap-4 mb-6">
-                        <h2 class="text-xl font-bold" data-ui="label_strategy_hub">Strategy Hub</h2>
-                        <div
-                            class="flex items-center justify-between gap-3 p-3 bg-[var(--app-bg)] rounded-2xl border border-[var(--border)]">
-                            <span class="text-[10px] uppercase font-black opacity-40 ml-2"
-                                data-ui="label_strategy_selector">Strategy</span>
-                            <select id="strategy-select"
-                                class="bg-transparent text-xs font-bold outline-none cursor-pointer flex-1 text-right pr-2">
-                                <option value="golden_rsi" data-ui="strat_golden_rsi">Golden RSI</option>
-                                <option value="sma_cross" data-ui="strat_sma_cross">SMA 20/50 Cross</option>
-                            </select>
-                        </div>
-                        <button onclick="runStrategyScan()" id="scan-btn" class="btn-sync w-full"
-                            data-ui="btn_scan">Scan Universe</button>
-                    </div>
-
-                    <div class="overflow-hidden rounded-2xl border border-[var(--border)]">
-                        <table>
-                            <tbody id="signals-body">
-                                <tr>
-                                    <td class="p-12 text-center opacity-20 italic">Run a scan to find opportunities.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+          </div>
+          <!-- ML retrain job -->
+          <div style="background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <div style="font-size:12px;font-weight:600;">Weekly ML Retrain</div>
+                <div style="font-size:10px;color:var(--txt3);margin-top:2px;" id="sched-ml-schedule">Sunday 10:00 PM IST</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:10px;color:var(--txt3);">Next run</div>
+                <div style="font-size:11px;font-weight:600;color:#6366f1;" id="sched-ml-next">—</div>
+              </div>
             </div>
-        </div>
-
-        <!-- Tab: Backtest -->
-        <div id="tab-backtest" class="tab-content">
-            <div class="dashboard-grid">
-                <div class="empty-state">
-                    <div class="font-black uppercase tracking-widest text-[10px] opacity-40">Backtest Studio</div>
-                    <div class="text-xs mt-2 opacity-30">Coming in Phase 3</div>
-                </div>
+            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
+              <div style="font-size:10px;color:var(--txt3);">Last: <span id="sched-ml-last" style="color:var(--txt2);">Never</span>
+                · <span id="sched-ml-auc" style="color:#6366f1;font-weight:600;"></span></div>
+              <div id="sched-ml-running" style="display:none;" class="chip" style="background:rgba(99,102,241,.12);color:#818cf8;font-size:10px;">
+                <div class="spin" style="width:10px;height:10px;border-width:1.5px;color:#6366f1;"></div>
+                <span>Training</span>
+              </div>
             </div>
+          </div>
+          <!-- Manual trigger note -->
+          <div style="font-size:11px;color:var(--txt3);text-align:center;padding-top:2px;">
+            Use <strong style="color:var(--txt2);">Sync Data</strong> and <strong style="color:var(--txt2);">Daily Run</strong> buttons above to trigger manually
+          </div>
         </div>
+      </div>
 
-        <!-- Tab: Portfolio -->
-        <div id="tab-portfolio" class="tab-content">
-            <div class="dashboard-grid">
-                <div class="empty-state">
-                    <div class="font-black uppercase tracking-widest text-[10px] opacity-40">Live Execution</div>
-                    <div class="text-xs mt-2 opacity-30">Coming in Phase 4</div>
+      <!-- Snapshot -->
+      <div class="card">
+        <div style="padding:13px 16px 10px;font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Latest Candles</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Symbol</th><th>Close</th><th>Volume</th><th>Date</th></tr></thead>
+            <tbody id="snap-body">
+              <tr><td colspan="4"><div class="empty"><div class="empty-icon" style="background:var(--s3);">📊</div><div class="empty-title">No data</div><div class="empty-sub">Run a sync first</div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── TAB: SIGNALS ───────────── -->
+  <div id="tab-signals" class="tab">
+    <div class="tab-banner" style="--banner-from:#052e16;--banner-to:#042010;">
+      <div>
+        <div class="tab-banner-title">Signal Scanner</div>
+        <div class="tab-banner-sub">6 strategies · Nifty 100</div>
+      </div>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(16,185,129,.4)" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+    </div>
+
+    <div class="page">
+      <div class="card card-accent-sig card-p" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="field" style="--focus-color:var(--sig)">
+          <span class="field-label">Strategy</span>
+          <select id="strat-sel" onchange="onStratChange()">
+            <optgroup label="── Trend Following">
+              <option value="golden_rsi">Golden RSI — Bullish Pullback</option>
+              <option value="sma_cross">SMA 20/50 Cross — Momentum</option>
+              <option value="macd_cross">MACD Cross — Trend Reversal</option>
+              <option value="golden_cross">Golden Cross — SMA 50/200</option>
+              <option value="supertrend">Supertrend — ATR Trend Flip</option>
+              <option value="adx_trend">ADX Trend — Strong Uptrend</option>
+              <option value="ema_ribbon">EMA Ribbon — 8/21/55 Align</option>
+            </optgroup>
+            <optgroup label="── Mean Reversion">
+              <option value="bollinger_bounce">Bollinger Bounce — Lower Band</option>
+              <option value="stochastic">Stochastic — Oversold Bounce</option>
+              <option value="cci_bounce">CCI Bounce — Oversold Recovery</option>
+            </optgroup>
+            <optgroup label="── Breakout">
+              <option value="breakout">Breakout — 20-Day High</option>
+              <option value="high_52w">52-Week High Breakout</option>
+              <option value="squeeze">TTM Squeeze — Volatility Breakout</option>
+            </optgroup>
+            <optgroup label="── Volume & Candle Patterns">
+              <option value="volume_surge">Volume Surge — Accumulation</option>
+              <option value="hammer">Hammer — Reversal Candle</option>
+              <option value="bullish_engulfing">Bullish Engulfing — 2-Candle Pattern</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="desc-box" id="strat-desc">
+          Looks for stocks in a strong long-term uptrend (above 200-day EMA) pulling back (below 20-day EMA) with RSI below 40. Classic buy-the-dip setup.
+        </div>
+        <button class="btn btn-sig btn-full" id="scan-btn" onclick="runScan()">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          Scan Universe
+        </button>
+      </div>
+
+      <div class="card">
+        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Results</span>
+          <span id="sig-count" style="font-size:11px;font-weight:600;color:var(--txt3);">—</span>
+        </div>
+        <div class="divider"></div>
+        <div id="sig-body">
+          <div class="empty">
+            <div class="empty-icon" style="background:var(--sig-d);">📡</div>
+            <div class="empty-title">No scan yet</div>
+            <div class="empty-sub">Select a strategy and tap Scan Universe to find opportunities</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── TAB: BACKTEST ───────────── -->
+  <div id="tab-bt" class="tab">
+    <div class="tab-banner" style="--banner-from:#1e0a3c;--banner-to:#160830;">
+      <div>
+        <div class="tab-banner-title">Backtest Studio</div>
+        <div class="tab-banner-sub">Simulate on 2 years of history</div>
+      </div>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(139,92,246,.4)" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    </div>
+
+    <div class="page">
+      <div class="card card-accent-bt card-p" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="field" style="--focus-color:var(--bt)">
+          <span class="field-label">Strategy</span>
+          <select id="bt-strat">
+            <optgroup label="── Trend Following">
+              <option value="golden_rsi">Golden RSI</option>
+              <option value="sma_cross">SMA 20/50 Cross</option>
+              <option value="macd_cross">MACD Cross</option>
+              <option value="golden_cross">Golden Cross</option>
+              <option value="supertrend">Supertrend</option>
+              <option value="adx_trend">ADX Trend</option>
+              <option value="ema_ribbon">EMA Ribbon</option>
+            </optgroup>
+            <optgroup label="── Mean Reversion">
+              <option value="bollinger_bounce">Bollinger Bounce</option>
+              <option value="stochastic">Stochastic</option>
+              <option value="cci_bounce">CCI Bounce</option>
+            </optgroup>
+            <optgroup label="── Breakout">
+              <option value="breakout">Breakout</option>
+              <option value="high_52w">52-Week High</option>
+              <option value="squeeze">TTM Squeeze</option>
+            </optgroup>
+            <optgroup label="── Volume & Candle">
+              <option value="volume_surge">Volume Surge</option>
+              <option value="hammer">Hammer</option>
+              <option value="bullish_engulfing">Bullish Engulfing</option>
+            </optgroup>
+          </select>
+        </div>
+        <input class="input-bare" id="bt-sym" placeholder="Symbol — e.g. RELIANCE (blank = all 100)" />
+        <div style="font-size:11px;color:var(--txt3);padding-left:2px;">
+          Entry at next bar open · Stop loss ATR×2 · Target 2:1 R:R · Max 20 days
+        </div>
+        <button class="btn btn-bt btn-full" id="bt-btn" onclick="runBacktest()">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Run Backtest
+        </button>
+      </div>
+
+      <!-- Metrics -->
+      <div id="bt-metrics" style="display:none;" class="metrics">
+        <div class="metric"><div class="metric-label">Win Rate</div><div class="metric-value" id="m-wr">—</div><div class="metric-sub" id="m-wl">—</div></div>
+        <div class="metric"><div class="metric-label">Total P&L</div><div class="metric-value" id="m-pnl">—</div><div class="metric-sub" id="m-pnlp">—</div></div>
+        <div class="metric"><div class="metric-label">Total Trades</div><div class="metric-value" id="m-tot">—</div><div class="metric-sub" id="m-hold">—</div></div>
+        <div class="metric"><div class="metric-label">Max Drawdown</div><div class="metric-value" id="m-dd" style="color:var(--red)">—</div><div class="metric-sub" id="m-ddp">—</div></div>
+        <div class="metric"><div class="metric-label">Sharpe Ratio</div><div class="metric-value" id="m-sh">—</div><div class="metric-sub">Risk-adjusted</div></div>
+        <div class="metric"><div class="metric-label">Profit Factor</div><div class="metric-value" id="m-pf">—</div><div class="metric-sub">Gross P ÷ L</div></div>
+      </div>
+
+      <!-- Trade log -->
+      <div class="card" id="bt-log" style="display:none;">
+        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Trade Log</span>
+          <span id="bt-cnt" style="font-size:11px;font-weight:600;color:var(--txt3);">—</span>
+        </div>
+        <div class="divider"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>P&amp;L</th><th>Reason</th></tr></thead>
+            <tbody id="bt-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── TAB: LIVE ───────────── -->
+  <div id="tab-live" class="tab">
+    <div class="tab-banner" style="--banner-from:#271a03;--banner-to:#1c1202;">
+      <div>
+        <div class="tab-banner-title">Live Market</div>
+        <div class="tab-banner-sub" id="live-banner-sub">Fyers real-time data</div>
+      </div>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(245,158,11,.4)" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+    </div>
+
+    <div class="page">
+      <!-- Market status -->
+      <div class="mkt-bar">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="mkt-dot closed" id="mkt-dot"></div>
+          <div>
+            <div style="font-size:13px;font-weight:600;" id="mkt-label">NSE — Checking...</div>
+            <div style="font-size:11px;color:var(--txt3);">Mon–Fri · 9:15 AM – 3:30 PM IST</div>
+          </div>
+        </div>
+        <div id="feed-chip" class="chip chip-gray"><span class="chip-dot" id="feed-dot" style="background:var(--txt3)"></span><span id="feed-txt">Stopped</span></div>
+      </div>
+
+      <!-- Feed control -->
+      <div class="card card-accent-live card-p" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="field" style="--focus-color:var(--live)">
+          <span class="field-label">Mode</span>
+          <select id="feed-mode">
+            <option value="websocket">WebSocket — Real-time stream</option>
+            <option value="polling">REST Polling — Every 3 seconds</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-live btn-full" id="feed-start" onclick="startFeed()">
+            <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            Start Feed
+          </button>
+          <button class="btn btn-red btn-full" id="feed-stop" onclick="stopFeed()" style="display:none;">
+            <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+            Stop Feed
+          </button>
+        </div>
+      </div>
+
+      <!-- Watchlist -->
+      <div class="card card-p" style="display:flex;flex-direction:column;gap:10px;">
+        <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Watchlist</div>
+        <div style="display:flex;gap:8px;">
+          <input class="input-bare" id="wl-input" placeholder="Add symbol (e.g. HDFC)" style="flex:1;"
+            onkeydown="if(event.key==='Enter')addSym()"/>
+          <button class="btn btn-live btn-sm" onclick="addSym()">+ Add</button>
+        </div>
+        <div class="chips" id="wl-chips"></div>
+      </div>
+
+      <!-- Live price table -->
+      <div class="card">
+        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Prices</span>
+          <span id="live-ts" style="font-size:10px;color:var(--txt3);font-family:'JetBrains Mono',monospace;">—</span>
+        </div>
+        <div class="divider"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>LTP</th>
+                <th>Chg%</th>
+                <th>High</th>
+                <th>Low</th>
+                <th>Vol</th>
+              </tr>
+            </thead>
+            <tbody id="live-body">
+              <tr><td colspan="6">
+                <div class="empty">
+                  <div class="empty-icon" style="background:var(--live-d);">📶</div>
+                  <div class="empty-title">Feed not started</div>
+                  <div class="empty-sub">Press Start Feed to stream live prices</div>
                 </div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── TAB: ML ───────────── -->
+  <div id="tab-ml" class="tab">
+    <div class="tab-banner" style="--banner-from:#0f172a;--banner-to:#0c1120;">
+      <div>
+        <div class="tab-banner-title">AI Predictor</div>
+        <div class="tab-banner-sub">Random Forest · 26 features · 5-day forecast</div>
+      </div>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(99,102,241,.5)" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/>
+      </svg>
+    </div>
+
+    <div class="page">
+
+      <!-- Model status card -->
+      <div class="card" style="border-top:2px solid #6366f1;">
+        <div class="card-p" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:13px;font-weight:600;">Price Direction Model</div>
+              <div style="font-size:11px;color:var(--txt3);margin-top:3px;">Predicts probability of ≥2% gain in next 5 trading days</div>
             </div>
+            <div id="ml-status-chip" class="chip chip-gray">
+              <span class="chip-dot" style="background:var(--txt3)"></span>
+              <span>Not Trained</span>
+            </div>
+          </div>
+
+          <!-- Model metrics (hidden until trained) -->
+          <div id="ml-metrics-row" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+              <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">AUC-ROC</div>
+              <div id="ml-auc" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#6366f1;">—</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+              <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Accuracy</div>
+              <div id="ml-acc" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#6366f1;">—</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+              <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">F1 Buy</div>
+              <div id="ml-f1" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#6366f1;">—</div>
+            </div>
+          </div>
+
+          <div id="ml-train-info" style="font-size:11px;color:var(--txt3);padding-left:2px;">
+            Trains on all 99 symbols · 26 technical indicator features · 2-5 min
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-full" id="ml-train-btn" onclick="trainModel()"
+              style="background:#6366f1;color:#fff;padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/></svg>
+              Train Model
+            </button>
+            <button class="btn btn-ghost btn-full" id="ml-predict-btn" onclick="runPredictions()" style="display:none;">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              Score All 99
+            </button>
+          </div>
         </div>
-    </main>
+      </div>
 
-    <!-- Bottom Navigation -->
-    <nav class="bottom-nav">
-        <div class="nav-tab active" onclick="switchTab('sync', this)">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
-                </path>
-            </svg>
-            <span data-ui="nav_sync_short">Data</span>
+      <!-- Top features card (shown after training) -->
+      <div class="card" id="ml-features-card" style="display:none;">
+        <div style="padding:13px 16px 10px;font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Top Predictive Features</div>
+        <div class="divider"></div>
+        <div id="ml-features-body" style="padding:12px 16px;display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+
+      <!-- Market Regime Card -->
+      <div class="card" id="ml-regime-card" style="display:none;">
+        <div style="padding:13px 16px 10px;font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Market Regime</div>
+        <div class="divider"></div>
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div id="regime-dot" style="width:12px;height:12px;border-radius:50%;background:var(--txt3);flex-shrink:0;"></div>
+              <div>
+                <div id="regime-label" style="font-size:16px;font-weight:700;">—</div>
+                <div id="regime-sub" style="font-size:11px;color:var(--txt3);margin-top:2px;">—</div>
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Breadth</div>
+              <div id="regime-breadth" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;color:#6366f1;">—%</div>
+            </div>
+          </div>
+          <!-- Breadth bar -->
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--txt3);margin-bottom:4px;">
+              <span>Bear ≤40%</span><span>% of Nifty100 above SMA50</span><span>Bull ≥60%</span>
+            </div>
+            <div style="position:relative;height:6px;background:linear-gradient(90deg,var(--red-d),var(--s3),var(--green-d));border-radius:99px;">
+              <div id="regime-bar-marker" style="position:absolute;top:-3px;width:12px;height:12px;border-radius:50%;background:#6366f1;transform:translateX(-50%);transition:left .5s;left:50%;"></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px;">
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+              <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Volatility</div>
+              <div id="regime-vol" style="font-size:14px;font-weight:600;">—</div>
+              <div id="regime-atr" style="font-size:10px;color:var(--txt3);margin-top:2px;">avg ATR —%</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+              <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">BUY Threshold</div>
+              <div id="regime-thresh" style="font-size:14px;font-weight:600;color:#6366f1;">—%</div>
+              <div id="regime-thresh-note" style="font-size:10px;color:var(--txt3);margin-top:2px;">regime-adjusted</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--txt3);line-height:1.6;padding:8px 10px;background:var(--s2);border-radius:8px;border-left:3px solid #6366f1;" id="regime-insight">—</div>
         </div>
-        <div class="nav-tab" onclick="switchTab('strategies', this)">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z">
-                </path>
-            </svg>
-            <span data-ui="nav_strategies_short">Signals</span>
+      </div>
+
+      <!-- Walk-Forward + Calibration Analytics -->
+      <div class="card" id="ml-analytics-card" style="display:none;">
+        <div style="padding:13px 16px 10px;font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Model Analytics</div>
+        <div class="divider"></div>
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:14px;">
+
+          <!-- Walk-forward badge -->
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:8px;">
+            <svg width="16" height="16" fill="none" stroke="#6366f1" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:#818cf8;">Walk-Forward Temporal Validation</div>
+              <div id="wf-detail" style="font-size:10px;color:var(--txt3);margin-top:1px;">Train on oldest 80% · Test on most-recent 20% per symbol</div>
+            </div>
+          </div>
+
+          <!-- Price regressor metrics -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Price Target Prediction (5-Day Return)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+                <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">MAE</div>
+                <div id="ml-reg-mae" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#6366f1;">—%</div>
+                <div style="font-size:10px;color:var(--txt3);margin-top:2px;">mean absolute error</div>
+              </div>
+              <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+                <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">R²</div>
+                <div id="ml-reg-r2" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#6366f1;">—</div>
+                <div style="font-size:10px;color:var(--txt3);margin-top:2px;">variance explained</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Calibration reliability chart -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Calibration — Predicted vs Actual Hit Rate</div>
+            <div style="font-size:11px;color:var(--txt3);margin-bottom:10px;">When the model says 70%, does it actually happen 70% of the time?</div>
+            <div id="ml-calibration-bars" style="display:flex;flex-direction:column;gap:8px;"></div>
+            <div style="font-size:10px;color:var(--txt3);margin-top:8px;">
+              <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#6366f1;display:inline-block;"></span>Predicted</span>
+              <span style="margin-left:10px;display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:var(--green);display:inline-block;"></span>Actual</span>
+            </div>
+          </div>
         </div>
-        <div class="nav-tab" onclick="switchTab('backtest', this)">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
-                </path>
-            </svg>
-            <span data-ui="nav_backtest_short">Test</span>
+      </div>
+
+      <!-- Prediction results -->
+      <div class="card" id="ml-results-card" style="display:none;">
+        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Predictions</span>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+            <span id="ml-live-badge" style="display:none;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--green-d);color:var(--green);border:1px solid rgba(16,185,129,.25);">● LIVE</span>
+            <span id="ml-buy-count" style="font-size:11px;font-weight:600;color:var(--green);"></span>
+            <span id="ml-pred-count" style="font-size:11px;color:var(--txt3);"></span>
+          </div>
         </div>
-        <div class="nav-tab" onclick="switchTab('portfolio', this)">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-                </path>
-            </svg>
-            <span data-ui="nav_portfolio_short">Live</span>
+        <div class="divider"></div>
+
+        <!-- Filter bar -->
+        <div style="padding:10px 16px;display:flex;gap:8px;">
+          <button class="btn btn-xs" id="ml-filter-all" onclick="mlFilter('all')"
+            style="background:#6366f1;color:#fff;">All</button>
+          <button class="btn btn-xs btn-ghost" id="ml-filter-buy" onclick="mlFilter('BUY')">BUY</button>
+          <button class="btn btn-xs btn-ghost" id="ml-filter-neutral" onclick="mlFilter('NEUTRAL')">Neutral</button>
+          <button class="btn btn-xs btn-ghost" id="ml-filter-avoid" onclick="mlFilter('AVOID')">Avoid</button>
         </div>
-    </nav>
+        <div class="divider"></div>
 
-    <script>
-        const API_URL = window.location.origin;
-        let currentData = null;
+        <div id="ml-pred-body">
+          <div class="empty">
+            <div class="empty-icon" style="background:rgba(99,102,241,.12);">🤖</div>
+            <div class="empty-title">No predictions yet</div>
+            <div class="empty-sub">Train the model, then tap Score All 99</div>
+          </div>
+        </div>
+      </div>
 
-        function switchTab(id, el) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.nav-tab').forEach(n => n.classList.remove('active'));
-            document.getElementById(`tab-${id}`).classList.add('active');
-            el.classList.add('active');
+    </div>
+  </div>
 
-            // Scroll to top of main view when switching
-            document.querySelector('.main-view').scrollTo(0, 0);
+</div><!-- /scroll -->
+
+<!-- ══════════════════════════════════ NAV -->
+<nav class="nav">
+  <button class="nav-btn active" data-tab="data" onclick="go('data',this)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8M8 8h8M8 16h4"/></svg>
+    Data
+  </button>
+  <button class="nav-btn" data-tab="signals" onclick="go('signals',this)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+    Signals
+  </button>
+  <button class="nav-btn" data-tab="bt" onclick="go('bt',this)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    Backtest
+  </button>
+  <button class="nav-btn" data-tab="live" onclick="go('live',this)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+    Live
+  </button>
+  <button class="nav-btn" data-tab="ml" onclick="go('ml',this)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/></svg>
+    AI
+  </button>
+</nav>
+
+<!-- ══════════════════════════════════ JS -->
+<script>
+const API = window.location.origin;
+let prevPx = {};
+
+const STRAT_DESC = {
+  // Trend Following
+  golden_rsi:        "Looks for stocks in a strong long-term uptrend (above 200-day EMA) pulling back (below 20-day EMA) with RSI below 40. Classic buy-the-dip setup.",
+  sma_cross:         "Triggers when the 20-day moving average freshly crosses above the 50-day average — a classic momentum signal indicating short-term strength.",
+  macd_cross:        "Fires when the MACD line crosses above the signal line and histogram turns positive — a shift from bearish to bullish momentum.",
+  golden_cross:      "Triggers when SMA50 freshly crosses above SMA200 — the iconic 'Golden Cross'. One of the strongest long-term buy signals in technical analysis.",
+  supertrend:        "Fires when price crosses above the ATR-based Supertrend line, flipping the trend from bearish to bullish. Clean, objective trend signal.",
+  adx_trend:         "Identifies stocks in a confirmed strong uptrend: ADX above 25 (trend strength), +DI above -DI (bulls in control), price above SMA50.",
+  ema_ribbon:        "Flags fresh EMA alignment — EMA8 > EMA21 > EMA55 all stacked bullishly with price above all three. Indicates momentum across all timeframes.",
+  // Mean Reversion
+  bollinger_bounce:  "Identifies stocks touching the lower Bollinger Band (oversold) while above the 200-day SMA. Mean-reversion long in an uptrend.",
+  stochastic:        "Fires when Stochastic %K crosses above %D from the oversold zone (below 20) while the stock is above its 200-day SMA. Oversold bounce signal.",
+  cci_bounce:        "Triggers when CCI (Commodity Channel Index) crosses upward from below -100 while price is above SMA50. CCI oversold recovery signal.",
+  // Breakout
+  breakout:          "Detects stocks closing above their 20-day high with at least 1.5× average volume — confirming institutional breakout participation.",
+  high_52w:          "Fires when price breaks above its 52-week high with volume confirmation (1.5× average). The strongest breakout signal — momentum tends to continue.",
+  squeeze:           "TTM Squeeze: Bollinger Bands were compressed inside Keltner Channels (low volatility). When they break out bullishly, it's a high-probability signal.",
+  // Volume & Candle
+  volume_surge:      "Flags 2× average volume on a bullish candle (close > open) above the 50-day SMA — a sign of institutional accumulation.",
+  hammer:            "Identifies a hammer candle (long lower wick ≥ 2× body, tiny upper wick) appearing after a downtrend. Classic single-candle reversal pattern.",
+  bullish_engulfing: "Two-candle reversal: today's bullish candle completely engulfs yesterday's bearish candle body above SMA50. Strong reversal confirmation.",
+};
+
+// ── Navigation ─────────────────────────────────────────
+function go(id, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  el.classList.add('active');
+  document.querySelector('.scroll').scrollTo(0, 0);
+  if (id === 'live') { loadWatchlist(); refreshLive(); }
+}
+
+// ── Clock ──────────────────────────────────────────────
+function tickClock() {
+  const ist = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  document.getElementById('hdr-clock').textContent = ist;
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+// ── Market hours ───────────────────────────────────────
+function checkMarket() {
+  const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const day = ist.getDay();
+  const mins = ist.getHours() * 60 + ist.getMinutes();
+  const open = day >= 1 && day <= 5 && mins >= 555 && mins <= 930;
+
+  document.getElementById('mkt-dot').className = 'mkt-dot ' + (open ? 'open' : 'closed');
+  document.getElementById('mkt-label').textContent = open ? 'NSE — Market Open' : 'NSE — Market Closed';
+  document.getElementById('live-banner-sub').textContent = open ? 'Live streaming active' : 'Market closed · last prices shown';
+
+  const chip = document.getElementById('mkt-chip');
+  const dot  = document.getElementById('mkt-chip-dot');
+  chip.className = 'chip ' + (open ? 'chip-green' : 'chip-gray');
+  dot.style.background = open ? 'var(--green)' : 'var(--txt3)';
+  document.getElementById('mkt-chip-txt').textContent = open ? 'Open' : 'Closed';
+}
+setInterval(checkMarket, 30000);
+checkMarket();
+
+// ── Status refresh (Data tab) ──────────────────────────
+async function refreshStatus() {
+  try {
+    const d = await j(`${API}/api/status`);
+    // token chip
+    const tc = document.getElementById('token-chip');
+    tc.className = 'chip ' + (d.token_valid ? 'chip-green' : 'chip-red');
+    tc.innerHTML = `<span class="chip-dot" style="background:${d.token_valid?'var(--green)':'var(--red)'}"></span><span>${d.token_valid?'Auth':'Expired'}</span>`;
+
+    set('hdr-rows',  fmt(d.total_db_rows));
+    set('t-new',     fmt(d.total_candles));
+    set('t-syms',    fmt(d.unique_symbols));
+    set('t-size',    d.db_size_mb + ' MB');
+    set('t-last',    d.last_run && d.last_run !== 'Never' ? d.last_run.slice(11,16) : '—');
+    set('t-expiry',  'Expires ' + (d.token_expiry || '—'));
+    set('tbl-name',  d.table_name || '—');
+    set('tok-exp',   d.token_expiry || '—');
+    set('data-range', d.min_date && d.max_date ? d.min_date + ' → ' + d.max_date : '—');
+
+    const pct = d.total_symbols > 0 ? Math.min(100, Math.round((d.processed / d.total_symbols) * 100)) : 0;
+    set('prog-pct', pct + '%');
+    set('prog-counts', d.processed + ' / ' + (d.total_symbols || '—'));
+    set('prog-label', d.is_running ? 'Sync in progress' : pct === 100 ? 'Sync complete ✓' : 'Ready to sync');
+    const bar = document.getElementById('prog-bar');
+    bar.style.width = pct + '%';
+    bar.classList.toggle('shimmer', d.is_running);
+
+    document.getElementById('run-banner').style.display = d.is_running ? 'flex' : 'none';
+    if (d.is_running) set('cur-sym', d.current_symbol || '...');
+
+    const sb = document.getElementById('sync-btn');
+    sb.disabled = d.is_running;
+    sb.innerHTML = d.is_running
+      ? '<div class="spin" style="color:#fff"></div> Syncing...'
+      : '<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Sync Data';
+
+    loadSnapshot();
+  } catch(e) {}
+}
+
+async function loadSnapshot() {
+  try {
+    const rows = await j(`${API}/api/latest_snapshot`);
+    const tb = document.getElementById('snap-body');
+    if (!rows.length) return;
+    tb.innerHTML = rows.map(r => `
+      <tr>
+        <td style="font-weight:700;">${r.symbol}</td>
+        <td class="mono" style="color:var(--data);font-weight:600;">₹${Math.round(r.close).toLocaleString('en-IN')}</td>
+        <td style="color:var(--txt3);font-size:12px;">${(r.volume/1e6).toFixed(1)}M</td>
+        <td style="color:var(--txt3);font-size:11px;">${r.date}</td>
+      </tr>`).join('');
+  } catch(e) {}
+}
+
+async function startSync() {
+  document.getElementById('sync-btn').disabled = true;
+  try { await fetch(`${API}/api/start_backfill`, { method:'POST' }); await refreshStatus(); }
+  catch(e) {}
+}
+
+async function triggerDailyRun() {
+  const b = document.getElementById('daily-btn');
+  b.disabled = true; b.textContent = 'Running...';
+  try { await fetch(`${API}/api/daily_run`, { method:'POST' }); }
+  catch(e) {}
+  setTimeout(() => { b.disabled = false; b.textContent = '✦ Daily Run'; }, 5000);
+}
+
+// ── Strategy scanner ───────────────────────────────────
+function onStratChange() {
+  const v = document.getElementById('strat-sel').value;
+  document.getElementById('strat-desc').textContent = STRAT_DESC[v] || '';
+}
+
+async function runScan() {
+  const strat = document.getElementById('strat-sel').value;
+  const btn = document.getElementById('scan-btn');
+  const body = document.getElementById('sig-body');
+  const cnt = document.getElementById('sig-count');
+
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spin" style="color:#022c22"></div> Scanning...';
+  body.innerHTML = '<div class="empty"><div class="empty-title" style="color:var(--txt2)">Scanning all 100 symbols…</div></div>';
+  cnt.textContent = '...';
+
+  try {
+    const sigs = await j(`${API}/api/signals?strategy=${strat}`);
+    cnt.textContent = sigs.length + ' signals';
+
+    if (!sigs.length) {
+      body.innerHTML = `<div class="empty">
+        <div class="empty-icon" style="background:var(--sig-d)">🔍</div>
+        <div class="empty-title">No signals today</div>
+        <div class="empty-sub">Market conditions don't match this strategy right now. Try again tomorrow.</div>
+      </div>`;
+    } else {
+      body.innerHTML = sigs.map(s => `
+        <div class="signal-item">
+          <div style="flex:1;min-width:0;">
+            <div class="sig-name">${s.symbol}</div>
+            <div class="sig-meta">${s.trend}${s.rsi != null ? ' · RSI ' + s.rsi : ''}</div>
+            <div class="sig-tags">
+              <span class="badge badge-sig">${s.strategy}</span>
+              ${s.volume_ratio != null ? `<span class="badge badge-gray">Vol ${s.volume_ratio}×</span>` : ''}
+            </div>
+          </div>
+          <div style="flex-shrink:0;text-align:right;">
+            <div class="sig-price">₹${fmtP(s.price)}</div>
+            <div class="sig-levels">SL ₹${fmtP(s.stop_loss)}</div>
+            <div class="sig-levels">T &nbsp;₹${fmtP(s.target)}</div>
+            <button onclick="openChart('${s.symbol}')" class="btn btn-ghost btn-xs" style="margin-top:7px;">Chart ↗</button>
+          </div>
+        </div>`).join('');
+    }
+  } catch(e) {
+    body.innerHTML = `<div class="empty"><div class="empty-title" style="color:var(--red)">Scan failed</div><div class="empty-sub">Make sure the server is running</div></div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Scan Universe';
+  }
+}
+
+// ── Backtest ───────────────────────────────────────────
+async function runBacktest() {
+  const strat = document.getElementById('bt-strat').value;
+  const sym = document.getElementById('bt-sym').value.trim().toUpperCase();
+  const btn = document.getElementById('bt-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spin" style="color:#fff"></div> Running…';
+  document.getElementById('bt-metrics').style.display = 'none';
+  document.getElementById('bt-log').style.display = 'none';
+
+  try {
+    const url = `${API}/api/backtest?strategy=${strat}${sym ? '&symbol='+sym : ''}`;
+    const d = await j(url);
+    const m = d.metrics || {};
+
+    document.getElementById('bt-metrics').style.display = 'grid';
+    const pos = (m.total_pnl || 0) >= 0;
+    set('m-wr',  (m.win_rate ?? '—') + (m.win_rate != null ? '%' : ''));
+    clr('m-wr',  (m.win_rate ?? 0) >= 50 ? 'green' : 'red');
+    set('m-wl',  (m.win_count ?? '—') + ' W / ' + (m.loss_count ?? '—') + ' L');
+    set('m-pnl', (pos ? '+' : '') + '₹' + fmt(Math.abs(m.total_pnl || 0)));
+    clr('m-pnl', pos ? 'green' : 'red');
+    set('m-pnlp', (pos?'+':'') + (m.total_pnl_pct ?? '—') + '% on capital');
+    set('m-tot',  m.total_trades ?? '—');
+    set('m-hold', 'avg ' + (m.avg_hold_days ?? '—') + ' days');
+    set('m-dd',   '₹' + fmt(m.max_drawdown || 0));
+    set('m-ddp',  (m.max_drawdown_pct ?? '—') + '% of capital');
+    set('m-sh',   m.sharpe_ratio ?? '—');
+    clr('m-sh',  (m.sharpe_ratio ?? 0) >= 1 ? 'green' : (m.sharpe_ratio ?? 0) >= 0 ? 'live' : 'red');
+    set('m-pf',   m.profit_factor === 999 ? '∞' : (m.profit_factor ?? '—'));
+    clr('m-pf',  (m.profit_factor ?? 0) >= 1.5 ? 'green' : (m.profit_factor ?? 0) >= 1 ? 'live' : 'red');
+
+    if (d.trades && d.trades.length) {
+      document.getElementById('bt-log').style.display = 'block';
+      set('bt-cnt', d.trades.length + ' trades');
+      document.getElementById('bt-rows').innerHTML = d.trades.slice(0,50).map(t => {
+        const w = t.pnl > 0;
+        const rb = t.exit_reason === 'Target Hit' ? 'badge-green' : t.exit_reason === 'Stop Loss' ? 'badge-red' : 'badge-gray';
+        return `<tr class="${w?'tr-win':'tr-loss'}">
+          <td style="font-weight:700;">${t.symbol}</td>
+          <td style="font-size:12px;"><span class="mono" style="font-weight:600;">₹${fmtP(t.entry_price)}</span><br><span style="font-size:10px;color:var(--txt3);">${t.entry_date}</span></td>
+          <td style="font-size:12px;"><span class="mono" style="font-weight:600;">₹${fmtP(t.exit_price)}</span><br><span style="font-size:10px;color:var(--txt3);">${t.exit_date}</span></td>
+          <td><span class="mono" style="font-weight:700;color:${w?'var(--green)':'var(--red)'};">${w?'+':''}₹${fmt(Math.abs(t.pnl))}</span><br><span style="font-size:10px;color:var(--txt3);">${w?'+':''}${t.pnl_pct}%</span></td>
+          <td><span class="badge ${rb}">${t.exit_reason}</span></td>
+        </tr>`;
+      }).join('');
+    }
+  } catch(e) { console.error(e); }
+  finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Run Backtest';
+  }
+}
+
+// ── Live feed ──────────────────────────────────────────
+async function startFeed() {
+  const mode = document.getElementById('feed-mode').value;
+  document.getElementById('feed-start').disabled = true;
+  try {
+    await fetch(`${API}/api/live/start?mode=${mode}`, { method:'POST' });
+    showFeedRunning(mode);
+  } catch(e) { document.getElementById('feed-start').disabled = false; }
+}
+
+async function stopFeed() {
+  try {
+    await fetch(`${API}/api/live/stop`, { method:'POST' });
+    showFeedStopped();
+  } catch(e) {}
+}
+
+function showFeedRunning(mode) {
+  document.getElementById('feed-start').style.display = 'none';
+  document.getElementById('feed-stop').style.display = 'flex';
+  const chip = document.getElementById('feed-chip');
+  chip.className = 'chip chip-green';
+  chip.innerHTML = `<span class="chip-dot" style="background:var(--green)"></span><span>${mode === 'websocket' ? 'WS Live' : 'Polling'}</span>`;
+}
+
+function showFeedStopped() {
+  document.getElementById('feed-stop').style.display = 'none';
+  document.getElementById('feed-start').style.display = 'flex';
+  document.getElementById('feed-start').disabled = false;
+  document.getElementById('feed-chip').className = 'chip chip-gray';
+  document.getElementById('feed-chip').innerHTML = '<span class="chip-dot" style="background:var(--txt3)"></span><span>Stopped</span>';
+}
+
+async function refreshLive() {
+  try {
+    const status = await j(`${API}/api/live/status`);
+    if (status.feed && status.feed.running) {
+      showFeedRunning(status.feed.mode);
+    } else {
+      showFeedStopped();
+    }
+    const prices = await j(`${API}/api/ltp`);
+    renderPrices(prices);
+  } catch(e) {}
+}
+
+function renderPrices(prices) {
+  if (!prices || !prices.length) return;
+  set('live-ts', new Date().toLocaleTimeString('en-IN', { timeZone:'Asia/Kolkata' }));
+  document.getElementById('live-body').innerHTML = prices.map(p => {
+    const sym = p.symbol;
+    const prev = prevPx[sym];
+    const up = (p.change_pct || 0) >= 0;
+    let cls = '';
+    if (prev) cls = p.ltp > prev.ltp ? 'fup' : p.ltp < prev.ltp ? 'fdown' : '';
+    prevPx[sym] = p;
+    const cp = (p.change_pct || 0).toFixed(2);
+    return `<tr class="${cls}" id="pr-${sym}">
+      <td style="font-weight:700;">${sym}</td>
+      <td class="mono" style="font-weight:600;">₹${fmtP(p.ltp)}</td>
+      <td style="font-weight:600;color:${up?'var(--green)':'var(--red)'};">${up?'▲':'▼'} ${Math.abs(cp)}%</td>
+      <td class="mono" style="font-size:12px;color:var(--txt3);">₹${fmtP(p.high)}</td>
+      <td class="mono" style="font-size:12px;color:var(--txt3);">₹${fmtP(p.low)}</td>
+      <td style="font-size:11px;color:var(--txt3);">${(p.volume/1e6).toFixed(1)}M</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadWatchlist() {
+  try {
+    const d = await j(`${API}/api/watchlist`);
+    renderChips(d.symbols || []);
+  } catch(e) {}
+}
+
+function renderChips(syms) {
+  document.getElementById('wl-chips').innerHTML = syms.map(s => `
+    <div class="chip-sym">
+      ${s}
+      <button onclick="removeSym('${s}')">×</button>
+    </div>`).join('');
+}
+
+async function addSym() {
+  const inp = document.getElementById('wl-input');
+  const sym = inp.value.trim().toUpperCase();
+  if (!sym) return;
+  try { const d = await (await fetch(`${API}/api/watchlist/${sym}`, {method:'POST'})).json(); renderChips(d.symbols||[]); inp.value = ''; }
+  catch(e) {}
+}
+
+async function removeSym(sym) {
+  try { const d = await (await fetch(`${API}/api/watchlist/${sym}`, {method:'DELETE'})).json(); renderChips(d.symbols||[]); }
+  catch(e) {}
+}
+
+// ── Helpers ────────────────────────────────────────────
+function openChart(sym) {
+  window.open(`https://www.tradingview.com/chart/?symbol=NSE:${sym.replace(/[&-]/g,'_')}`, '_blank');
+}
+const j = url => fetch(url).then(r => r.json());
+function set(id, v) { const el = document.getElementById(id); if(el) el.textContent = v ?? '—'; }
+function clr(id, c) {
+  const el = document.getElementById(id); if(!el) return;
+  const map = { green:'var(--green)', red:'var(--red)', live:'var(--live)', bt:'var(--bt)', sig:'var(--sig)', data:'var(--data)' };
+  el.style.color = map[c] || 'var(--txt)';
+}
+function fmt(n) { return n == null || isNaN(n) ? '—' : Number(n).toLocaleString('en-IN'); }
+function fmtP(n) { return n == null || isNaN(n) ? '—' : Number(n).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+
+// ── ML Predictor ───────────────────────────────────────
+let mlAllPredictions = [];
+let mlTrainingPoller = null;
+
+async function checkMLStatus() {
+  try {
+    const d = await j(`${API}/api/ml/train/status`);
+    if (d.is_trained) {
+      const chip = document.getElementById('ml-status-chip');
+      chip.className = 'chip chip-green';
+      chip.innerHTML = '<span class="chip-dot" style="background:var(--green)"></span><span>Trained</span>';
+      document.getElementById('ml-predict-btn').style.display = 'flex';
+      document.getElementById('ml-results-card').style.display = 'block';
+      document.getElementById('ml-analytics-card').style.display = 'block';
+      document.getElementById('ml-regime-card').style.display = 'block';
+      if (d.meta && d.meta.auc_roc) renderMLMeta(d.meta);
+      loadMLAnalytics();
+      loadRegime();
+    }
+  } catch(e) {}
+}
+
+function renderMLMeta(meta) {
+  const row = document.getElementById('ml-metrics-row');
+  row.style.display = 'grid';
+  document.getElementById('ml-auc').textContent = meta.auc_roc ? (meta.auc_roc * 100).toFixed(1) + '%' : '—';
+  document.getElementById('ml-acc').textContent = meta.accuracy ? (meta.accuracy * 100).toFixed(1) + '%' : '—';
+  document.getElementById('ml-f1').textContent  = meta.f1_buy   ? (meta.f1_buy   * 100).toFixed(1) + '%' : '—';
+
+  const trained = meta.trained_at ? new Date(meta.trained_at).toLocaleDateString('en-IN') : '';
+  const info = `Trained ${trained} · ${meta.symbols_used || 0} symbols · ${(meta.training_samples||0).toLocaleString('en-IN')} rows`;
+  document.getElementById('ml-train-info').textContent = info;
+
+  if (meta.top_features && meta.top_features.length) {
+    const card = document.getElementById('ml-features-card');
+    card.style.display = 'block';
+    const maxImp = meta.top_features[0].importance;
+    document.getElementById('ml-features-body').innerHTML = meta.top_features.map(f => {
+      const pct = maxImp > 0 ? (f.importance / maxImp * 100).toFixed(0) : 0;
+      return `<div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:12px;font-weight:500;font-family:'JetBrains Mono',monospace;">${f.name}</span>
+          <span style="font-size:11px;color:var(--txt3);">${(f.importance*100).toFixed(2)}%</span>
+        </div>
+        <div style="height:4px;background:var(--s3);border-radius:99px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#6366f1,#818cf8);border-radius:99px;"></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+async function trainModel() {
+  const btn = document.getElementById('ml-train-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spin" style="color:#fff;"></div> Training…';
+
+  try {
+    const r = await (await fetch(`${API}/api/ml/train`, {method:'POST'})).json();
+    if (r.status === 'busy') {
+      btn.disabled = false;
+      btn.innerHTML = '⚠ Already training';
+      return;
+    }
+
+    // Poll until done
+    mlTrainingPoller = setInterval(async () => {
+      try {
+        const st = await j(`${API}/api/ml/train/status`);
+        if (!st.is_training) {
+          clearInterval(mlTrainingPoller);
+          btn.disabled = false;
+          btn.innerHTML = '↺ Re-Train';
+          if (st.last_result && st.last_result.error) {
+            btn.innerHTML = '❌ Failed — check deps';
+          } else {
+            checkMLStatus();
+            loadMLAnalytics();
+            loadRegime();
+          }
         }
+      } catch(e) {}
+    }, 4000);
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = 'Train Model';
+  }
+}
 
-        const matrix = document.getElementById('grid-matrix');
-        for (let i = 0; i < 100; i++) {
-            const dot = document.createElement('div');
-            dot.className = 'dot';
-            dot.id = `dot-${i}`;
-            matrix.appendChild(dot);
-        }
+async function loadRegime() {
+  try {
+    const r = await j(`${API}/api/ml/regime`);
+    document.getElementById('ml-regime-card').style.display = 'block';
 
-        function toggleTheme() {
-            const isDark = document.body.classList.toggle('dark');
-            const icon = document.getElementById('theme-icon');
-            icon.innerHTML = isDark
-                ? `<path d="M12 3v1m0 16v1m9-9h1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z"></path>`
-                : `<path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>`;
-        }
+    const colours = { Bull: 'var(--green)', Neutral: 'var(--live)', Bear: 'var(--red)' };
+    const insights = {
+      Bull: `${r.breadth_pct}% of Nifty100 stocks are above SMA50. Broad participation — BUY threshold lowered to ${(r.breadth_pct >= 60 ? 55 : 60)}% to capture more opportunities.`,
+      Neutral: `Mixed market — ${r.breadth_pct}% above SMA50. Standard BUY threshold of 60% applied. Prefer strong setups with volume confirmation.`,
+      Bear: `Only ${r.breadth_pct}% of stocks above SMA50. Broad weakness — BUY threshold raised to 65%. Only take the highest-confidence setups.`,
+    };
+    const thresholds = { Bull: 55, Neutral: 60, Bear: 65 };
 
-        async function runStrategyScan() {
-            const btn = document.getElementById('scan-btn');
-            const tbody = document.getElementById('signals-body');
-            const strategy = document.getElementById('strategy-select').value;
+    const regime = r.regime || 'Neutral';
+    document.getElementById('regime-dot').style.background = colours[regime] || 'var(--txt3)';
+    document.getElementById('regime-label').textContent = regime + ' Market';
+    document.getElementById('regime-sub').textContent =
+      `${r.above_sma50} above SMA50 · ${r.below_sma50} below · as of ${r.as_of_date}`;
+    document.getElementById('regime-breadth').textContent = r.breadth_pct + '%';
+    document.getElementById('regime-vol').textContent = r.volatility_label + ' Volatility';
+    document.getElementById('regime-atr').textContent = `avg ATR ${r.avg_atr_pct}%`;
+    document.getElementById('regime-thresh').textContent = (thresholds[regime] || 60) + '%';
+    document.getElementById('regime-insight').textContent = insights[regime] || '';
 
-            btn.disabled = true;
-            btn.textContent = 'Scanning...';
-            tbody.innerHTML = `<tr><td class="p-12 text-center opacity-40 italic animate-pulse">Running ${strategy.replace('_', ' ').toUpperCase()} scan...</td></tr>`;
+    // Breadth bar marker position
+    const pct = Math.min(Math.max(r.breadth_pct, 0), 100);
+    document.getElementById('regime-bar-marker').style.left = pct + '%';
+  } catch(e) {}
+}
 
-            try {
-                const res = await fetch(`${API_URL}/api/signals?strategy=${strategy}`);
-                const signals = await res.json();
+async function loadMLAnalytics() {
+  try {
+    const d = await j(`${API}/api/ml/reliability`);
+    document.getElementById('ml-analytics-card').style.display = 'block';
 
-                if (signals.length === 0) {
-                    tbody.innerHTML = '<tr><td class="p-12 text-center opacity-20 italic">No signals found.</td></tr>';
-                } else {
-                    tbody.innerHTML = signals.map(s => `
-                        <tr class="hover:bg-blue-500/5 transition-colors">
-                            <td class="p-4">
-                                <div class="font-bold text-base">${s.symbol}</div>
-                                <div class="text-[9px] font-black uppercase opacity-30 mt-1">${s.trend}</div>
-                            </td>
-                            <td class="p-4 text-right">
-                                <div class="font-black text-blue-500 text-sm">₹${s.price.toLocaleString()}</div>
-                                <div class="text-[9px] font-bold opacity-40 mt-1">${s.metric}</div>
-                                <button onclick="openChart('${s.symbol}')" class="mt-2 text-[9px] font-black uppercase tracking-widest text-blue-400 bg-blue-500/5 px-3 py-2 rounded-lg border border-blue-500/10 active:scale-95">Chart</button>
-                            </td>
-                        </tr>
-                    `).join('');
-                }
-            } catch (e) {
-                tbody.innerHTML = '<tr><td class="p-12 text-center text-red-500 italic">Scan failed.</td></tr>';
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Scan Universe';
-            }
-        }
+    if (d.regressor_mae_pct != null)
+      document.getElementById('ml-reg-mae').textContent = Math.abs(d.regressor_mae_pct).toFixed(2) + '%';
+    if (d.regressor_r2 != null)
+      document.getElementById('ml-reg-r2').textContent = d.regressor_r2.toFixed(3);
+    if (d.wf_test_ratio_pct != null)
+      document.getElementById('wf-detail').textContent =
+        `Walk-Forward: oldest ${100-d.wf_test_ratio_pct}% = train · most-recent ${d.wf_test_ratio_pct}% = test (per symbol)`;
 
-        function openChart(symbol) {
-            const url = `https://www.tradingview.com/chart/?symbol=NSE:${symbol.replace('&', '_').replace('-', '_')}`;
-            window.open(url, '_blank');
-        }
+    if (d.reliability_buckets && d.reliability_buckets.length) {
+      document.getElementById('ml-calibration-bars').innerHTML =
+        d.reliability_buckets.map(b => {
+          const predW = b.predicted_pct;
+          const actW  = b.actual_pct;
+          const wellCalib = Math.abs(predW - actW) <= 8;
+          return `<div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+              <span style="font-size:11px;color:var(--txt2);">Predicted ~${predW}%</span>
+              <span style="font-size:11px;font-weight:600;color:${wellCalib?'var(--green)':'var(--live)'};">
+                Actual: ${actW}% <span style="font-size:10px;color:var(--txt3);">(n=${b.count})</span>
+              </span>
+            </div>
+            <div style="height:16px;background:var(--s2);border-radius:6px;overflow:hidden;position:relative;display:flex;">
+              <div style="height:100%;width:${predW}%;background:#6366f1;border-radius:6px;opacity:.5;"></div>
+              <div style="position:absolute;height:100%;width:${actW}%;background:var(--green);border-radius:6px;opacity:.7;"></div>
+            </div>
+          </div>`;
+        }).join('');
+    }
+  } catch(e) {}
+}
 
-        async function updateDashboard() {
-            try {
-                const res = await fetch(`${API_URL}/api/status`);
-                const data = await res.json();
+async function runPredictions() {
+  const btn = document.getElementById('ml-predict-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spin"></div> Scoring…';
+  document.getElementById('ml-pred-body').innerHTML =
+    '<div class="empty"><div class="spin" style="color:#6366f1;margin:20px auto;"></div><div class="empty-sub" style="margin-top:8px;">Scoring all 99 symbols…</div></div>';
 
-                document.getElementById('db-rows').textContent = data.total_db_rows.toLocaleString();
-                document.getElementById('stat-candles').textContent = data.total_candles.toLocaleString();
+  try {
+    const d = await j(`${API}/api/ml/predict`);
+    mlAllPredictions = d.results || [];
+    mlFilter('all');
+    const buyCount  = mlAllPredictions.filter(p => p.signal === 'BUY').length;
+    const liveCount = d.live_count || 0;
+    set('ml-buy-count', buyCount + ' BUY');
+    set('ml-pred-count', mlAllPredictions.length + ' scored');
+    const liveBadge = document.getElementById('ml-live-badge');
+    if (liveCount > 0) {
+      liveBadge.style.display = 'inline-flex';
+      liveBadge.textContent = '● ' + liveCount + ' LIVE';
+    } else {
+      liveBadge.style.display = 'none';
+    }
+    if (d.regime) loadRegime();
+  } catch(e) {
+    document.getElementById('ml-pred-body').innerHTML =
+      '<div class="empty"><div class="empty-title">Error</div><div class="empty-sub">Could not fetch predictions</div></div>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Score All 99';
+  }
+}
 
-                const tokenEl = document.getElementById('token-status');
-                tokenEl.textContent = data.token_valid ? "Connected" : "Expired";
-                tokenEl.className = `text-[10px] font-black uppercase ${data.token_valid ? 'text-emerald-500' : 'text-red-500'}`;
+function mlFilter(type) {
+  // Update filter button styles
+  ['all','buy','neutral','avoid'].forEach(t => {
+    const el = document.getElementById('ml-filter-' + t);
+    if (!el) return;
+    el.style.background = t === type.toLowerCase() ? '#6366f1' : 'var(--s3)';
+    el.style.color       = t === type.toLowerCase() ? '#fff'    : 'var(--txt2)';
+    el.style.border      = t === type.toLowerCase() ? 'none'    : '1px solid var(--border2)';
+  });
 
-                const results = Object.entries(data.symbol_results);
-                for (let i = 0; i < 100; i++) {
-                    const dot = document.getElementById(`dot-${i}`);
-                    if (dot) {
-                        dot.className = 'dot';
-                        if (results[i]) dot.classList.add(results[i][1].status);
-                    }
-                }
+  const filtered = type === 'all'
+    ? mlAllPredictions
+    : mlAllPredictions.filter(p => p.signal === type.toUpperCase());
 
-                const percent = Math.min(100, data.processed > 0 ? Math.round((data.processed / (data.total_symbols || 100)) * 100) : 0);
-                document.getElementById('percent-val').textContent = `${percent}%`;
+  if (!filtered.length) {
+    document.getElementById('ml-pred-body').innerHTML =
+      '<div class="empty"><div class="empty-icon" style="background:rgba(99,102,241,.12);">🤖</div>' +
+      '<div class="empty-title">No results</div><div class="empty-sub">No symbols match this filter</div></div>';
+    return;
+  }
 
-                const engineEl = document.getElementById('engine-status');
-                engineEl.textContent = data.is_running ? "Pipeline Active" : "Standby";
-                engineEl.className = `text-[9px] font-black uppercase tracking-widest mt-1 ${data.is_running ? 'text-emerald-500 animate-pulse' : 'opacity-40'}`;
+  const sigColour = { BUY:'var(--green)', NEUTRAL:'var(--live)', AVOID:'var(--red)' };
+  const sigBg     = { BUY:'var(--green-d)', NEUTRAL:'var(--live-d)', AVOID:'var(--red-d)' };
 
-                document.getElementById('db-size').textContent = `${data.db_size_mb} MB`;
-                document.getElementById('horizon-symbols').textContent = data.unique_symbols;
-                document.getElementById('horizon-range').textContent = `${data.min_date} → ${data.max_date}`;
+  document.getElementById('ml-pred-body').innerHTML = filtered.map(p => {
+    const pct  = Math.round((p.buy_probability || 0) * 100);
+    const bar  = `<div style="height:3px;background:var(--s3);border-radius:99px;margin-top:5px;overflow:hidden;">
+      <div style="height:100%;width:${pct}%;background:${sigColour[p.signal]||'#6366f1'};border-radius:99px;transition:width .4s;"></div></div>`;
+    const target = p.price_target ? `₹${fmtP(p.price_target)}` : '—';
+    const retPct = p.expected_return_pct != null
+      ? `<span style="color:${p.expected_return_pct>=0?'var(--green)':'var(--red)'};">${p.expected_return_pct>=0?'+':''}${p.expected_return_pct}%</span>`
+      : '';
+    const isLive = p.price_source === 'live';
+    const priceLabel = isLive
+      ? `<span style="font-size:9px;font-weight:700;color:var(--green);margin-left:3px;">●LIVE</span>`
+      : `<span style="font-size:9px;color:var(--txt3);margin-left:3px;">(last close)</span>`;
+    return `<div class="signal-item" style="cursor:pointer;" onclick="openChart('${p.symbol}')">
+      <div style="flex:1;min-width:0;">
+        <div class="sig-name">${p.symbol}</div>
+        <div class="sig-meta">₹${fmtP(p.price)}${priceLabel} · ${p.confidence || ''} · Target ${target} ${retPct}</div>
+        ${bar}
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:8px;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:${sigColour[p.signal]||'#6366f1'};">${pct}%</div>
+        <span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;
+          background:${sigBg[p.signal]||'rgba(99,102,241,.12)'};color:${sigColour[p.signal]||'#6366f1'};margin-top:3px;">${p.signal}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
 
-                updateSnapshot();
-            } catch (e) { }
-        }
+// ── Yahoo Finance backfill ─────────────────────────────
+let yfPoller = null;
 
-        async function updateSnapshot() {
-            try {
-                const res = await fetch(`${API_URL}/api/latest_snapshot`);
-                const snapshot = await res.json();
-                const tbody = document.getElementById('snapshot-body');
-                if (snapshot.length > 0) {
-                    tbody.innerHTML = snapshot.map(s => `
-                        <tr>
-                            <td class="font-black p-4">${s.symbol}</td>
-                            <td class="font-bold p-4 text-blue-500">₹${s.close.toFixed(0)}</td>
-                            <td class="mono p-4 opacity-40 text-[10px]">${(s.volume / 1000000).toFixed(1)}M</td>
-                            <td class="text-right p-4 opacity-20 text-[10px]">${s.date.split('-').slice(1).join('/')}</td>
-                        </tr>
-                    `).join('');
-                }
-            } catch (e) { }
-        }
+async function startYFinance() {
+  const btn = document.getElementById('yf-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spin" style="color:#431407;"></div> Starting…';
 
-        async function startBackfill() {
-            try { await fetch(`${API_URL}/api/start_backfill`, { method: 'POST' }); updateDashboard(); }
-            catch (e) { }
-        }
+  try {
+    const r = await (await fetch(`${API}/api/start_yfinance_backfill`, {method:'POST'})).json();
+    if (r.status === 'busy') {
+      btn.disabled = false;
+      return;
+    }
+    document.getElementById('yf-progress-wrap').style.display = 'block';
+    document.getElementById('yf-chip').className = 'chip chip-amber';
+    document.getElementById('yf-chip').innerHTML =
+      '<span class="chip-dot" style="background:var(--live)"></span><span>Running</span>';
 
-        // Initialize
-        setInterval(updateDashboard, 5000);
-        updateDashboard();
-    </script>
+    yfPoller = setInterval(pollYFinance, 3000);
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = 'Fetch Full History (Yahoo Finance)';
+  }
+}
+
+async function pollYFinance() {
+  try {
+    const d = await j(`${API}/api/yfinance/status`);
+    set('yf-cur-sym', d.current_symbol || '…');
+    set('yf-pct', (d.pct || 0) + '%');
+    set('yf-proc', d.processed || 0);
+    set('yf-tot', d.total || 0);
+    set('yf-new', (d.total_new_candles || 0).toLocaleString('en-IN'));
+    document.getElementById('yf-bar').style.width = (d.pct || 0) + '%';
+
+    if (!d.is_running) {
+      clearInterval(yfPoller);
+      const btn = document.getElementById('yf-btn');
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Re-fetch (Yahoo Finance)';
+      document.getElementById('yf-chip').className = 'chip chip-green';
+      document.getElementById('yf-chip').innerHTML =
+        '<span class="chip-dot" style="background:var(--green)"></span><span>Done</span>';
+      loadDbSources();
+      refreshStatus();   // update DB row count
+    }
+  } catch(e) {}
+}
+
+async function loadDbSources() {
+  try {
+    const rows = await j(`${API}/api/db/sources`);
+    if (!rows || rows.error || !rows.length) return;
+
+    const sourceColours = { FYERS: 'var(--data)', YFINANCE: 'var(--live)' };
+    document.getElementById('yf-sources').style.display = 'block';
+    document.getElementById('yf-sources-body').innerHTML = rows.map(r => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${sourceColours[r.source]||'var(--bt)'};display:inline-block;flex-shrink:0;"></span>
+          <span style="font-size:12px;font-weight:600;">${r.source}</span>
+          <span style="font-size:10px;color:var(--txt3);">${r.from_date} → ${r.to_date}</span>
+        </div>
+        <div style="text-align:right;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:${sourceColours[r.source]||'var(--bt)'};">${r.rows.toLocaleString('en-IN')}</span>
+          <span style="font-size:10px;color:var(--txt3);margin-left:4px;">rows · ${r.symbols} syms</span>
+        </div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+// ── Scheduler status ───────────────────────────────────
+async function refreshScheduler() {
+  try {
+    const d = await j(`${API}/api/scheduler/status`);
+
+    // Status chip
+    const chip = document.getElementById('sched-status-chip');
+    if (d.running) {
+      chip.className = 'chip chip-green';
+      chip.innerHTML = '<span class="chip-dot" style="background:var(--green)"></span><span>Active</span>';
+    } else {
+      chip.className = 'chip chip-gray';
+      chip.innerHTML = '<span class="chip-dot" style="background:var(--txt3)"></span><span>Off</span>';
+    }
+
+    // Data update job
+    if (d.data_update) {
+      const du = d.data_update;
+      set('sched-data-schedule', du.schedule || '');
+      set('sched-data-last', du.last_run && du.last_run !== 'Never' ? du.last_run : 'Never');
+      if (du.last_result && du.last_result.total_candles != null)
+        set('sched-data-candles', du.last_result.total_candles.toLocaleString('en-IN') + ' candles');
+      document.getElementById('sched-data-running').style.display =
+        du.currently_running ? 'flex' : 'none';
+    }
+
+    // ML retrain job
+    if (d.ml_retrain) {
+      const ml = d.ml_retrain;
+      set('sched-ml-schedule', ml.schedule || '');
+      set('sched-ml-last', ml.last_run && ml.last_run !== 'Never' ? ml.last_run : 'Never');
+      if (ml.last_result && ml.last_result.auc_roc != null)
+        set('sched-ml-auc', 'AUC ' + (ml.last_result.auc_roc * 100).toFixed(1) + '%');
+      document.getElementById('sched-ml-running').style.display =
+        ml.currently_running ? 'flex' : 'none';
+    }
+
+    // Next run times from jobs list
+    if (d.jobs) {
+      d.jobs.forEach(job => {
+        if (job.id === 'daily_data_update')
+          set('sched-data-next', job.next_run_ist);
+        if (job.id === 'weekly_ml_retrain')
+          set('sched-ml-next', job.next_run_ist);
+      });
+    }
+  } catch(e) {}
+}
+
+// ── Init ───────────────────────────────────────────────
+refreshStatus();
+refreshScheduler();
+setInterval(refreshStatus, 5000);
+setInterval(refreshScheduler, 15000);
+setInterval(() => { if (document.getElementById('tab-live').classList.contains('active')) refreshLive(); }, 3000);
+checkMLStatus();
+</script>
 </body>
-
 </html>
