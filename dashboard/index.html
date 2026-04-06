@@ -1470,9 +1470,10 @@
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/></svg>
     AI
   </button>
-  <button class="nav-btn" data-tab="execute" onclick="go('execute',this)">
+  <button class="nav-btn" data-tab="execute" onclick="go('execute',this)" id="nav-execute-btn" style="position:relative;">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
     Execute
+    <span id="execute-badge" style="display:none;position:absolute;top:4px;right:4px;background:#f43f5e;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;line-height:16px;padding:0 4px;text-align:center;"></span>
   </button>
 </nav>
 
@@ -1512,7 +1513,7 @@ function go(id, el) {
   el.classList.add('active');
   document.querySelector('.scroll').scrollTo(0, 0);
   if (id === 'live')    { loadWatchlist(); refreshLive(); }
-  if (id === 'execute') { loadExecuteRegime(); }
+  if (id === 'execute') { loadExecuteRegime(); _updateExecuteBadge(0); _execPrevCount = 0; }
 }
 
 // ── Clock ──────────────────────────────────────────────
@@ -2351,6 +2352,77 @@ async function runExecute() {
     btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg> Find Today\'s Best Trades';
   }
 }
+
+// ── Execute Tab Notification System ───────────────────
+//
+// Polls /api/execute/poll every 5 minutes.
+// • Shows a red badge on the Execute nav button when trades > 0.
+// • Sends a browser push notification when new trades appear.
+// • On first open, requests Notification permission.
+
+let _execPrevCount = null;   // track previous count to detect changes
+
+function _updateExecuteBadge(count) {
+  const badge = document.getElementById('execute-badge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.style.display = 'block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function _requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function _sendBrowserNotification(count, symbols, regime) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const topStr = symbols.length > 0 ? symbols.slice(0, 3).join(', ') : '';
+  const body = topStr
+    ? `${count} trade${count > 1 ? 's' : ''} ready: ${topStr}${count > 3 ? ' & more' : ''} · ${regime} market`
+    : `${count} high-conviction trade${count > 1 ? 's' : ''} ready · ${regime} market`;
+  try {
+    const n = new Notification('⚡ APEX — New Trades Ready', {
+      body,
+      icon: '/favicon.ico',
+      tag: 'apex-execute',   // replaces previous notification instead of stacking
+      renotify: count !== _execPrevCount,
+    });
+    n.onclick = () => {
+      window.focus();
+      // Switch to execute tab
+      const btn = document.querySelector('.nav-btn[data-tab="execute"]');
+      if (btn) go('execute', btn);
+      n.close();
+    };
+  } catch(e) {}
+}
+
+async function _pollExecute() {
+  try {
+    const d = await j(`${API}/api/execute/poll`);
+    const count = d.count || 0;
+    _updateExecuteBadge(count);
+
+    // Notify only when count goes from 0→N or increases
+    if (_execPrevCount !== null && count > 0 && count !== _execPrevCount) {
+      _sendBrowserNotification(count, d.top_symbols || [], d.regime || 'Neutral');
+    }
+    _execPrevCount = count;
+  } catch(e) {}
+}
+
+// Request permission on page load (subtle — no UI prompt before interaction)
+document.addEventListener('click', _requestNotificationPermission, { once: true });
+
+// Poll immediately then every 5 minutes
+_pollExecute();
+setInterval(_pollExecute, 5 * 60 * 1000);
+
 
 // ── Init ───────────────────────────────────────────────
 refreshStatus();

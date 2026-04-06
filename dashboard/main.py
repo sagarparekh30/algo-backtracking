@@ -88,9 +88,21 @@ class YFinanceState:
     total_new_candles = 0
 
 
+class ExecuteCache:
+    """Cached result of the last combined signals scan."""
+    results: list = []
+    count: int = 0
+    top_symbols: list = []
+    regime: str = "Unknown"
+    buy_threshold: float = 0.60
+    last_checked: datetime = None
+    is_refreshing: bool = False
+
+
 state = DashboardState()
 daily_run_state = DailyRunState()
 yf_state = YFinanceState()
+execute_cache = ExecuteCache()
 
 
 # -------------------------------------------------------
@@ -481,6 +493,14 @@ async def combined_signals():
 
     total_strategy_signals = sum(len(v) for v in all_signals.values())
 
+    # Update the global cache so /api/execute/poll can serve it
+    execute_cache.results       = results
+    execute_cache.count         = len(results)
+    execute_cache.top_symbols   = [r["symbol"] for r in results[:5]]
+    execute_cache.regime        = regime
+    execute_cache.buy_threshold = buy_thresh
+    execute_cache.last_checked  = datetime.now()
+
     return {
         "results":                results,
         "count":                  len(results),
@@ -489,6 +509,135 @@ async def combined_signals():
         "symbols_with_signals":   len(symbol_map),
         "ml_confirmed":           len(results),
         "total_strategy_signals": total_strategy_signals,
+    }
+
+
+async def _refresh_execute_cache():
+    """Background task: re-run combined signals and update cache."""
+    if execute_cache.is_refreshing:
+        return
+    execute_cache.is_refreshing = True
+    try:
+        import pandas as pd
+        from ml.model import MLPredictor, THRESHOLDS
+        from ml.regime import compute_regime
+
+        regime_data = compute_regime()
+        regime      = regime_data.get("regime", "Neutral")
+        buy_thresh, _ = THRESHOLDS.get(regime, THRESHOLDS["Neutral"])
+
+        manager     = StrategyManager()
+        all_signals = manager.get_all_signals()
+
+        symbol_map: dict = {}
+        for strategy_id, sigs in all_signals.items():
+            for sig in sigs:
+                sym = sig.get("symbol", "")
+                if not sym:
+                    continue
+                if sym not in symbol_map:
+                    symbol_map[sym] = {
+                        "strategies": [], "entry": sig.get("entry"),
+                        "stop_loss": sig.get("stop_loss"), "target": sig.get("target"),
+                        "atr": sig.get("atr"),
+                    }
+                symbol_map[sym]["strategies"].append(strategy_id)
+
+        predictor = MLPredictor()
+        if not predictor.load():
+            return
+
+        engine  = get_engine()
+        results = []
+        for sym, info in symbol_map.items():
+            try:
+                df = pd.read_sql(
+                    f"SELECT trade_date, open, high, low, close, volume "
+                    f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
+                    engine, params={"sym": sym},
+                )
+                if df.empty or len(df) < 260:
+                    continue
+                ml = predictor.predict_symbol(df, sym, regime=regime)
+                if "error" in ml or ml.get("buy_probability", 0) < buy_thresh:
+                    continue
+                tick = live_feed.get(sym)
+                price = ml.get("price", 0)
+                price_source = "last_close"
+                if tick and tick.get("ltp"):
+                    price = float(tick["ltp"])
+                    price_source = "live"
+                results.append({
+                    "symbol": sym,
+                    "buy_probability": ml.get("buy_probability", 0),
+                    "confidence": ml.get("confidence"),
+                    "expected_return_pct": ml.get("expected_return_pct"),
+                    "price_target": ml.get("price_target"),
+                    "price": price, "price_source": price_source,
+                    "entry": info["entry"], "stop_loss": info["stop_loss"],
+                    "target": info["target"], "atr": info["atr"],
+                    "strategies": info["strategies"],
+                    "strategy_count": len(info["strategies"]),
+                })
+            except Exception:
+                continue
+
+        results.sort(key=lambda x: (x["buy_probability"], x["strategy_count"]), reverse=True)
+
+        prev_count = execute_cache.count
+        execute_cache.results       = results
+        execute_cache.count         = len(results)
+        execute_cache.top_symbols   = [r["symbol"] for r in results[:5]]
+        execute_cache.regime        = regime
+        execute_cache.buy_threshold = buy_thresh
+        execute_cache.last_checked  = datetime.now()
+
+        # Send Telegram alert if new trades appeared
+        if len(results) > 0 and (prev_count == 0 or len(results) != prev_count):
+            try:
+                from alerts.telegram_bot import TelegramAlert
+                TelegramAlert().send_execute_alert(
+                    results, regime, int(buy_thresh * 100)
+                )
+            except Exception as e:
+                print(f"Telegram execute alert error: {e}")
+
+    except Exception as e:
+        print(f"Execute cache refresh error: {e}")
+    finally:
+        execute_cache.is_refreshing = False
+
+
+@app.get("/api/execute/poll")
+async def execute_poll(background_tasks: BackgroundTasks):
+    """
+    Lightweight poll endpoint for the Execute tab notification system.
+
+    Returns the cached combined signals count and top symbols.
+    If the cache is older than 5 minutes, triggers a background refresh
+    and returns the stale data immediately (non-blocking).
+
+    Frontend calls this every 5 minutes to check for new trade ideas
+    without running the full heavy scan on every poll.
+    """
+    from datetime import timedelta
+
+    cache_age_secs = None
+    if execute_cache.last_checked:
+        cache_age_secs = (datetime.now() - execute_cache.last_checked).total_seconds()
+
+    # Trigger background refresh if cache is stale (> 5 min) or empty
+    if cache_age_secs is None or cache_age_secs > 300:
+        background_tasks.add_task(_refresh_execute_cache)
+
+    return {
+        "count":          execute_cache.count,
+        "top_symbols":    execute_cache.top_symbols,
+        "regime":         execute_cache.regime,
+        "buy_threshold":  execute_cache.buy_threshold,
+        "last_checked":   execute_cache.last_checked.isoformat() if execute_cache.last_checked else None,
+        "is_refreshing":  execute_cache.is_refreshing,
+        "cache_age_secs": int(cache_age_secs) if cache_age_secs is not None else None,
     }
 
 

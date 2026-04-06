@@ -57,6 +57,113 @@ class SchedulerState:
 _state = SchedulerState()
 
 
+# ── Helper: run combined signals + Telegram alert ───────────────────────
+
+def _run_execute_alert():
+    """
+    Run all strategies + ML scoring after daily data update, then send a
+    Telegram alert if any high-conviction trades are found.
+
+    Mirrors the logic inside /api/combined/signals but runs synchronously
+    in the scheduler thread so no FastAPI context is needed.
+    """
+    try:
+        from ml.regime import MarketRegime
+        from ml.model import MLPredictor
+        from strategies.swing_executor import SwingExecutor
+        from alerts.telegram_bot import TelegramAlert
+
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        # 1. Detect regime
+        try:
+            regime_obj = MarketRegime()
+            regime_info = regime_obj.get_regime()
+            regime = regime_info.get("regime", "Neutral")
+        except Exception:
+            regime = "Neutral"
+
+        buy_thresh = {"Bull": 0.55, "Neutral": 0.60, "Bear": 0.65}.get(regime, 0.60)
+
+        # 2. Collect strategy signals
+        executor = SwingExecutor(base_dir)
+        all_signals: dict = {}
+        strategies = [
+            "golden_rsi", "macd_breakout", "bb_squeeze", "ema_crossover",
+            "vwap_reversal", "orb_breakout", "momentum_burst", "mean_reversion",
+            "volume_climax", "support_bounce", "trend_continuation",
+            "rsi_divergence", "bollinger_breakout", "gap_fill",
+            "moving_average_ribbon", "supertrend",
+        ]
+        for strat in strategies:
+            try:
+                sigs = executor.run_strategy(strat)
+                if sigs:
+                    all_signals[strat] = sigs
+            except Exception:
+                pass
+
+        if not all_signals:
+            logger.info("[Scheduler] Execute alert: no strategy signals found.")
+            return
+
+        # 3. Flatten + ML score
+        try:
+            predictor = MLPredictor()
+            model_loaded = predictor.load()
+        except Exception:
+            model_loaded = False
+
+        symbol_map: dict = {}
+        for strat, sigs in all_signals.items():
+            for sig in sigs:
+                sym = sig.get("symbol")
+                if not sym:
+                    continue
+                if sym not in symbol_map:
+                    symbol_map[sym] = {**sig, "strategies": [strat], "strategy_count": 1}
+                else:
+                    symbol_map[sym]["strategies"].append(strat)
+                    symbol_map[sym]["strategy_count"] += 1
+
+        results = []
+        for sym, sig in symbol_map.items():
+            prob = 0.5
+            if model_loaded:
+                try:
+                    pred = predictor.predict(sym)
+                    prob = pred.get("buy_probability", 0.5)
+                except Exception:
+                    pass
+
+            if prob >= buy_thresh:
+                risk = abs(sig.get("price", 0) - sig.get("stop_loss", 0))
+                reward = abs(sig.get("target", sig.get("price", 0)) - sig.get("price", 0))
+                conf = (
+                    "High" if prob >= 0.75
+                    else "Medium" if prob >= 0.60
+                    else "Low"
+                )
+                results.append({
+                    **sig,
+                    "buy_probability": prob,
+                    "confidence": conf,
+                    "risk_reward": round(reward / risk, 2) if risk > 0 else None,
+                })
+
+        results.sort(key=lambda x: (x["buy_probability"], x["strategy_count"]), reverse=True)
+
+        if not results:
+            logger.info(f"[Scheduler] Execute alert: 0 trades passed {int(buy_thresh*100)}% threshold.")
+            return
+
+        logger.info(f"[Scheduler] Execute alert: {len(results)} trades found. Sending Telegram.")
+        TelegramAlert().send_execute_alert(results, regime, int(buy_thresh * 100))
+
+    except Exception as e:
+        logger.error(f"[Scheduler] _run_execute_alert error: {e}")
+
+
 # ── Job functions ────────────────────────────────────────────────────────
 
 def _job_daily_data_update():
@@ -101,6 +208,13 @@ def _job_daily_data_update():
             "completed_at":  _state.last_data_update,
         }
         logger.info(f"[Scheduler] Daily data update done. candles={total_candles} success={success}")
+
+        # After data is refreshed, run combined signals and send Telegram alert
+        if success:
+            try:
+                _run_execute_alert()
+            except Exception as e:
+                logger.error(f"[Scheduler] Execute alert error: {e}")
 
     except subprocess.TimeoutExpired:
         _state.last_data_result = {"success": False, "error": "Timed out after 1 hour"}

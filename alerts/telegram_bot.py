@@ -203,6 +203,58 @@ class TelegramAlert:
             logger.error(f"send_morning_report error: {e}")
             return False
 
+    def send_execute_alert(self, results: list, regime: str, threshold_pct: int) -> bool:
+        """
+        Send AI-confirmed Execute tab trades via Telegram after daily update.
+
+        Args:
+            results:       List of combined signal dicts from /api/combined/signals
+            regime:        Market regime string ("Bull" / "Neutral" / "Bear")
+            threshold_pct: Buy threshold percentage used (55 / 60 / 65)
+
+        Returns:
+            True if sent successfully, False otherwise.
+        """
+        if not results:
+            return False
+        try:
+            from datetime import date
+            today = date.today().strftime("%d %b %Y")
+            regime_emoji = {"Bull": "🟢", "Neutral": "🟡", "Bear": "🔴"}.get(regime, "⚪")
+
+            lines = [
+                f"<b>⚡ Execute Alert — {today}</b>",
+                f"{regime_emoji} {regime} Market · AI threshold {threshold_pct}%",
+                f"<b>{len(results)} high-conviction trade{'s' if len(results)>1 else ''} found</b>",
+                "",
+            ]
+
+            for i, r in enumerate(results[:5], 1):   # top 5 max
+                sym   = r.get("symbol", "")
+                prob  = int(round(r.get("buy_probability", 0) * 100))
+                conf  = r.get("confidence", "")
+                entry = r.get("entry") or r.get("price", 0)
+                sl    = r.get("stop_loss", 0)
+                tgt   = r.get("target") or r.get("price_target", 0)
+                exp   = r.get("expected_return_pct")
+                strats = ", ".join(r.get("strategies", []))
+                sc    = r.get("strategy_count", 1)
+
+                lines.append(f"<b>#{i} {sym}</b>  {prob}% · {conf}")
+                lines.append(f"  Strategies : {strats} ({sc})")
+                lines.append(f"  Entry ₹{entry:,.0f}  SL ₹{sl:,.0f}  T ₹{tgt:,.0f}")
+                if exp is not None:
+                    lines.append(f"  AI target  : +{exp}%")
+                lines.append("")
+
+            if len(results) > 5:
+                lines.append(f"… and {len(results)-5} more on the dashboard")
+
+            return self._post("\n".join(lines))
+        except Exception as e:
+            logger.error(f"send_execute_alert error: {e}")
+            return False
+
     def send_backfill_complete(self, stats: dict) -> bool:
         """
         Send a notification when the data backfill is complete.
