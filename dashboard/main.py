@@ -369,6 +369,112 @@ async def get_status():
     }
 
 
+# -------------------------------------------------------
+# Fyers OAuth — browser-based login without terminal
+# -------------------------------------------------------
+
+@app.get("/api/fyers/login_url")
+async def fyers_login_url(_: str = Depends(require_admin)):
+    """
+    Generate the Fyers OAuth URL.
+    Frontend opens this in a new tab — after login Fyers redirects to
+    /auth/fyers/callback?auth_code=xxx which saves the token automatically.
+    Admin only.
+    """
+    try:
+        from fyers_apiv3 import fyersModel
+        from config.settings import FYERS_CLIENT_ID, FYERS_SECRET_KEY
+
+        # Build callback URL: use APP_URL env var if set (production),
+        # otherwise fall back to localhost
+        app_url = os.getenv("APP_URL", "http://localhost:8000").rstrip("/")
+        redirect_uri = f"{app_url}/auth/fyers/callback"
+
+        session = fyersModel.SessionModel(
+            client_id=FYERS_CLIENT_ID,
+            secret_key=FYERS_SECRET_KEY,
+            redirect_uri=redirect_uri,
+            response_type="code",
+            grant_type="authorization_code",
+        )
+        auth_url = session.generate_authcode()
+        return {"url": auth_url, "redirect_uri": redirect_uri}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/auth/fyers/callback")
+async def fyers_callback(auth_code: str = None, s: str = None, code: int = None):
+    """
+    Fyers redirects here after the user logs in.
+    Automatically exchanges auth_code → access_token and saves token.json.
+    Returns an HTML page that closes itself and notifies the dashboard.
+    """
+    from fastapi.responses import HTMLResponse
+
+    if not auth_code:
+        return HTMLResponse("""
+        <html><body style="font-family:sans-serif;text-align:center;padding:60px;background:#0a0f1a;color:#fff;">
+        <h2 style="color:#f43f5e;">Login Failed</h2>
+        <p>No auth_code received from Fyers.</p>
+        <script>setTimeout(()=>window.close(),3000);</script>
+        </body></html>
+        """, status_code=400)
+
+    try:
+        from fyers_apiv3 import fyersModel
+        from config.settings import FYERS_CLIENT_ID, FYERS_SECRET_KEY
+        from datetime import timedelta
+
+        app_url = os.getenv("APP_URL", "http://localhost:8000").rstrip("/")
+        redirect_uri = f"{app_url}/auth/fyers/callback"
+
+        session = fyersModel.SessionModel(
+            client_id=FYERS_CLIENT_ID,
+            secret_key=FYERS_SECRET_KEY,
+            redirect_uri=redirect_uri,
+            response_type="code",
+            grant_type="authorization_code",
+        )
+        session.set_token(auth_code)
+        response = session.generate_token()
+
+        if "access_token" not in response:
+            raise ValueError(f"Token exchange failed: {response}")
+
+        access_token = response["access_token"]
+        expiration   = datetime.now() + timedelta(hours=24)
+
+        os.makedirs(os.path.dirname(TOKEN_PATH), exist_ok=True)
+        with open(TOKEN_PATH, "w") as f:
+            json.dump({
+                "access_token": access_token,
+                "expires_at":   expiration.isoformat(),
+                "created_at":   datetime.now().isoformat(),
+            }, f, indent=2)
+
+        return HTMLResponse(f"""
+        <html><body style="font-family:sans-serif;text-align:center;padding:60px;background:#0a0f1a;color:#fff;">
+        <h2 style="color:#10b981;">Fyers Connected</h2>
+        <p style="color:#94a3b8;">Token saved. Expires at {expiration.strftime('%Y-%m-%d %H:%M')}.</p>
+        <p style="color:#94a3b8;">This window will close automatically.</p>
+        <script>
+          if (window.opener) {{ window.opener.postMessage('fyers_connected', '*'); }}
+          setTimeout(() => window.close(), 2000);
+        </script>
+        </body></html>
+        """)
+
+    except Exception as e:
+        return HTMLResponse(f"""
+        <html><body style="font-family:sans-serif;text-align:center;padding:60px;background:#0a0f1a;color:#fff;">
+        <h2 style="color:#f43f5e;">Token Exchange Failed</h2>
+        <p style="color:#94a3b8;">{str(e)}</p>
+        <script>setTimeout(()=>window.close(),5000);</script>
+        </body></html>
+        """, status_code=500)
+
+
 async def run_backfill_task():
     state.is_running = True
     state.last_run = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

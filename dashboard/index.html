@@ -890,6 +890,31 @@
         <div class="row"><span class="row-label">Token Expiry</span><span class="row-value" id="tok-exp">—</span></div>
       </div>
 
+      <!-- Fyers Connect card -->
+      <div class="card" style="border-top:2px solid var(--data);">
+        <div class="card-p" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <div>
+              <div style="font-size:13px;font-weight:600;">Fyers Connection</div>
+              <div style="font-size:11px;color:var(--txt3);margin-top:3px;">One-click OAuth — no terminal needed</div>
+            </div>
+            <span id="fyers-chip" class="chip chip-gray" style="flex-shrink:0;">
+              <span class="chip-dot" style="background:var(--txt3)"></span>
+              <span id="fyers-chip-label">Checking…</span>
+            </span>
+          </div>
+          <div style="font-size:11px;color:var(--txt3);background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;line-height:1.7;">
+            Token expires daily. Click <strong style="color:var(--txt);">Connect Fyers</strong> each morning before market open to refresh it.
+            Make sure <strong style="color:var(--txt);">APP_URL</strong> is set to your hosted domain in the environment variables.
+          </div>
+          <button onclick="connectFyers()" id="fyers-connect-btn"
+            style="background:var(--data);color:#fff;padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:none;cursor:pointer;width:100%;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+            Connect Fyers
+          </button>
+        </div>
+      </div>
+
       <!-- Yahoo Finance Deep History card -->
       <div class="card" style="border-top:2px solid #f59e0b;">
         <div class="card-p" style="display:flex;flex-direction:column;gap:12px;">
@@ -1998,6 +2023,21 @@ async function refreshStatus() {
     set('tbl-name',  d.table_name || '—');
     set('tok-exp',   d.token_expiry || '—');
     set('data-range', d.min_date && d.max_date ? d.min_date + ' → ' + d.max_date : '—');
+
+    // Fyers chip
+    const fc = document.getElementById('fyers-chip');
+    const fl = document.getElementById('fyers-chip-label');
+    if (fc && fl) {
+      if (d.token_valid) {
+        fc.className = 'chip chip-green';
+        fc.querySelector('.chip-dot').style.background = 'var(--green)';
+        fl.textContent = 'Connected';
+      } else {
+        fc.className = 'chip chip-red';
+        fc.querySelector('.chip-dot').style.background = 'var(--red)';
+        fl.textContent = 'Disconnected';
+      }
+    }
 
     const pct = d.total_symbols > 0 ? Math.min(100, Math.round((d.processed / d.total_symbols) * 100)) : 0;
     set('prog-pct', pct + '%');
@@ -3346,6 +3386,48 @@ document.addEventListener('click', _requestNotificationPermission, { once: true 
 _pollExecute();
 setInterval(_pollExecute, 5 * 60 * 1000);
 
+
+// ── Fyers OAuth ────────────────────────────────────────
+async function connectFyers() {
+  const btn = document.getElementById('fyers-connect-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spin" style="color:#fff;"></div> Opening…';
+  try {
+    const d = await jAuth(`${API}/api/fyers/login_url`);
+    if (!d.url) throw new Error('No URL returned');
+
+    // Open Fyers login in a popup window
+    const popup = window.open(d.url, 'fyers_login',
+      'width=520,height=680,scrollbars=yes,resizable=yes');
+
+    // Listen for the callback page to post a message back
+    const handler = async (e) => {
+      if (e.data === 'fyers_connected') {
+        window.removeEventListener('message', handler);
+        await refreshStatus();
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg> Connect Fyers';
+      }
+    };
+    window.addEventListener('message', handler);
+
+    // Also poll in case postMessage doesn't fire (popup blocked scenario)
+    const poll = setInterval(async () => {
+      if (!popup || popup.closed) {
+        clearInterval(poll);
+        window.removeEventListener('message', handler);
+        await refreshStatus();
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg> Connect Fyers';
+      }
+    }, 1000);
+
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = 'Connect Fyers';
+    alert('Error: ' + e.message);
+  }
+}
 
 // ── Init ───────────────────────────────────────────────
 refreshStatus();
