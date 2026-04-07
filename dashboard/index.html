@@ -301,7 +301,24 @@
     .nav-btn[data-tab="ml"]      { --c: #6366f1;     }
     .nav-btn[data-tab="execute"] { --c: #f43f5e;     }
     .nav-btn[data-tab="screener"] { --c: #22d3ee;    }
-    .nav-btn[data-tab="journal"] { --c: #10b981;     }
+    .nav-btn[data-tab="journal"]   { --c: #10b981;   }
+    .nav-btn[data-tab="portfolio"] { --c: #34d399;   }
+    .nav-btn[data-tab="admin"]     { --c: #a855f7;   }
+    .adm-input {
+      background:var(--s2); border:1px solid var(--border); border-radius:8px;
+      padding:8px 10px; color:var(--txt); font-size:12px; width:100%;
+    }
+    .adm-input:focus { outline:none; border-color:#a855f7; }
+    .pb-pos-row {
+      padding:12px 16px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .pb-pos-row:last-child { border-bottom:none; }
+    .qs-ring {
+      width:44px; height:44px; border-radius:50%; display:flex;
+      align-items:center; justify-content:center; font-weight:800;
+      font-size:14px; flex-shrink:0;
+    }
 
     .scr-tab-btn {
       padding: 7px 14px; font-size: 12px; font-weight: 600;
@@ -506,6 +523,24 @@
     }
     .input-bare::placeholder { color: var(--txt3); }
     .input-bare:focus { border-color: var(--data); }
+
+    /* ── Symbol autocomplete dropdown ─────────────────────── */
+    .ac-wrap { position: relative; }
+    .ac-wrap .input-bare { width: 100%; box-sizing: border-box; }
+    .ac-list {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 999;
+      background: var(--s2); border: 1px solid var(--border2); border-radius: 12px;
+      overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+      display: none;
+    }
+    .ac-list.open { display: block; }
+    .ac-item {
+      padding: 10px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+      color: var(--txt); display: flex; align-items: center; gap: 8px;
+      transition: background .1s;
+    }
+    .ac-item:hover, .ac-item.ac-active { background: var(--border2); color: var(--data); }
+    .ac-item-sub { font-size: 10px; font-weight: 400; color: var(--txt3); }
 
     /* ═══════════════════════════════════════════
        PROGRESS BAR
@@ -802,6 +837,7 @@
       <span class="chip-dot" style="background:var(--green)"></span>
       <span>Auth</span>
     </div>
+    <span id="plan-info-chip" style="display:none;"></span>
     <span id="admin-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 10px;background:rgba(99,102,241,.18);color:#818cf8;border-radius:999px;cursor:pointer;" onclick="doLogout()" title="Click to sign out"></span>
   </div>
 </header>
@@ -1166,7 +1202,10 @@
             </optgroup>
           </select>
         </div>
-        <input class="input-bare" id="bt-sym" placeholder="Symbol — e.g. RELIANCE (blank = all 100)" />
+        <div class="ac-wrap">
+          <input class="input-bare" id="bt-sym" placeholder="Symbol — e.g. RELIANCE (blank = all 100)" autocomplete="off" />
+          <div class="ac-list" id="bt-sym-list"></div>
+        </div>
         <div style="font-size:11px;color:var(--txt3);padding-left:2px;">
           Entry at next bar open · Stop loss ATR×2 · Target 2:1 R:R · Max 20 days
         </div>
@@ -1251,8 +1290,11 @@
       <div class="card card-p" style="display:flex;flex-direction:column;gap:10px;">
         <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Watchlist</div>
         <div style="display:flex;gap:8px;">
-          <input class="input-bare" id="wl-input" placeholder="Add symbol (e.g. HDFC)" style="flex:1;"
-            onkeydown="if(event.key==='Enter')addSym()"/>
+          <div class="ac-wrap" style="flex:1;">
+            <input class="input-bare" id="wl-input" placeholder="Add symbol (e.g. HDFC)" autocomplete="off"
+              onkeydown="if(event.key==='Enter')addSym()"/>
+            <div class="ac-list" id="wl-input-list"></div>
+          </div>
           <button class="btn btn-live btn-sm" onclick="addSym()">+ Add</button>
         </div>
         <div class="chips" id="wl-chips"></div>
@@ -1542,6 +1584,144 @@
         </div>
       </div>
 
+      <!-- ───── Trade Feedback Model Card ───── -->
+      <div class="card" style="border-top:2px solid #f59e0b;margin-top:0;">
+        <div class="card-p" style="display:flex;flex-direction:column;gap:12px;">
+
+          <!-- Header row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div>
+              <div style="font-size:13px;font-weight:600;">Trade Outcome Learner
+                <span style="font-size:10px;font-weight:500;color:#f59e0b;margin-left:6px;padding:2px 6px;background:rgba(245,158,11,.1);border-radius:5px;">BETA</span>
+              </div>
+              <div style="font-size:11px;color:var(--txt3);margin-top:3px;">Learns from your closed trades to predict future success</div>
+            </div>
+            <div id="fb-status-chip" class="chip chip-gray">
+              <span class="chip-dot" style="background:var(--txt3)"></span>
+              <span id="fb-status-label">Not Trained</span>
+            </div>
+          </div>
+
+          <!-- Trade counts row -->
+          <div id="fb-counts-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center;">
+              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Wins</div>
+              <div id="fb-count-win" class="mono" style="font-size:16px;font-weight:600;color:var(--green);">—</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center;">
+              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Losses</div>
+              <div id="fb-count-loss" class="mono" style="font-size:16px;font-weight:600;color:var(--red);">—</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center;">
+              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Open</div>
+              <div id="fb-count-open" class="mono" style="font-size:16px;font-weight:600;color:#f59e0b;">—</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center;">
+              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Closed</div>
+              <div id="fb-count-closed" class="mono" style="font-size:16px;font-weight:600;color:var(--txt2);">—</div>
+            </div>
+          </div>
+
+          <!-- Model metrics (shown when trained) -->
+          <div id="fb-metrics-row" style="display:none;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;">
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">AUC-ROC</div>
+              <div id="fb-auc" class="mono" style="font-size:16px;font-weight:600;color:#f59e0b;">—</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Accuracy</div>
+              <div id="fb-acc" class="mono" style="font-size:16px;font-weight:600;color:#f59e0b;">—</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Win Rate</div>
+              <div id="fb-winrate" class="mono" style="font-size:16px;font-weight:600;color:#f59e0b;">—</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Trades</div>
+              <div id="fb-trades" class="mono" style="font-size:16px;font-weight:600;color:#f59e0b;">—</div>
+            </div>
+          </div>
+
+          <div id="fb-train-info" style="font-size:11px;color:var(--txt3);padding-left:2px;">
+            Requires ≥20 closed trades in your journal. Learns from your actual R:R, win patterns, and strategy tags.
+          </div>
+
+          <!-- Retrain button (admin only) -->
+          <button class="btn btn-full admin-only" id="fb-retrain-btn" onclick="retrainFeedback()"
+            style="background:#f59e0b;color:#000;padding:10px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
+            </svg>
+            <span id="fb-retrain-label">Train Feedback Model</span>
+          </button>
+        </div>
+
+        <!-- Predict widget -->
+        <div class="divider"></div>
+        <div style="padding:13px 16px 8px;">
+          <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">
+            Pre-Trade Check
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+            <div>
+              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">Entry ₹</div>
+              <input id="fb-entry" type="number" placeholder="e.g. 1500" step="0.01"
+                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;"/>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">Stop Loss ₹</div>
+              <input id="fb-sl" type="number" placeholder="e.g. 1440" step="0.01"
+                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;"/>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">Target ₹</div>
+              <input id="fb-target" type="number" placeholder="e.g. 1620" step="0.01"
+                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;"/>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">ML Probability</div>
+              <input id="fb-prob" type="number" placeholder="e.g. 0.72" step="0.01" min="0" max="1"
+                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;"/>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">Expected Return %</div>
+              <input id="fb-ret" type="number" placeholder="e.g. 4.2" step="0.1"
+                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;"/>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">Trade Type</div>
+              <select id="fb-type"
+                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;">
+                <option value="paper">Paper</option>
+                <option value="live">Live</option>
+              </select>
+            </div>
+          </div>
+          <button onclick="runFeedbackPredict()"
+            style="width:100%;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#f59e0b;padding:9px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;">
+            Check Trade Quality
+          </button>
+
+          <!-- Result box -->
+          <div id="fb-predict-result" style="display:none;margin-top:10px;padding:12px 14px;border-radius:10px;border:1px solid var(--border2);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;">Feedback Score</span>
+              <span id="fb-signal-badge" style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;">—</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>
+                <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">Success Probability</div>
+                <div id="fb-pred-prob" class="mono" style="font-size:20px;font-weight:700;">—%</div>
+              </div>
+              <div>
+                <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">Quality Score Δ</div>
+                <div id="fb-pred-adj" class="mono" style="font-size:20px;font-weight:700;">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1816,6 +1996,142 @@
     </div>
   </div>
 
+  <!-- ───────────── TAB: PORTFOLIO ───────────── -->
+  <div id="tab-portfolio" class="tab">
+    <div class="tab-banner" style="--banner-from:#0a2012;--banner-to:#061509;">
+      <div>
+        <div class="tab-banner-title">Portfolio Builder</div>
+        <div class="tab-banner-sub">Capital allocation · Risk sizing · Sector diversification</div>
+      </div>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(16,185,129,.4)" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75"/></svg>
+    </div>
+    <div class="page">
+
+      <!-- Config card -->
+      <div class="card card-p" style="display:flex;flex-direction:column;gap:12px;border-top:2px solid #10b981;">
+        <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Configuration</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <div style="font-size:11px;color:var(--txt3);margin-bottom:4px;">Capital (₹)</div>
+            <input id="pb-capital" type="number" value="100000" min="10000" step="10000"
+              style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:13px;font-weight:600;">
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--txt3);margin-bottom:4px;">Risk per trade %</div>
+            <input id="pb-risk" type="number" value="1.5" min="0.5" max="5" step="0.5"
+              style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:13px;font-weight:600;">
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--txt3);margin-bottom:4px;">Max positions</div>
+            <input id="pb-maxpos" type="number" value="8" min="1" max="20"
+              style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:13px;font-weight:600;">
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--txt3);margin-bottom:4px;">Max per sector</div>
+            <input id="pb-sector" type="number" value="2" min="1" max="5"
+              style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:13px;font-weight:600;">
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--txt3);margin-bottom:4px;">Trend Filter</div>
+          <select id="pb-trend" style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;">
+            <option value="any">Any (no trend filter)</option>
+            <option value="1m">1 Month uptrend</option>
+            <option value="3m" selected>3 Month uptrend</option>
+            <option value="6m">6 Month uptrend</option>
+            <option value="1y">1 Year uptrend</option>
+          </select>
+        </div>
+        <button onclick="buildPortfolio()" id="pb-btn"
+          style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:13px;border-radius:12px;font-weight:700;font-size:14px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"/></svg>
+          Build Portfolio
+        </button>
+      </div>
+
+      <!-- Summary strip -->
+      <div id="pb-summary" style="display:none;background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center;">
+          <div><div style="font-size:20px;font-weight:800;color:#10b981;" id="pb-s-deployed">—</div><div style="font-size:10px;color:var(--txt3);">Deployed</div></div>
+          <div><div style="font-size:20px;font-weight:800;color:var(--red);" id="pb-s-risk">—</div><div style="font-size:10px;color:var(--txt3);">Total at Risk</div></div>
+          <div><div style="font-size:20px;font-weight:800;color:var(--live);" id="pb-s-reward">—</div><div style="font-size:10px;color:var(--txt3);">Expected Reward</div></div>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--txt3);text-align:center;" id="pb-s-detail"></div>
+      </div>
+
+      <!-- Positions table -->
+      <div class="card" id="pb-positions-card" style="display:none;">
+        <div style="padding:13px 16px 10px;font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Allocated Positions</div>
+        <div class="divider"></div>
+        <div id="pb-positions-body"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ───────────── TAB: ADMIN ───────────── -->
+  <div id="tab-admin" class="tab">
+    <div class="tab-banner" style="--banner-from:#1a0a2e;--banner-to:#12061f;">
+      <div>
+        <div class="tab-banner-title">Admin Panel</div>
+        <div class="tab-banner-sub">User management · Subscriptions · System stats</div>
+      </div>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(168,85,247,.4)" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+    </div>
+    <div class="page">
+
+      <!-- System stats -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="admin-stats-grid">
+        <div class="card card-p" style="text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:#a855f7;" id="adm-total-users">—</div>
+          <div style="font-size:10px;color:var(--txt3);margin-top:2px;">Total Users</div>
+        </div>
+        <div class="card card-p" style="text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--green);" id="adm-active-subs">—</div>
+          <div style="font-size:10px;color:var(--txt3);margin-top:2px;">Active Subs</div>
+        </div>
+        <div class="card card-p" style="text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--red);" id="adm-expired">—</div>
+          <div style="font-size:10px;color:var(--txt3);margin-top:2px;">Expired</div>
+        </div>
+      </div>
+
+      <!-- Create user -->
+      <div class="card card-p" style="border-top:2px solid #a855f7;display:flex;flex-direction:column;gap:10px;">
+        <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Create New User</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <input id="adm-new-username" placeholder="Username" class="adm-input">
+          <input id="adm-new-email" placeholder="Email" type="email" class="adm-input">
+          <input id="adm-new-pass" placeholder="Password" type="password" class="adm-input">
+          <select id="adm-new-plan" class="adm-input">
+            <option value="1m">1 Month</option>
+            <option value="3m" selected>3 Months</option>
+            <option value="6m">6 Months</option>
+            <option value="12m">12 Months</option>
+          </select>
+        </div>
+        <button onclick="adminCreateUser()" id="adm-create-btn"
+          style="background:rgba(168,85,247,.15);color:#a855f7;border:1px solid rgba(168,85,247,.3);padding:10px;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;">
+          + Create User
+        </button>
+        <div id="adm-create-msg" style="font-size:12px;display:none;padding:8px;border-radius:8px;text-align:center;"></div>
+      </div>
+
+      <!-- Users table -->
+      <div class="card">
+        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">All Users</span>
+          <button onclick="loadAdminUsers()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Refresh</button>
+        </div>
+        <div class="divider"></div>
+        <div id="adm-users-body" style="padding:8px 0;">
+          <div class="empty"><div class="empty-title">Loading…</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div><!-- /scroll -->
 
 <!-- ══════════════════════════════════ NAV -->
@@ -1853,6 +2169,14 @@
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
     Journal
   </button>
+  <button class="nav-btn" data-tab="portfolio" onclick="go('portfolio',this)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75"/></svg>
+    Portfolio
+  </button>
+  <button class="nav-btn" data-tab="admin" onclick="go('admin',this)" id="nav-admin-btn" style="display:none;">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+    Admin
+  </button>
 </nav>
 
 <!-- ══════════════════════════════════ JS -->
@@ -1866,9 +2190,92 @@ let prevPx = {};
 
 const AUTH_KEY = 'apex_token';
 
+// ── Symbol Autocomplete ──────────────────────────────────────────────────────
+// Usage: attachSymbolSearch('input-id', 'list-id', onSelectCallback)
+function attachSymbolSearch(inputId, listId, onSelect) {
+  const inp  = document.getElementById(inputId);
+  const list = document.getElementById(listId);
+  if (!inp || !list) return;
+
+  let activeIdx = -1;
+  let debounceT = null;
+
+  function closeDrop() {
+    list.classList.remove('open');
+    activeIdx = -1;
+  }
+
+  function renderItems(symbols) {
+    if (!symbols.length) { closeDrop(); return; }
+    list.innerHTML = symbols.map((s, i) =>
+      `<div class="ac-item" data-sym="${s}" data-idx="${i}">${s}</div>`
+    ).join('');
+    list.classList.add('open');
+    activeIdx = -1;
+
+    list.querySelectorAll('.ac-item').forEach(el => {
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        inp.value = el.dataset.sym;
+        closeDrop();
+        if (onSelect) onSelect(el.dataset.sym);
+      });
+    });
+  }
+
+  async function fetchSuggestions(q) {
+    if (!q) { closeDrop(); return; }
+    try {
+      const d = await (await fetch(`${API}/api/symbols/search?q=${encodeURIComponent(q)}`)).json();
+      renderItems(d.symbols || []);
+    } catch(_) { closeDrop(); }
+  }
+
+  inp.addEventListener('input', () => {
+    clearTimeout(debounceT);
+    const q = inp.value.trim();
+    if (!q) { closeDrop(); return; }
+    debounceT = setTimeout(() => fetchSuggestions(q), 180);
+  });
+
+  inp.addEventListener('keydown', e => {
+    const items = list.querySelectorAll('.ac-item');
+    if (!list.classList.contains('open') || !items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      inp.value = items[activeIdx].dataset.sym;
+      closeDrop();
+      if (onSelect) onSelect(inp.value);
+      return;
+    } else if (e.key === 'Escape') {
+      closeDrop(); return;
+    }
+    items.forEach((el, i) => el.classList.toggle('ac-active', i === activeIdx));
+  });
+
+  document.addEventListener('click', e => {
+    if (!inp.contains(e.target) && !list.contains(e.target)) closeDrop();
+  });
+}
+
+// Wire up autocomplete on both inputs (called after DOM ready)
+function initSymbolSearch() {
+  attachSymbolSearch('bt-sym',   'bt-sym-list',   null);
+  attachSymbolSearch('wl-input', 'wl-input-list', sym => { addSym(sym); });
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 function getToken() { return localStorage.getItem(AUTH_KEY); }
 function setToken(t) { localStorage.setItem(AUTH_KEY, t); }
-function clearToken() { localStorage.removeItem(AUTH_KEY); }
+function clearToken() { localStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_KEY + '_role'); }
+function getRole()  { return localStorage.getItem(AUTH_KEY + '_role') || 'user'; }
+function setRole(r) { localStorage.setItem(AUTH_KEY + '_role', r); }
 
 function authHeaders() {
   const t = getToken();
@@ -1925,9 +2332,11 @@ async function doLogin() {
     }
     const d = await res.json();
     setToken(d.access_token);
+    setRole(d.role || 'user');
     document.getElementById('login-pass').value = '';
     hideLogin();
     _showAdminBadge(user);
+    _applyRoleUI(d.role || 'user', d.plan_type, d.plan_expiry);
   } catch(e) {
     err.textContent = e.message;
     err.style.display = 'block';
@@ -1941,6 +2350,7 @@ function doLogout() {
   clearToken();
   showLogin();
   _showAdminBadge(null);
+  _applyRoleUI('user');
 }
 
 function _showAdminBadge(username) {
@@ -1954,15 +2364,43 @@ function _showAdminBadge(username) {
   }
 }
 
+function _applyRoleUI(role, planType, planExpiry) {
+  // Show/hide admin nav button
+  const adminNav = document.getElementById('nav-admin-btn');
+  if (adminNav) adminNav.style.display = (role === 'admin') ? 'flex' : 'none';
+
+  // Show plan info chip in header for regular users
+  const planChip = document.getElementById('plan-info-chip');
+  if (planChip) {
+    if (role === 'admin') {
+      planChip.textContent = 'Admin';
+      planChip.style.cssText = 'font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(168,85,247,.2);color:#a855f7;';
+      planChip.style.display = 'inline-block';
+    } else if (planType && planExpiry) {
+      const expDate = new Date(planExpiry);
+      const today   = new Date();
+      const daysLeft = Math.ceil((expDate - today) / 864e5);
+      const expired  = daysLeft <= 0;
+      planChip.textContent = expired ? 'Plan expired' : `${planType.toUpperCase()} · ${daysLeft}d left`;
+      planChip.style.cssText = `font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${expired ? 'rgba(244,63,94,.15)' : 'rgba(16,185,129,.12)'};color:${expired ? '#f43f5e' : 'var(--green)'};`;
+      planChip.style.display = 'inline-block';
+    } else {
+      planChip.style.display = 'none';
+    }
+  }
+}
+
 // Check existing token on load
 (async function _initAuth() {
   const t = getToken();
   if (!t) { showLogin(); return; }
   try {
-    const d = await fetch(`${API}/api/auth/me`, { headers: { 'Authorization': 'Bearer ' + t } });
-    if (!d.ok) { clearToken(); showLogin(); return; }
-    const info = await d.json();
+    const res = await fetch(`${API}/api/auth/me`, { headers: { 'Authorization': 'Bearer ' + t } });
+    if (!res.ok) { clearToken(); showLogin(); return; }
+    const info = await res.json();
     _showAdminBadge(info.username);
+    _applyRoleUI(info.role || getRole(), info.plan_type, info.plan_expiry);
+    if (info.role) setRole(info.role);
   } catch(e) {
     showLogin();
   }
@@ -1998,10 +2436,13 @@ function go(id, el) {
   document.getElementById('tab-' + id).classList.add('active');
   el.classList.add('active');
   document.querySelector('.scroll').scrollTo(0, 0);
-  if (id === 'live')    { loadWatchlist(); refreshLive(); }
-  if (id === 'execute') { loadExecuteRegime(); _updateExecuteBadge(0); _execPrevCount = 0; }
-  if (id === 'journal')  { loadJournal(); }
-  if (id === 'screener') { scrGo('sector', document.querySelector('.scr-tab-btn[data-scr="sector"]')); loadSectors(); }
+  if (id === 'live')      { loadWatchlist(); refreshLive(); }
+  if (id === 'execute')   { loadExecuteRegime(); _updateExecuteBadge(0); _execPrevCount = 0; }
+  if (id === 'journal')   { loadJournal(); }
+  if (id === 'screener')  { scrGo('sector', document.querySelector('.scr-tab-btn[data-scr="sector"]')); loadSectors(); }
+  if (id === 'portfolio') { /* user clicks Build Portfolio button */ }
+  if (id === 'admin')     { loadAdminStats(); loadAdminUsers(); }
+  if (id === 'ml')        { checkMLStatus(); loadFeedbackStatus(); }
 }
 
 // ── Clock ──────────────────────────────────────────────
@@ -2182,7 +2623,15 @@ async function runBacktest() {
 
   try {
     const url = `${API}/api/backtest?strategy=${strat}${sym ? '&symbol='+sym : ''}`;
-    const d = await j(url);
+    const d = await jAuth(url);
+
+    if (d.error) {
+      document.getElementById('bt-rows').innerHTML =
+        `<tr><td colspan="5" style="text-align:center;color:var(--red);padding:20px;">${d.error}</td></tr>`;
+      document.getElementById('bt-log').style.display = 'block';
+      return;
+    }
+
     const m = d.metrics || {};
 
     document.getElementById('bt-metrics').style.display = 'grid';
@@ -2307,9 +2756,9 @@ function renderChips(syms) {
     </div>`).join('');
 }
 
-async function addSym() {
+async function addSym(preselected) {
   const inp = document.getElementById('wl-input');
-  const sym = inp.value.trim().toUpperCase();
+  const sym = (preselected || inp.value).trim().toUpperCase();
   if (!sym) return;
   try { const d = await (await fetch(`${API}/api/watchlist/${sym}`, {method:'POST'})).json(); renderChips(d.symbols||[]); inp.value = ''; }
   catch(e) {}
@@ -2354,6 +2803,7 @@ async function checkMLStatus() {
       loadMLAnalytics();
       loadRegime();
       loadMLDataValidation();
+      loadFeedbackStatus();
     }
   } catch(e) {}
 }
@@ -2630,6 +3080,155 @@ function mlFilter(type) {
   }).join('');
 }
 
+// ══════════════════════════════════════════════════════
+// TRADE FEEDBACK MODEL
+// ══════════════════════════════════════════════════════
+
+async function loadFeedbackStatus() {
+  try {
+    const d = await j(`${API}/api/ml/trade-feedback/status`);
+
+    // Trade counts
+    const ts = d.trade_stats || {};
+    set('fb-count-win',    ts.win    ?? '—');
+    set('fb-count-loss',   (ts.loss || 0) + (ts.stopped || 0));
+    set('fb-count-open',   ts.open   ?? '—');
+    set('fb-count-closed', ts.closed ?? '—');
+
+    const min = ts.min_required || 20;
+    const closed = ts.closed || 0;
+
+    // Training state
+    if (d.is_training) {
+      document.getElementById('fb-status-chip').className = 'chip chip-amber';
+      document.getElementById('fb-status-chip').innerHTML =
+        '<div class="spin" style="color:#f59e0b;"></div><span>Training…</span>';
+      document.getElementById('fb-retrain-btn').disabled = true;
+      setTimeout(loadFeedbackStatus, 3000);
+      return;
+    }
+
+    if (d.is_trained) {
+      const m = d.meta || {};
+      document.getElementById('fb-status-chip').className = 'chip chip-green';
+      document.getElementById('fb-status-chip').innerHTML =
+        '<span class="chip-dot" style="background:var(--green)"></span><span>Trained</span>';
+
+      const mr = document.getElementById('fb-metrics-row');
+      mr.style.display = 'grid';
+      set('fb-auc',     m.auc_roc     ? (m.auc_roc * 100).toFixed(1) + '%' : '—');
+      set('fb-acc',     m.accuracy    ? (m.accuracy * 100).toFixed(1) + '%' : '—');
+      set('fb-winrate', m.win_rate_pct ? m.win_rate_pct.toFixed(1) + '%' : '—');
+      set('fb-trades',  m.total_trades ?? '—');
+
+      const info = document.getElementById('fb-train-info');
+      const ts2 = d.last_trained && d.last_trained !== 'Never'
+        ? `Last trained: ${d.last_trained}`
+        : '';
+      info.textContent = ts2 || 'Model ready. Run Pre-Trade Check below.';
+      document.getElementById('fb-retrain-btn').disabled = false;
+      document.getElementById('fb-retrain-label').textContent = 'Re-train Feedback Model';
+    } else {
+      document.getElementById('fb-status-chip').className = 'chip chip-gray';
+      document.getElementById('fb-status-chip').innerHTML =
+        '<span class="chip-dot" style="background:var(--txt3)"></span><span>Not Trained</span>';
+      document.getElementById('fb-metrics-row').style.display = 'none';
+
+      const ready = closed >= min;
+      document.getElementById('fb-train-info').textContent = ready
+        ? `${closed} closed trades available — ready to train!`
+        : `Need ${min - closed} more closed trades (have ${closed}/${min}).`;
+      document.getElementById('fb-retrain-btn').disabled = !ready;
+    }
+  } catch(e) {
+    console.error('loadFeedbackStatus:', e);
+  }
+}
+
+async function retrainFeedback() {
+  const btn = document.getElementById('fb-retrain-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spin" style="color:#000;"></div> Starting…';
+  try {
+    const r = await jAuth(`${API}/api/ml/trade-feedback/retrain`, { method: 'POST' });
+    if (r.status === 'started') {
+      document.getElementById('fb-status-chip').className = 'chip chip-amber';
+      document.getElementById('fb-status-chip').innerHTML =
+        '<div class="spin" style="color:#f59e0b;"></div><span>Training…</span>';
+      setTimeout(loadFeedbackStatus, 3000);
+    }
+  } catch(e) {
+    btn.disabled = false;
+    set('fb-retrain-label', 'Train Feedback Model');
+  }
+}
+
+async function runFeedbackPredict() {
+  const entry  = parseFloat(document.getElementById('fb-entry').value);
+  const sl     = parseFloat(document.getElementById('fb-sl').value);
+  const target = parseFloat(document.getElementById('fb-target').value);
+  const prob   = parseFloat(document.getElementById('fb-prob').value) || 0;
+  const ret    = parseFloat(document.getElementById('fb-ret').value) || 0;
+  const type   = document.getElementById('fb-type').value;
+
+  if (!entry || !sl || !target) {
+    alert('Please fill in Entry, Stop Loss, and Target.');
+    return;
+  }
+
+  try {
+    const d = await j(`${API}/api/ml/trade-feedback/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        entry_price: entry, stop_loss: sl, target, buy_probability: prob,
+        expected_return_pct: ret, trade_type: type, strategy_tags: ''
+      })
+    });
+
+    const box   = document.getElementById('fb-predict-result');
+    const badge = document.getElementById('fb-signal-badge');
+    box.style.display = 'block';
+
+    if (d.feedback_probability === null || d.feedback_probability === undefined) {
+      box.style.background = 'var(--s2)';
+      document.getElementById('fb-pred-prob').textContent = 'N/A';
+      document.getElementById('fb-pred-adj').textContent  = 'Model not trained';
+      badge.textContent = d.feedback_signal || 'unavailable';
+      badge.style.background = 'var(--s3)';
+      badge.style.color = 'var(--txt3)';
+      return;
+    }
+
+    const pct  = Math.round(d.feedback_probability * 100);
+    const sig  = d.feedback_signal;
+    const adj  = d.adjustment;
+
+    const colours = {
+      boost:    { bg: 'rgba(16,185,129,.12)',  color: '#10b981', label: '🚀 BOOST'    },
+      neutral:  { bg: 'rgba(245,158,11,.08)',  color: '#f59e0b', label: '⚖ NEUTRAL'  },
+      penalise: { bg: 'rgba(244,63,94,.12)',   color: '#f43f5e', label: '⚠ PENALISE' },
+    };
+    const c = colours[sig] || { bg: 'var(--s2)', color: 'var(--txt2)', label: sig };
+
+    box.style.background = c.bg;
+    box.style.borderColor = c.color + '44';
+    badge.textContent = c.label;
+    badge.style.background = c.bg;
+    badge.style.color = c.color;
+
+    document.getElementById('fb-pred-prob').style.color = c.color;
+    document.getElementById('fb-pred-prob').textContent = pct + '%';
+
+    const adjEl = document.getElementById('fb-pred-adj');
+    adjEl.style.color = adj >= 0 ? 'var(--green)' : 'var(--red)';
+    adjEl.textContent = (adj >= 0 ? '+' : '') + adj + ' pts';
+
+  } catch(e) {
+    console.error('runFeedbackPredict:', e);
+  }
+}
+
 // ── Yahoo Finance backfill ─────────────────────────────
 let yfPoller = null;
 
@@ -2865,6 +3464,22 @@ async function runExecute() {
       const conf  = r.confidence || '';
       const fmt   = v => v != null ? '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:2}) : '—';
 
+      // Quality score ring
+      const qs = r.quality_score != null ? r.quality_score : null;
+      const qsColor = qs == null ? 'var(--txt3)' : qs >= 75 ? '#10b981' : qs >= 50 ? '#f59e0b' : '#f43f5e';
+      const qsRing = qs != null ? `
+        <div title="Quality Score: ${qs}/100" style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:1px;">
+          <div style="position:relative;width:44px;height:44px;">
+            <svg width="44" height="44" viewBox="0 0 44 44" style="transform:rotate(-90deg);position:absolute;top:0;left:0;">
+              <circle cx="22" cy="22" r="17" fill="none" stroke="var(--s3)" stroke-width="4"/>
+              <circle cx="22" cy="22" r="17" fill="none" stroke="${qsColor}" stroke-width="4"
+                stroke-dasharray="${Math.round((qs/100)*106.8)} 106.8" stroke-linecap="round"/>
+            </svg>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;font-weight:800;color:${qsColor};line-height:1;">${qs}</div>
+          </div>
+          <div style="font-size:8px;color:var(--txt3);letter-spacing:.3px;font-weight:600;">SCORE</div>
+        </div>` : '';
+
       const stratTags = (r.strategies || []).map(s =>
         `<span class="strat-tag">${_stratLabel(s)}</span>`
       ).join('');
@@ -2892,10 +3507,10 @@ async function runExecute() {
       return `
         <div class="comb-card">
           <div class="comb-card-top">
-            <div style="display:flex;align-items:center;">
+            <div style="display:flex;align-items:center;flex:1;min-width:0;">
               <div class="comb-symbol">${r.symbol}</div>${rankBadge}
             </div>
-            <div class="comb-prob-wrap">
+            <div class="comb-prob-wrap" style="flex:1;">
               <div style="display:flex;justify-content:space-between;align-items:baseline;">
                 <span style="font-size:10px;color:var(--txt3);">AI probability</span>
                 <span class="comb-prob-pct" style="color:${color};">${pct}%</span>
@@ -2903,8 +3518,9 @@ async function runExecute() {
               <div class="comb-prob-bar-bg">
                 <div class="comb-prob-bar-fill" style="width:${pct}%;background:${color};"></div>
               </div>
+              <div class="comb-conf-badge" style="${_confBadgeStyle(conf)};margin-top:5px;display:inline-block;">${conf}</div>
             </div>
-            <div class="comb-conf-badge" style="${_confBadgeStyle(conf)}">${conf}</div>
+            ${qsRing}
           </div>
 
           <div class="comb-strategies">${multiTag}${trendTag}${stratTags}</div>
@@ -3479,14 +4095,262 @@ async function connectFyers() {
   }
 }
 
+// ══════════════════════════════════════════════════════
+// PORTFOLIO BUILDER
+// ══════════════════════════════════════════════════════
+
+async function buildPortfolio() {
+  const btn = document.getElementById('pb-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spin" style="color:#fff;width:16px;height:16px;border-width:2px;"></div> Building…';
+
+  const capital  = parseFloat(document.getElementById('pb-capital').value) || 100000;
+  const riskPct  = parseFloat(document.getElementById('pb-risk').value)    || 1.5;
+  const maxPos   = parseInt(document.getElementById('pb-maxpos').value)    || 8;
+  const maxSec   = parseInt(document.getElementById('pb-sector').value)    || 2;
+  const trend    = document.getElementById('pb-trend').value               || 'any';
+
+  try {
+    // 1. Fetch current signals
+    const sigUrl = `${API}/api/combined/signals?trend_period=${trend}`;
+    const sigData = await jAuth(sigUrl);
+    const trades = sigData.results || [];
+
+    if (!trades.length) {
+      document.getElementById('pb-positions-card').style.display = 'none';
+      document.getElementById('pb-summary').style.display = 'block';
+      document.getElementById('pb-s-deployed').textContent = '—';
+      document.getElementById('pb-s-risk').textContent = '—';
+      document.getElementById('pb-s-reward').textContent = '—';
+      document.getElementById('pb-s-detail').textContent = 'No signals available — run Execute tab first.';
+      return;
+    }
+
+    // 2. Build portfolio
+    const res = await jAuth(`${API}/api/portfolio/build`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ capital, trades, risk_pct: riskPct, max_positions: maxPos, max_sector_exposure: maxSec }),
+    });
+
+    const positions = res.positions || [];
+    const s = res.summary || {};
+    const fmt = v => v != null ? '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0}) : '—';
+    const fmtPct = v => v != null ? v + '%' : '—';
+
+    // Show summary strip
+    const summaryEl = document.getElementById('pb-summary');
+    summaryEl.style.display = 'block';
+    document.getElementById('pb-s-deployed').textContent = fmt(s.total_deployed) + ' (' + fmtPct(s.deployed_pct) + ')';
+    document.getElementById('pb-s-risk').textContent     = fmt(s.total_at_risk)  + ' (' + fmtPct(s.risk_pct_of_cap) + ')';
+    document.getElementById('pb-s-reward').textContent   = s.expected_reward > 0 ? fmt(s.expected_reward) : '—';
+    document.getElementById('pb-s-detail').textContent   = `${s.positions_count} positions · Cash: ${fmt(s.cash_remaining)} · Sectors: ${(s.sectors_used||[]).join(', ') || '—'}`;
+
+    // Show positions table
+    const card = document.getElementById('pb-positions-card');
+    const body = document.getElementById('pb-positions-body');
+    if (!positions.length) {
+      card.style.display = 'block';
+      body.innerHTML = '<div class="empty" style="padding:24px 0;"><div class="empty-title">No positions could be sized</div><div class="empty-sub">Check stop_loss values in signals</div></div>';
+      return;
+    }
+    card.style.display = 'block';
+    body.innerHTML = positions.map((p, i) => {
+      const rrColor = !p.rr_ratio ? 'var(--txt3)' : p.rr_ratio >= 2 ? 'var(--green)' : p.rr_ratio >= 1 ? 'var(--live)' : 'var(--red)';
+      const qsColor = !p.quality_score ? 'var(--txt3)' : p.quality_score >= 75 ? '#10b981' : p.quality_score >= 50 ? '#f59e0b' : '#f43f5e';
+      return `
+        <div style="padding:13px 16px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:15px;font-weight:800;">${p.symbol}</span>
+              <span style="font-size:9px;padding:2px 7px;border-radius:5px;background:var(--s3);color:var(--txt3);">${p.sector}</span>
+              ${p.quality_score != null ? `<span style="font-size:10px;font-weight:700;color:${qsColor};">Q${p.quality_score}</span>` : ''}
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:14px;font-weight:700;">${fmt(p.position_value)}</div>
+              <div style="font-size:10px;color:var(--txt3);">${p.pct_of_portfolio}% of capital · ${p.shares} shares</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px;">
+            <div><div style="color:var(--txt3);margin-bottom:2px;">Entry</div><div style="font-weight:700;">₹${p.entry?.toLocaleString('en-IN',{maximumFractionDigits:1})}</div></div>
+            <div><div style="color:var(--txt3);margin-bottom:2px;">Stop Loss</div><div style="font-weight:700;color:var(--red);">₹${p.stop_loss?.toLocaleString('en-IN',{maximumFractionDigits:1})}</div></div>
+            <div><div style="color:var(--txt3);margin-bottom:2px;">Target</div><div style="font-weight:700;color:var(--green);">${p.target ? '₹'+p.target?.toLocaleString('en-IN',{maximumFractionDigits:1}) : '—'}</div></div>
+            <div><div style="color:var(--txt3);margin-bottom:2px;">R:R</div><div style="font-weight:700;color:${rrColor};">${p.rr_ratio != null ? p.rr_ratio + 'x' : '—'}</div></div>
+          </div>
+          <div style="margin-top:8px;display:flex;justify-content:space-between;font-size:11px;color:var(--txt3);">
+            <span>Risk: <b style="color:var(--red);">${fmt(p.risk_amount)}</b></span>
+            ${p.potential_reward ? `<span>Reward: <b style="color:var(--green);">${fmt(p.potential_reward)}</b></span>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+
+  } catch(e) {
+    alert('Error building portfolio: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"/></svg> Build Portfolio';
+  }
+}
+
+
+// ══════════════════════════════════════════════════════
+// ADMIN PANEL
+// ══════════════════════════════════════════════════════
+
+async function loadAdminStats() {
+  try {
+    const d = await jAuth(`${API}/api/admin/stats`);
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
+    set('adm-total-users', d.total_users ?? '—');
+    set('adm-active-subs', d.active_subscriptions ?? '—');
+    set('adm-expired',     d.expired_subscriptions ?? '—');
+  } catch(e) {}
+}
+
+async function adminCreateUser() {
+  const btn    = document.getElementById('adm-create-btn');
+  const msgEl  = document.getElementById('adm-create-msg');
+  const uname  = document.getElementById('adm-new-username').value.trim();
+  const email  = document.getElementById('adm-new-email').value.trim();
+  const pass   = document.getElementById('adm-new-pass').value;
+  const plan   = document.getElementById('adm-new-plan').value;
+
+  msgEl.style.display = 'none';
+  if (!uname || !email || !pass) {
+    msgEl.textContent = 'Fill in all fields';
+    msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:rgba(244,63,94,.1);color:#f43f5e;';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  try {
+    await jAuth(`${API}/api/admin/users`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: uname, email, password: pass, plan_type: plan }),
+    });
+    document.getElementById('adm-new-username').value = '';
+    document.getElementById('adm-new-email').value    = '';
+    document.getElementById('adm-new-pass').value     = '';
+    msgEl.textContent = `User "${uname}" created successfully`;
+    msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:rgba(16,185,129,.1);color:var(--green);';
+    await loadAdminUsers();
+    await loadAdminStats();
+  } catch(e) {
+    msgEl.textContent = 'Error: ' + e.message;
+    msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:rgba(244,63,94,.1);color:#f43f5e;';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '+ Create User';
+  }
+}
+
+async function loadAdminUsers() {
+  const body = document.getElementById('adm-users-body');
+  body.innerHTML = '<div class="empty"><div class="empty-title" style="padding:16px 0;">Loading…</div></div>';
+  try {
+    const d = await jAuth(`${API}/api/admin/users`);
+    const users = d.users || [];
+    if (!users.length) {
+      body.innerHTML = '<div class="empty" style="padding:24px 0;"><div class="empty-icon">👤</div><div class="empty-title">No users yet</div><div class="empty-sub">Create a user above</div></div>';
+      return;
+    }
+    body.innerHTML = users.map(u => {
+      const today   = new Date();
+      const expiry  = u.plan_expiry ? new Date(u.plan_expiry) : null;
+      const daysLeft = expiry ? Math.ceil((expiry - today) / 864e5) : null;
+      const expired = daysLeft != null && daysLeft <= 0;
+      const subColor = !u.is_active ? 'var(--txt3)' : expired ? '#f43f5e' : 'var(--green)';
+      const subLabel = !u.is_active ? 'Inactive' : expired ? `Expired ${-daysLeft}d ago` : `${daysLeft}d left`;
+      const planBadge = u.plan_type
+        ? `<span style="font-size:9px;padding:2px 7px;border-radius:5px;background:var(--s3);color:var(--txt3);font-weight:700;">${u.plan_type.toUpperCase()}</span>`
+        : '';
+      return `
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;font-weight:700;">${u.username}</span>
+              ${planBadge}
+              <span style="font-size:10px;color:${subColor};font-weight:600;">${subLabel}</span>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <select onchange="adminRenewPlan(${u.id}, this.value)" style="font-size:11px;padding:3px 6px;background:var(--s2);border:1px solid var(--border);border-radius:6px;color:var(--txt3);">
+                <option value="">Renew…</option>
+                <option value="1m">+1M</option>
+                <option value="3m">+3M</option>
+                <option value="6m">+6M</option>
+                <option value="12m">+12M</option>
+              </select>
+              <button onclick="adminToggleActive(${u.id}, ${!u.is_active})"
+                style="font-size:11px;padding:3px 9px;border-radius:6px;cursor:pointer;background:${u.is_active ? 'rgba(244,63,94,.1)' : 'rgba(16,185,129,.1)'};color:${u.is_active ? '#f43f5e' : 'var(--green)'};border:1px solid ${u.is_active ? 'rgba(244,63,94,.3)' : 'rgba(16,185,129,.3)'};">
+                ${u.is_active ? 'Deactivate' : 'Activate'}
+              </button>
+              <button onclick="adminDeleteUser(${u.id}, '${u.username}')"
+                style="font-size:11px;padding:3px 9px;border-radius:6px;cursor:pointer;background:var(--s3);color:var(--txt3);border:1px solid var(--border);">
+                ✕
+              </button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--txt3);">${u.email} · Joined ${u.created_at ? u.created_at.slice(0,10) : '—'} · Last login ${u.last_login ? u.last_login.slice(0,10) : 'never'}</div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    body.innerHTML = `<div class="empty" style="padding:16px 0;"><div class="empty-title">Error: ${e.message}</div></div>`;
+  }
+}
+
+async function adminRenewPlan(userId, planType) {
+  if (!planType) return;
+  try {
+    await jAuth(`${API}/api/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan_type: planType }),
+    });
+    await loadAdminUsers();
+    await loadAdminStats();
+  } catch(e) {
+    alert('Error renewing plan: ' + e.message);
+  }
+}
+
+async function adminToggleActive(userId, newActive) {
+  try {
+    await jAuth(`${API}/api/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: newActive }),
+    });
+    await loadAdminUsers();
+    await loadAdminStats();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function adminDeleteUser(userId, username) {
+  if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+  try {
+    await jAuth(`${API}/api/admin/users/${userId}`, { method: 'DELETE' });
+    await loadAdminUsers();
+    await loadAdminStats();
+  } catch(e) {
+    alert('Error deleting user: ' + e.message);
+  }
+}
+
+
 // ── Init ───────────────────────────────────────────────
 refreshStatus();
 refreshScheduler();
 loadIndexOptions();
+initSymbolSearch();
 setInterval(refreshStatus, 5000);
 setInterval(refreshScheduler, 15000);
 setInterval(() => { if (document.getElementById('tab-live').classList.contains('active')) refreshLive(); }, 3000);
 checkMLStatus();
+loadFeedbackStatus();
 </script>
 </body>
 </html>

@@ -4,11 +4,10 @@ import asyncio
 import subprocess
 import re
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import Optional, Dict
 
 from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 
 # Import existing settings
@@ -19,8 +18,7 @@ import load_env  # noqa: F401
 from config.settings import TOKEN_PATH, LOG_DIR, TABLE_NAME
 from db.connection import get_conn, get_engine
 from strategies.swing_executor import StrategyManager, STRATEGY_DESCRIPTIONS
-from dashboard.auth import require_admin, verify_password, create_access_token
-from config.settings import ADMIN_USERNAME, ADMIN_PASSWORD_HASH
+from dashboard.auth import require_admin, require_user
 
 app = FastAPI(title="Trading HQ Dashboard")
 
@@ -51,6 +49,48 @@ def reload_ml_predictor():
 async def startup_event():
     from scheduler.auto_scheduler import start_scheduler
     start_scheduler()
+    _run_db_migrations()
+
+
+def _run_db_migrations():
+    """Auto-apply any pending SQL migrations on startup."""
+    import glob as _glob
+    migrations_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "db", "migrations"
+    )
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            # Ensure migration tracking table exists
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version VARCHAR(50) PRIMARY KEY,
+                    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    description TEXT
+                )
+            """)
+            cur.execute("SELECT version FROM schema_migrations")
+            applied = {r[0] for r in cur.fetchall()}
+
+        sql_files = sorted(_glob.glob(os.path.join(migrations_dir, "*.sql")))
+        for path in sql_files:
+            version = os.path.basename(path).split("_")[0]
+            if version in applied:
+                continue
+            with open(path) as f:
+                sql = f.read()
+            with conn.cursor() as cur:
+                cur.execute(sql)
+            conn.commit()
+            print(f"[Migration] Applied {os.path.basename(path)}")
+    except Exception as e:
+        print(f"[Migration] Error: {e}")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @app.on_event("shutdown")
@@ -248,40 +288,6 @@ def parse_log_for_summary():
 # -------------------------------------------------------
 # Auth endpoints
 # -------------------------------------------------------
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-@app.post("/api/auth/login")
-async def login(body: LoginRequest):
-    """
-    Authenticate admin user. Returns a JWT bearer token on success.
-
-    POST /api/auth/login
-    Body: { "username": "admin", "password": "..." }
-    """
-    if not ADMIN_PASSWORD_HASH:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Admin password not configured. Set ADMIN_PASSWORD_HASH in .env",
-        )
-    if body.username != ADMIN_USERNAME or not verify_password(body.password, ADMIN_PASSWORD_HASH):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    token = create_access_token(body.username)
-    return {"access_token": token, "token_type": "bearer"}
-
-
-@app.get("/api/auth/me")
-async def auth_me(username: str = Depends(require_admin)):
-    """Check if the current token is valid and return the username."""
-    return {"username": username, "role": "admin"}
-
 
 # -------------------------------------------------------
 # Existing endpoints
@@ -538,21 +544,22 @@ async def get_all_signals():
 @app.get("/api/combined/signals")
 async def combined_signals(trend_period: str = "any"):
     """
-    Combined signals: strategy setup + ML probability filter + optional trend filter.
+    Combined signals: strategy setup + ML probability filter + quality score + trend filter.
 
     Flow:
       1. Run all 16 strategies → find stocks with a valid entry setup
-      2. Score each of those stocks through the ML model
-      3. Keep only stocks where ML probability >= regime-adjusted BUY threshold
-      4. Optional trend_period filter: only keep stocks with +ve return over
-         the selected lookback (1m=20d, 3m=63d, 6m=126d, 1y=252d)
-      5. Return sorted by probability desc, then strategy count desc
+      2. Score each stock through the ML model
+      3. Keep only stocks above regime-adjusted BUY threshold
+      4. Compute Trade Quality Score (0-100) for each
+      5. Apply optional trend period filter
+      6. Sort by quality_score desc
 
     trend_period values: any | 1m | 3m | 6m | 1y
     """
     import pandas as pd
     from ml.model import THRESHOLDS
     from ml.regime import compute_regime
+    from ml.quality_score import compute_quality_score
 
     PERIOD_DAYS = {"1m": 20, "3m": 63, "6m": 126, "1y": 252}
 
@@ -650,10 +657,38 @@ async def combined_signals(trend_period: str = "any"):
 
             strategy_count = len(info["strategies"])
 
+            # ── Compute volume ratio for quality score ──────────────────
+            vol_ratio = None
+            try:
+                if len(df) >= 21:
+                    vol_avg = float(df["volume"].iloc[-21:-1].mean())
+                    vol_today = float(df["volume"].iloc[-1])
+                    vol_ratio = round(vol_today / vol_avg, 2) if vol_avg > 0 else None
+            except Exception:
+                pass
+
+            # ── Trade Quality Score ─────────────────────────────────────
+            trend_3m = None
+            if len(df) >= 64:
+                closes = df["close"]
+                trend_3m = round(
+                    (float(closes.iloc[-1]) / float(closes.iloc[-64]) - 1) * 100, 2
+                )
+
+            qs = compute_quality_score(
+                buy_probability=prob,
+                regime=regime,
+                trend_return_3m=trend_3m,
+                vol_ratio=vol_ratio,
+                strategy_count=strategy_count,
+            )
+
             results.append({
                 "symbol":              sym,
                 "buy_probability":     prob,
-                "confidence":          ml.get("confidence"),
+                "quality_score":       qs["score"],
+                "confidence":          qs["confidence"],
+                "score_breakdown":     qs["breakdown"],
                 "expected_return_pct": ml.get("expected_return_pct"),
                 "price_target":        ml.get("price_target"),
                 "price":               price,
@@ -671,14 +706,16 @@ async def combined_signals(trend_period: str = "any"):
                 # Trend context
                 "trend_period":        trend_period,
                 "trend_return_pct":    trend_return_pct,
+                "trend_3m":            trend_3m,
+                "vol_ratio":           vol_ratio,
             })
 
         except Exception as e:
             print(f"Combined signal error for {sym}: {e}")
 
-    # Sort: primary = ML probability, secondary = strategy count
+    # Sort: primary = quality_score, secondary = ML probability
     results.sort(
-        key=lambda x: (x["buy_probability"], x["strategy_count"]),
+        key=lambda x: (x["quality_score"], x["buy_probability"]),
         reverse=True,
     )
 
@@ -830,37 +867,6 @@ async def execute_poll(background_tasks: BackgroundTasks):
         "is_refreshing":  execute_cache.is_refreshing,
         "cache_age_secs": int(cache_age_secs) if cache_age_secs is not None else None,
     }
-
-
-@app.get("/api/backtest")
-async def run_backtest(strategy: str = "golden_rsi", symbol: str = None):
-    """
-    Run a backtest for the specified strategy.
-
-    Query params:
-        strategy: Strategy ID (default: golden_rsi)
-        symbol: Optional — restrict to a single symbol
-    """
-    try:
-        from backtesting.engine import BacktestEngine
-        from risk.manager import RiskManager
-
-        rm = RiskManager()
-        engine = BacktestEngine(risk_manager=rm)
-        result = engine.run(
-            strategy_id=strategy,
-            symbol=symbol if symbol else None,
-        )
-        return result
-    except Exception as e:
-        print(f"Backtest Error: {e}")
-        return {
-            "trades": [],
-            "metrics": {},
-            "equity_curve": [],
-            "per_symbol": {},
-            "error": str(e),
-        }
 
 
 async def _run_daily_pipeline_task():
@@ -1294,6 +1300,100 @@ async def ml_reliability():
 
 
 # -------------------------------------------------------
+# Trade Feedback Model endpoints
+# -------------------------------------------------------
+
+from ml.trade_feedback_model import get_feedback_model, reload_feedback_model
+
+
+class TradeFeedbackTrainState:
+    is_training = False
+    last_trained = "Never"
+    last_result: dict = {}
+
+
+_fb_train_state = TradeFeedbackTrainState()
+
+
+async def _run_feedback_training():
+    """Background task: train the trade feedback model."""
+    _fb_train_state.is_training = True
+    steps = []
+
+    def _progress(step: str):
+        steps.append(step)
+
+    try:
+        from ml.trade_feedback_model import TradeFeedbackModel
+        m = TradeFeedbackModel()
+        result = m.train(progress_cb=_progress)
+        _fb_train_state.last_result = result
+        _fb_train_state.last_trained = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if "error" not in result:
+            reload_feedback_model()
+    except Exception as e:
+        _fb_train_state.last_result = {"error": str(e)}
+    finally:
+        _fb_train_state.is_training = False
+
+
+@app.post("/api/ml/trade-feedback/retrain")
+async def feedback_retrain(
+    background_tasks: BackgroundTasks,
+    _: str = Depends(require_admin),
+):
+    """Retrain the trade feedback model from closed journal trades. Admin only."""
+    if _fb_train_state.is_training:
+        return {"message": "Training already in progress", "status": "busy"}
+    background_tasks.add_task(_run_feedback_training)
+    return {"message": "Trade feedback training started", "status": "started"}
+
+
+@app.get("/api/ml/trade-feedback/status")
+async def feedback_status():
+    """Return trade feedback model status, metrics, and trade counts."""
+    model = get_feedback_model()
+    stats = model.get_trade_stats()
+    return {
+        "is_training":   _fb_train_state.is_training,
+        "is_trained":    model.is_trained(),
+        "last_trained":  _fb_train_state.last_trained,
+        "last_result":   _fb_train_state.last_result,
+        "meta":          model.get_meta(),
+        "trade_stats":   stats,
+    }
+
+
+class FeedbackPredictRequest(BaseModel):
+    entry_price:         float
+    stop_loss:           float
+    target:              float
+    buy_probability:     float = 0.0
+    expected_return_pct: float = 0.0
+    strategy_tags:       str   = ""
+    trade_type:          str   = "paper"
+
+
+@app.post("/api/ml/trade-feedback/predict")
+async def feedback_predict(body: FeedbackPredictRequest):
+    """
+    Predict trade success probability using the feedback model.
+    Returns feedback_probability, signal (boost/neutral/penalise), and quality score adjustment.
+    """
+    model = get_feedback_model()
+    result = model.predict(
+        entry_price=body.entry_price,
+        stop_loss=body.stop_loss,
+        target=body.target,
+        buy_probability=body.buy_probability,
+        expected_return_pct=body.expected_return_pct,
+        strategy_tags=body.strategy_tags,
+        trade_type=body.trade_type,
+    )
+    return result
+
+
+# -------------------------------------------------------
 # Yahoo Finance backfill endpoints
 # -------------------------------------------------------
 
@@ -1434,6 +1534,41 @@ async def list_indices():
     """Return all available NSE indices with metadata (name, category, count)."""
     from config.nse_indices import list_indices as _list
     return {"indices": _list()}
+
+
+@app.get("/api/symbols/search")
+async def symbol_search(q: str = ""):
+    """
+    Autocomplete endpoint — returns symbols from the DB that start with or
+    contain the query string (case-insensitive). Returns up to 10 results.
+    """
+    q = q.strip().upper()
+    if not q:
+        return {"symbols": []}
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            # Prefix matches first (e.g. "REL" → RELIANCE, RELINFRA)
+            cur.execute(
+                f"SELECT DISTINCT symbol FROM {TABLE_NAME} "
+                "WHERE UPPER(symbol) LIKE %s ORDER BY symbol LIMIT 10",
+                (f"{q}%",),
+            )
+            symbols = [r[0] for r in cur.fetchall()]
+            # If fewer than 5 prefix hits, also search by contains
+            if len(symbols) < 5:
+                cur.execute(
+                    f"SELECT DISTINCT symbol FROM {TABLE_NAME} "
+                    "WHERE UPPER(symbol) LIKE %s AND UPPER(symbol) NOT LIKE %s "
+                    "ORDER BY symbol LIMIT 5",
+                    (f"%{q}%", f"{q}%"),
+                )
+                symbols += [r[0] for r in cur.fetchall()]
+        conn.close()
+        return {"symbols": symbols[:10]}
+    except Exception as e:
+        logger.error(f"symbol_search error: {e}")
+        return {"symbols": []}
 
 
 @app.get("/api/indices/{index_name}/symbols")
@@ -1753,6 +1888,409 @@ async def journal_settle_paper(
         return {"settled": len(settled), "trades": settled}
     finally:
         conn.close()
+
+
+# -------------------------------------------------------
+# Portfolio Builder
+# -------------------------------------------------------
+
+class PortfolioRequest(BaseModel):
+    capital:             float = 100000
+    risk_pct:            float = 1.5
+    max_positions:       int   = 8
+    max_sector_exposure: int   = 2
+    max_position_pct:    float = 20.0
+    trend_period:        str   = "any"
+
+
+@app.post("/api/portfolio/build")
+async def portfolio_build(
+    body: PortfolioRequest,
+    _: dict = Depends(require_user),
+):
+    """
+    Build a capital-allocated portfolio from today's best trade signals.
+    Runs the full execute pipeline, then applies position sizing + sector rules.
+    """
+    import pandas as pd
+    from ml.model import THRESHOLDS
+    from ml.regime import compute_regime
+    from ml.quality_score import compute_quality_score
+    from risk.portfolio_builder import build_portfolio
+
+    PERIOD_DAYS = {"1m": 20, "3m": 63, "6m": 126, "1y": 252}
+
+    try:
+        regime_data = compute_regime()
+        regime      = regime_data.get("regime", "Neutral")
+    except Exception:
+        regime_data = {}
+        regime      = "Neutral"
+
+    buy_thresh, _ = THRESHOLDS.get(regime, THRESHOLDS["Neutral"])
+
+    try:
+        manager     = StrategyManager()
+        all_signals = manager.get_all_signals()
+    except Exception as e:
+        return {"error": f"Strategy scan failed: {e}"}
+
+    symbol_map: dict = {}
+    for strategy_id, sigs in all_signals.items():
+        for sig in sigs:
+            sym = sig.get("symbol", "")
+            if not sym:
+                continue
+            if sym not in symbol_map:
+                symbol_map[sym] = {
+                    "strategies": [], "entry": sig.get("entry"),
+                    "stop_loss": sig.get("stop_loss"), "target": sig.get("target"),
+                    "atr": sig.get("atr"),
+                }
+            symbol_map[sym]["strategies"].append(strategy_id)
+
+    predictor = get_ml_predictor()
+    if predictor.clf is None:
+        return {"error": "ML model not trained — POST /api/ml/train first"}
+
+    engine = get_engine()
+    period_days = PERIOD_DAYS.get(body.trend_period)
+    candidates = []
+
+    for sym, info in symbol_map.items():
+        try:
+            df = pd.read_sql(
+                f"SELECT trade_date, open, high, low, close, volume "
+                f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
+                engine, params={"sym": sym},
+            )
+            if df.empty or len(df) < 260:
+                continue
+
+            ml = predictor.predict_symbol(df, sym, regime=regime)
+            if "error" in ml:
+                continue
+
+            prob = ml.get("buy_probability", 0)
+            if prob < buy_thresh:
+                continue
+
+            # Trend filter
+            trend_return_pct = None
+            if period_days and len(df) >= period_days + 1:
+                closes = df["close"]
+                trend_return_pct = round(
+                    (float(closes.iloc[-1]) / float(closes.iloc[-period_days - 1]) - 1) * 100, 2
+                )
+                if trend_return_pct <= 0:
+                    continue
+
+            # Quality score
+            vol_ratio = None
+            if len(df) >= 21:
+                vol_avg = float(df["volume"].iloc[-21:-1].mean())
+                vol_today = float(df["volume"].iloc[-1])
+                vol_ratio = round(vol_today / vol_avg, 2) if vol_avg > 0 else None
+
+            trend_3m = None
+            if len(df) >= 64:
+                closes = df["close"]
+                trend_3m = round((float(closes.iloc[-1]) / float(closes.iloc[-64]) - 1) * 100, 2)
+
+            qs = compute_quality_score(
+                buy_probability=prob, regime=regime,
+                trend_return_3m=trend_3m, vol_ratio=vol_ratio,
+                strategy_count=len(info["strategies"]),
+            )
+
+            candidates.append({
+                "symbol":          sym,
+                "entry":           info["entry"] or ml.get("price"),
+                "stop_loss":       info["stop_loss"],
+                "target":          info["target"] or ml.get("price_target"),
+                "atr":             info["atr"],
+                "buy_probability": prob,
+                "quality_score":   qs["score"],
+                "confidence":      qs["confidence"],
+                "strategies":      info["strategies"],
+                "strategy_count":  len(info["strategies"]),
+            })
+        except Exception:
+            continue
+
+    candidates.sort(key=lambda x: x["quality_score"], reverse=True)
+
+    result = build_portfolio(
+        capital=body.capital,
+        trades=candidates,
+        risk_pct=body.risk_pct,
+        max_positions=body.max_positions,
+        max_sector_exposure=body.max_sector_exposure,
+        max_position_pct=body.max_position_pct,
+    )
+    result["regime"] = regime_data
+    result["candidates_count"] = len(candidates)
+    return result
+
+
+# -------------------------------------------------------
+# Backtesting
+# -------------------------------------------------------
+
+@app.get("/api/backtest")
+async def run_backtest(
+    strategy: str = "golden_rsi",
+    symbol:   str = None,
+    start:    str = None,
+    end:      str = None,
+    capital:  float = 100000,
+    risk_pct: float = 1.5,
+    _: dict = Depends(require_user),
+):
+    """
+    Run a backtest for a strategy.
+    symbol: optional — omit to backtest all Nifty symbols.
+    start/end: ISO date strings (optional).
+    Returns: trades list, metrics, equity curve.
+    """
+    try:
+        from backtesting.engine import BacktestEngine
+        from risk.manager import RiskManager
+
+        rm = RiskManager(capital=capital, risk_pct=risk_pct)
+        engine_bt = BacktestEngine(risk_manager=rm)
+        result = engine_bt.run(
+            strategy_id=strategy,
+            symbol=symbol.upper() if symbol else None,
+            start_date=start,
+            end_date=end,
+        )
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# -------------------------------------------------------
+# Admin — User Management
+# -------------------------------------------------------
+
+class CreateUserRequest(BaseModel):
+    username:   str
+    email:      str
+    password:   str
+    plan_type:  str = "1m"    # 1m | 3m | 6m | 12m
+    role:       str = "user"
+
+
+class UpdateUserRequest(BaseModel):
+    plan_type:  Optional[str] = None
+    is_active:  Optional[bool] = None
+    password:   Optional[str] = None
+
+
+PLAN_DAYS = {"1m": 30, "3m": 90, "6m": 180, "12m": 365}
+
+
+@app.post("/api/admin/users")
+async def admin_create_user(
+    body: CreateUserRequest,
+    _: str = Depends(require_admin),
+):
+    """Create a new user with a subscription plan. Admin only."""
+    from datetime import date, timedelta
+    from dashboard.auth import hash_password as _hash
+
+    days = PLAN_DAYS.get(body.plan_type, 30)
+    today  = date.today()
+    expiry = today + timedelta(days=days)
+
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO users (username, email, password_hash, role, plan_type, plan_start, plan_expiry)
+                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+            """, (
+                body.username, body.email, _hash(body.password),
+                body.role, body.plan_type, today, expiry,
+            ))
+            user_id = cur.fetchone()[0]
+        conn.commit()
+        return {"id": user_id, "username": body.username,
+                "plan_expiry": str(expiry), "message": "User created"}
+    except Exception as e:
+        conn.rollback()
+        if "unique" in str(e).lower():
+            raise HTTPException(status_code=409, detail="Username or email already exists")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/admin/users")
+async def admin_list_users(_: str = Depends(require_admin)):
+    """List all users with subscription status. Admin only."""
+    from datetime import date
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, username, email, role, plan_type,
+                       plan_start, plan_expiry, is_active, created_at, last_login
+                FROM users ORDER BY created_at DESC
+            """)
+            cols = [d[0] for d in cur.description]
+            users = []
+            today = date.today()
+            for row in cur.fetchall():
+                u = dict(zip(cols, row))
+                for k in ("plan_start", "plan_expiry", "created_at", "last_login"):
+                    if u.get(k):
+                        u[k] = str(u[k])
+                expiry = u.get("plan_expiry")
+                if expiry:
+                    exp_date = date.fromisoformat(expiry[:10])
+                    u["days_left"] = (exp_date - today).days
+                    u["subscription_status"] = "Active" if exp_date >= today else "Expired"
+                else:
+                    u["days_left"] = None
+                    u["subscription_status"] = "No Plan"
+                users.append(u)
+        return {"users": users, "total": len(users)}
+    finally:
+        conn.close()
+
+
+@app.patch("/api/admin/users/{user_id}")
+async def admin_update_user(
+    user_id: int,
+    body: UpdateUserRequest,
+    _: str = Depends(require_admin),
+):
+    """Update a user's plan, status, or password. Admin only."""
+    from datetime import date, timedelta
+    from dashboard.auth import hash_password as _hash
+
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            if body.plan_type is not None:
+                days   = PLAN_DAYS.get(body.plan_type, 30)
+                expiry = date.today() + timedelta(days=days)
+                cur.execute(
+                    "UPDATE users SET plan_type=%s, plan_start=%s, plan_expiry=%s WHERE id=%s",
+                    (body.plan_type, date.today(), expiry, user_id)
+                )
+            if body.is_active is not None:
+                cur.execute("UPDATE users SET is_active=%s WHERE id=%s",
+                            (body.is_active, user_id))
+            if body.password:
+                cur.execute("UPDATE users SET password_hash=%s WHERE id=%s",
+                            (_hash(body.password), user_id))
+        conn.commit()
+        return {"updated": user_id, "message": "User updated"}
+    finally:
+        conn.close()
+
+
+@app.delete("/api/admin/users/{user_id}")
+async def admin_delete_user(
+    user_id: int,
+    _: str = Depends(require_admin),
+):
+    """Delete a user. Admin only."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM users WHERE id=%s RETURNING id", (user_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="User not found")
+        conn.commit()
+        return {"deleted": user_id}
+    finally:
+        conn.close()
+
+
+@app.get("/api/admin/stats")
+async def admin_stats(_: str = Depends(require_admin)):
+    """Admin dashboard stats — users, subscriptions, DB health."""
+    from datetime import date
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    COUNT(*)                                          AS total_users,
+                    COUNT(*) FILTER (WHERE is_active AND plan_expiry >= CURRENT_DATE) AS active_subs,
+                    COUNT(*) FILTER (WHERE plan_expiry < CURRENT_DATE)                AS expired_subs,
+                    COUNT(*) FILTER (WHERE plan_type='1m')  AS plan_1m,
+                    COUNT(*) FILTER (WHERE plan_type='3m')  AS plan_3m,
+                    COUNT(*) FILTER (WHERE plan_type='6m')  AS plan_6m,
+                    COUNT(*) FILTER (WHERE plan_type='12m') AS plan_12m
+                FROM users
+            """)
+            row = cur.fetchone()
+            cols = [d[0] for d in cur.description]
+            stats = dict(zip(cols, row))
+
+            # DB health
+            cur.execute(f"SELECT COUNT(*), COUNT(DISTINCT symbol) FROM {TABLE_NAME}")
+            rows, syms = cur.fetchone()
+            stats["db_rows"]    = rows
+            stats["db_symbols"] = syms
+
+        return stats
+    finally:
+        conn.close()
+
+
+# -------------------------------------------------------
+# Updated auth login — support both admin and users
+# -------------------------------------------------------
+
+@app.post("/api/auth/login")
+async def auth_login(body: dict):
+    """Login for both admin and regular users."""
+    from dashboard.auth import authenticate_user, create_access_token
+
+    username = body.get("username", "").strip()
+    password = body.get("password", "")
+
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password required")
+
+    user = authenticate_user(username, password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+
+    role  = user.get("role", "user")
+    token = create_access_token(username, role=role)
+
+    # Update last_login for DB users
+    if role != "admin":
+        try:
+            conn = get_conn()
+            with conn.cursor() as cur:
+                cur.execute("UPDATE users SET last_login=NOW() WHERE username=%s", (username,))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    return {
+        "access_token": token,
+        "token_type":   "bearer",
+        "role":         role,
+        "username":     username,
+        "plan_type":    user.get("plan_type"),
+        "plan_expiry":  str(user.get("plan_expiry", "")),
+    }
+
+
+@app.get("/api/auth/me")
+async def auth_me(current: dict = Depends(require_user)):
+    """Return current user info."""
+    return current
 
 
 # -------------------------------------------------------

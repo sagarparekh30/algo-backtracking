@@ -179,11 +179,3 @@ SECTOR_MAP = {
 def get_sector(symbol: str) -> str:
     """Return sector for a symbol, defaulting to 'Others'."""
     return SECTOR_MAP.get(symbol.upper(), "Others")
-
-
-def get_symbols_by_sector() -> dict:
-    """Return {sector: [symbols]} grouped dict."""
-    result: dict = {}
-    for sym, sec in SECTOR_MAP.items():
-        result.setdefault(sec, []).append(sym)
-    return result

@@ -73,6 +73,18 @@ class BacktestEngine:
         all_trades = []
         per_symbol = {}
 
+        # Resolve strategy function once — avoids re-instantiating StrategyManager per bar
+        from strategies.swing_executor import StrategyManager
+        strategy_fn = StrategyManager()._get_strategy_fn(strategy_id)
+        if strategy_fn is None:
+            return {
+                "trades": [],
+                "metrics": self._calculate_metrics([], self.initial_capital),
+                "equity_curve": self._build_equity_curve([], self.initial_capital),
+                "per_symbol": {},
+                "error": f"Unknown strategy: {strategy_id}",
+            }
+
         try:
             conn = get_engine()
 
@@ -89,7 +101,7 @@ class BacktestEngine:
                     if df is None or len(df) < MIN_HISTORY + 5:
                         continue
 
-                    trades = self._simulate_symbol(df, sym, strategy_id)
+                    trades = self._simulate_symbol(df, sym, strategy_fn)
                     if trades:
                         all_trades.extend(trades)
                         per_symbol[sym] = self._calculate_metrics(
@@ -152,7 +164,7 @@ class BacktestEngine:
     # ------------------------------------------------------------------
 
     def _simulate_symbol(
-        self, df: pd.DataFrame, symbol: str, strategy_id: str
+        self, df: pd.DataFrame, symbol: str, strategy_fn
     ) -> list:
         """
         Simulate trading on a single symbol's price history.
@@ -180,7 +192,7 @@ class BacktestEngine:
             # ---- If not in a trade, check for a new signal ----
             if not in_trade:
                 df_window = df.iloc[: i + 1].copy()
-                signal = self._get_strategy_signal(df_window, symbol, strategy_id)
+                signal = self._get_strategy_signal(df_window, symbol, strategy_fn)
 
                 if signal is not None:
                     # Entry at next bar's open
@@ -263,31 +275,23 @@ class BacktestEngine:
     # ------------------------------------------------------------------
 
     def _get_strategy_signal(
-        self, df_window: pd.DataFrame, symbol: str, strategy_id: str
+        self, df_window: pd.DataFrame, symbol: str, strategy_fn
     ) -> dict | None:
         """
-        Generate a signal using the strategies defined in swing_executor.
+        Generate a signal by calling the pre-resolved strategy function.
 
         Args:
             df_window: Data available up to current bar (no look-ahead).
             symbol: Symbol name.
-            strategy_id: Strategy key.
+            strategy_fn: Callable resolved once in run() — avoids re-instantiation per bar.
 
         Returns:
             Signal dict (including atr key) or None.
         """
         try:
-            # Lazy import to avoid circular dependency
-            from strategies.swing_executor import StrategyManager
-
-            mgr = StrategyManager()
-            strategy_fn = mgr._get_strategy_fn(strategy_id)
-            if strategy_fn is None:
-                return None
-
             return strategy_fn(df_window, symbol)
         except Exception as e:
-            logger.debug(f"Signal error for {symbol} ({strategy_id}): {e}")
+            logger.debug(f"Signal error for {symbol}: {e}")
             return None
 
     # ------------------------------------------------------------------
