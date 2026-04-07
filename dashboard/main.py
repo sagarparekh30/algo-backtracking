@@ -536,22 +536,25 @@ async def get_all_signals():
 
 
 @app.get("/api/combined/signals")
-async def combined_signals():
+async def combined_signals(trend_period: str = "any"):
     """
-    Combined signals: strategy setup + ML probability filter.
+    Combined signals: strategy setup + ML probability filter + optional trend filter.
 
     Flow:
       1. Run all 16 strategies → find stocks with a valid entry setup
       2. Score each of those stocks through the ML model
       3. Keep only stocks where ML probability >= regime-adjusted BUY threshold
-      4. Return sorted by probability desc, then strategy count desc
+      4. Optional trend_period filter: only keep stocks with +ve return over
+         the selected lookback (1m=20d, 3m=63d, 6m=126d, 1y=252d)
+      5. Return sorted by probability desc, then strategy count desc
 
-    Each result includes the full trade plan (entry, stop, target) from the
-    strategy PLUS the ML conviction score and expected return %.
+    trend_period values: any | 1m | 3m | 6m | 1y
     """
     import pandas as pd
     from ml.model import THRESHOLDS
     from ml.regime import compute_regime
+
+    PERIOD_DAYS = {"1m": 20, "3m": 63, "6m": 126, "1y": 252}
 
     # ── Step 1: Market regime ───────────────────────────────────────────
     try:
@@ -600,6 +603,7 @@ async def combined_signals():
     engine = get_engine()
 
     # ── Step 4: Score each symbol with the ML model ──────────────────────
+    period_days = PERIOD_DAYS.get(trend_period)   # None means no filter
     results = []
     for sym, info in symbol_map.items():
         try:
@@ -620,6 +624,17 @@ async def combined_signals():
             # Only keep if ML agrees with the strategy (above regime BUY threshold)
             if prob < buy_thresh:
                 continue
+
+            # ── Trend period filter ─────────────────────────────────────
+            trend_return_pct = None
+            if period_days and len(df) >= period_days + 1:
+                closes = df["close"]
+                trend_return_pct = round(
+                    (float(closes.iloc[-1]) / float(closes.iloc[-period_days - 1]) - 1) * 100, 2
+                )
+                # Skip if stock is down over the selected horizon
+                if trend_return_pct <= 0:
+                    continue
 
             # Live price overlay
             price        = ml.get("price", 0)
@@ -653,6 +668,9 @@ async def combined_signals():
                 "strategy_count":      strategy_count,
                 "regime":              regime,
                 "buy_threshold_used":  buy_thresh,
+                # Trend context
+                "trend_period":        trend_period,
+                "trend_return_pct":    trend_return_pct,
             })
 
         except Exception as e:

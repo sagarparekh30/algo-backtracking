@@ -59,9 +59,10 @@ def compute_regime() -> dict:
             try:
                 df = pd.read_sql(
                     f"SELECT trade_date, high, low, close FROM {TABLE_NAME} "
-                    f"WHERE symbol = %(sym)s ORDER BY trade_date ASC LIMIT 300",
+                    f"WHERE symbol = %(sym)s ORDER BY trade_date DESC LIMIT 300",
                     engine, params={"sym": sym},
                 )
+                df = df.iloc[::-1].reset_index(drop=True)  # reverse to oldest→newest
                 if len(df) < 55:
                     continue
 
