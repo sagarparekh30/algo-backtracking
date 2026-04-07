@@ -6,8 +6,9 @@ import re
 from datetime import datetime
 from typing import List, Optional, Dict
 
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 
 # Import existing settings
@@ -18,6 +19,8 @@ import load_env  # noqa: F401
 from config.settings import TOKEN_PATH, LOG_DIR, TABLE_NAME
 from db.connection import get_conn, get_engine
 from strategies.swing_executor import StrategyManager, STRATEGY_DESCRIPTIONS
+from dashboard.auth import require_admin, verify_password, create_access_token
+from config.settings import ADMIN_USERNAME, ADMIN_PASSWORD_HASH
 
 app = FastAPI(title="Trading HQ Dashboard")
 
@@ -221,6 +224,44 @@ def parse_log_for_summary():
 
 
 # -------------------------------------------------------
+# Auth endpoints
+# -------------------------------------------------------
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/login")
+async def login(body: LoginRequest):
+    """
+    Authenticate admin user. Returns a JWT bearer token on success.
+
+    POST /api/auth/login
+    Body: { "username": "admin", "password": "..." }
+    """
+    if not ADMIN_PASSWORD_HASH:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin password not configured. Set ADMIN_PASSWORD_HASH in .env",
+        )
+    if body.username != ADMIN_USERNAME or not verify_password(body.password, ADMIN_PASSWORD_HASH):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = create_access_token(body.username)
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@app.get("/api/auth/me")
+async def auth_me(username: str = Depends(require_admin)):
+    """Check if the current token is valid and return the username."""
+    return {"username": username, "role": "admin"}
+
+
+# -------------------------------------------------------
 # Existing endpoints
 # -------------------------------------------------------
 
@@ -322,7 +363,11 @@ async def run_backfill_task():
 
 
 @app.post("/api/start_backfill")
-async def start_backfill(background_tasks: BackgroundTasks):
+async def start_backfill(
+    background_tasks: BackgroundTasks,
+    _: str = Depends(require_admin),
+):
+    """Start a full data backfill. Admin only."""
     if state.is_running:
         return {"message": "Busy"}
 
@@ -847,9 +892,12 @@ async def _run_ml_training():
 
 
 @app.post("/api/ml/train")
-async def ml_train(background_tasks: BackgroundTasks):
+async def ml_train(
+    background_tasks: BackgroundTasks,
+    _: str = Depends(require_admin),
+):
     """
-    Train the ML model in the background.
+    Train the ML model in the background. Admin only.
     Uses all symbols in the DB — takes 2-5 minutes.
     """
     if ml_train_state.is_training:
@@ -1041,10 +1089,13 @@ async def _run_yfinance_task():
 
 
 @app.post("/api/start_yfinance_backfill")
-async def start_yfinance_backfill(background_tasks: BackgroundTasks):
+async def start_yfinance_backfill(
+    background_tasks: BackgroundTasks,
+    _: str = Depends(require_admin),
+):
     """
     Fetch full historical data (up to 30 years) for all symbols from Yahoo Finance.
-    Runs in background — poll /api/yfinance/status for progress.
+    Runs in background — poll /api/yfinance/status for progress. Admin only.
     """
     if yf_state.is_running:
         return {"message": "Yahoo Finance backfill already running", "status": "busy"}
@@ -1102,8 +1153,11 @@ async def scheduler_status():
 
 
 @app.post("/api/scheduler/run_data_update")
-async def scheduler_run_data_now(background_tasks: BackgroundTasks):
-    """Manually trigger a data update right now (outside schedule)."""
+async def scheduler_run_data_now(
+    background_tasks: BackgroundTasks,
+    _: str = Depends(require_admin),
+):
+    """Manually trigger a data update right now (outside schedule). Admin only."""
     from scheduler.auto_scheduler import trigger_data_update_now, _state
     if _state.data_update_running:
         return {"message": "Data update already running", "status": "busy"}
@@ -1112,13 +1166,267 @@ async def scheduler_run_data_now(background_tasks: BackgroundTasks):
 
 
 @app.post("/api/scheduler/run_ml_retrain")
-async def scheduler_run_ml_now(background_tasks: BackgroundTasks):
-    """Manually trigger an ML retrain right now (outside schedule)."""
+async def scheduler_run_ml_now(
+    background_tasks: BackgroundTasks,
+    _: str = Depends(require_admin),
+):
+    """Manually trigger an ML retrain right now (outside schedule). Admin only."""
     from scheduler.auto_scheduler import trigger_ml_retrain_now, _state
     if _state.ml_retrain_running:
         return {"message": "ML retrain already running", "status": "busy"}
     background_tasks.add_task(trigger_ml_retrain_now)
     return {"message": "ML retrain triggered", "status": "started"}
+
+
+# -------------------------------------------------------
+# Trade Journal
+# -------------------------------------------------------
+
+class TradeLogRequest(BaseModel):
+    symbol:               str
+    entry_price:          float
+    stop_loss:            float   = None
+    target:               float   = None
+    strategy_tags:        str     = ""
+    trade_type:           str     = "paper"   # paper | live
+    notes:                str     = ""
+    buy_probability:      float   = None
+    expected_return_pct:  float   = None
+    quantity:             int     = 0
+
+
+class TradeCloseRequest(BaseModel):
+    exit_price: float
+    notes:      str = ""
+
+
+@app.post("/api/journal/trade")
+async def journal_log_trade(
+    body: TradeLogRequest,
+    _: str = Depends(require_admin),
+):
+    """Log a trade to the journal (paper or live)."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO trade_journal
+                    (symbol, strategy_tags, entry_price, stop_loss, target,
+                     trade_type, notes, buy_probability, expected_return_pct, quantity)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                RETURNING id
+            """, (
+                body.symbol.upper(), body.strategy_tags, body.entry_price,
+                body.stop_loss, body.target, body.trade_type, body.notes,
+                body.buy_probability, body.expected_return_pct, body.quantity,
+            ))
+            trade_id = cur.fetchone()[0]
+        conn.commit()
+        return {"id": trade_id, "message": "Trade logged"}
+    finally:
+        conn.close()
+
+
+@app.get("/api/journal/trades")
+async def journal_list_trades(status: str = None, limit: int = 200):
+    """List trades — optionally filtered by status (open/win/loss/stopped/cancelled)."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            if status:
+                cur.execute("""
+                    SELECT id, symbol, strategy_tags, entry_price, stop_loss, target,
+                           entry_date, exit_date, exit_price, status, trade_type,
+                           notes, buy_probability, expected_return_pct, actual_return_pct,
+                           quantity, pnl, created_at
+                    FROM trade_journal WHERE status=%s
+                    ORDER BY created_at DESC LIMIT %s
+                """, (status, limit))
+            else:
+                cur.execute("""
+                    SELECT id, symbol, strategy_tags, entry_price, stop_loss, target,
+                           entry_date, exit_date, exit_price, status, trade_type,
+                           notes, buy_probability, expected_return_pct, actual_return_pct,
+                           quantity, pnl, created_at
+                    FROM trade_journal ORDER BY created_at DESC LIMIT %s
+                """, (limit,))
+            cols = [d[0] for d in cur.description]
+            rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+            # Convert dates/datetimes to strings
+            for r in rows:
+                for k in ("entry_date","exit_date","created_at"):
+                    if r.get(k): r[k] = str(r[k])
+                for k in ("entry_price","stop_loss","target","exit_price","pnl",
+                          "buy_probability","expected_return_pct","actual_return_pct"):
+                    if r.get(k) is not None: r[k] = float(r[k])
+        return {"trades": rows, "total": len(rows)}
+    finally:
+        conn.close()
+
+
+@app.get("/api/journal/stats")
+async def journal_stats():
+    """Return aggregate stats: win rate, avg R:R, total P&L, streaks."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    COUNT(*)                                          AS total,
+                    COUNT(*) FILTER (WHERE status='open')            AS open_trades,
+                    COUNT(*) FILTER (WHERE status='win')             AS wins,
+                    COUNT(*) FILTER (WHERE status='loss')            AS losses,
+                    COUNT(*) FILTER (WHERE status='stopped')         AS stopped,
+                    ROUND(AVG(actual_return_pct) FILTER (WHERE status IN ('win','loss','stopped'))::numeric, 2)
+                                                                     AS avg_return_pct,
+                    ROUND(SUM(pnl) FILTER (WHERE pnl IS NOT NULL)::numeric, 2)
+                                                                     AS total_pnl,
+                    MAX(actual_return_pct) FILTER (WHERE status='win') AS best_trade_pct,
+                    MIN(actual_return_pct) FILTER (WHERE status IN ('loss','stopped')) AS worst_trade_pct,
+                    COUNT(*) FILTER (WHERE trade_type='paper')       AS paper_count,
+                    COUNT(*) FILTER (WHERE trade_type='live')        AS live_count
+                FROM trade_journal
+            """)
+            row = cur.fetchone()
+            cols = [d[0] for d in cur.description]
+            stats = dict(zip(cols, row))
+
+            closed = (stats["wins"] or 0) + (stats["losses"] or 0) + (stats["stopped"] or 0)
+            stats["closed_trades"] = closed
+            stats["win_rate"] = round((stats["wins"] or 0) / closed * 100, 1) if closed > 0 else None
+
+            for k in stats:
+                if stats[k] is not None:
+                    try: stats[k] = float(stats[k]) if '.' in str(stats[k]) else int(stats[k])
+                    except: pass
+
+        return stats
+    finally:
+        conn.close()
+
+
+@app.put("/api/journal/trade/{trade_id}/close")
+async def journal_close_trade(
+    trade_id: int,
+    body: TradeCloseRequest,
+    _: str = Depends(require_admin),
+):
+    """Manually close a trade with an exit price."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT entry_price, stop_loss, quantity FROM trade_journal WHERE id=%s",
+                (trade_id,)
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Trade not found")
+            entry_price, stop_loss, qty = float(row[0]), row[1], row[2] or 0
+
+            actual_return_pct = round((body.exit_price - entry_price) / entry_price * 100, 2)
+            pnl = round((body.exit_price - entry_price) * qty, 2) if qty else None
+
+            # Determine outcome
+            if actual_return_pct >= 2.0:
+                status = "win"
+            elif stop_loss and body.exit_price <= float(stop_loss):
+                status = "stopped"
+            else:
+                status = "loss"
+
+            cur.execute("""
+                UPDATE trade_journal SET
+                    exit_date=CURRENT_DATE, exit_price=%s, status=%s,
+                    actual_return_pct=%s, pnl=%s,
+                    notes=CASE WHEN %s != '' THEN %s ELSE notes END
+                WHERE id=%s
+            """, (body.exit_price, status, actual_return_pct, pnl,
+                  body.notes, body.notes, trade_id))
+        conn.commit()
+        return {"id": trade_id, "status": status, "actual_return_pct": actual_return_pct, "pnl": pnl}
+    finally:
+        conn.close()
+
+
+@app.delete("/api/journal/trade/{trade_id}")
+async def journal_delete_trade(
+    trade_id: int,
+    _: str = Depends(require_admin),
+):
+    """Delete a trade from the journal."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM trade_journal WHERE id=%s RETURNING id", (trade_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Trade not found")
+        conn.commit()
+        return {"deleted": trade_id}
+    finally:
+        conn.close()
+
+
+@app.post("/api/journal/settle")
+async def journal_settle_paper(
+    _: str = Depends(require_admin),
+):
+    """
+    Auto-settle paper trades older than 5 days.
+    Looks up actual close price from the DB and marks WIN / LOSS / STOPPED.
+    """
+    from config.settings import TABLE_NAME
+    conn = get_conn()
+    settled = []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, symbol, entry_price, stop_loss, entry_date
+                FROM trade_journal
+                WHERE status='open' AND trade_type='paper'
+                  AND entry_date <= CURRENT_DATE - INTERVAL '5 days'
+            """)
+            open_trades = cur.fetchall()
+
+            for trade_id, symbol, entry_price, stop_loss, entry_date in open_trades:
+                entry_price = float(entry_price)
+                # Get the close price 5 trading days after entry
+                cur.execute(f"""
+                    SELECT close FROM {TABLE_NAME}
+                    WHERE symbol=%s AND trade_date > %s
+                    ORDER BY trade_date ASC LIMIT 1 OFFSET 4
+                """, (symbol, entry_date))
+                price_row = cur.fetchone()
+                if not price_row:
+                    continue
+
+                exit_price = float(price_row[0])
+                actual_return_pct = round((exit_price - entry_price) / entry_price * 100, 2)
+
+                if actual_return_pct >= 2.0:
+                    status = "win"
+                elif stop_loss and exit_price <= float(stop_loss):
+                    status = "stopped"
+                else:
+                    status = "loss"
+
+                cur.execute("""
+                    UPDATE trade_journal SET
+                        exit_date=entry_date + INTERVAL '5 days',
+                        exit_price=%s, status=%s, actual_return_pct=%s,
+                        notes='Auto-settled after 5 days'
+                    WHERE id=%s
+                """, (exit_price, status, actual_return_pct, trade_id))
+
+                settled.append({
+                    "id": trade_id, "symbol": symbol,
+                    "status": status, "actual_return_pct": actual_return_pct,
+                })
+
+        conn.commit()
+        return {"settled": len(settled), "trades": settled}
+    finally:
+        conn.close()
 
 
 # -------------------------------------------------------

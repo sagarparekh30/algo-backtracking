@@ -24,3 +24,8 @@ yfinance>=1.0.0
 # PostgreSQL
 psycopg2-binary>=2.9.9
 sqlalchemy>=2.0.0
+
+# Auth (JWT + password hashing)
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.0.0
+python-multipart>=0.0.9

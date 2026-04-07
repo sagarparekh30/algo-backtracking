@@ -105,6 +105,18 @@ LOG_DIR = os.getenv(
 # =========================================================
 
 # =========================================================
+# ADMIN AUTH
+# =========================================================
+# Generate a bcrypt hash for your password with:
+#   python -c "import bcrypt; print(bcrypt.hashpw(b'your_password', bcrypt.gensalt()).decode())"
+# Then set ADMIN_PASSWORD_HASH in .env
+
+ADMIN_USERNAME     = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")   # bcrypt hash — MUST be set in .env
+SECRET_KEY         = os.getenv("SECRET_KEY", "change-me-in-production-use-a-long-random-string")
+TOKEN_EXPIRE_HOURS = int(os.getenv("TOKEN_EXPIRE_HOURS", "12"))
+
+# =========================================================
 # TELEGRAM
 # =========================================================
 
