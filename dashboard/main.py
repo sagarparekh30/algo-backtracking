@@ -24,6 +24,28 @@ from config.settings import ADMIN_USERNAME, ADMIN_PASSWORD_HASH
 
 app = FastAPI(title="Trading HQ Dashboard")
 
+# ── Shared ML predictor singleton (model stays in memory) ────────────────────
+# Loaded once on first use; reloaded after training via reload_ml_predictor()
+_ml_predictor = None
+
+def get_ml_predictor():
+    """Return the shared MLPredictor, loading from disk if needed."""
+    global _ml_predictor
+    if _ml_predictor is None:
+        from ml.model import MLPredictor
+        _ml_predictor = MLPredictor()
+        _ml_predictor.load()
+    return _ml_predictor
+
+def reload_ml_predictor():
+    """Force a fresh load from disk (call after training completes)."""
+    global _ml_predictor
+    from ml.model import MLPredictor
+    p = MLPredictor()
+    p.load()
+    _ml_predictor = p
+    return _ml_predictor
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -422,7 +444,7 @@ async def combined_signals():
     strategy PLUS the ML conviction score and expected return %.
     """
     import pandas as pd
-    from ml.model import MLPredictor, THRESHOLDS
+    from ml.model import THRESHOLDS
     from ml.regime import compute_regime
 
     # ── Step 1: Market regime ───────────────────────────────────────────
@@ -463,9 +485,9 @@ async def combined_signals():
         return {"results": [], "count": 0, "regime": regime_data,
                 "message": "No strategy signals found today"}
 
-    # ── Step 3: Load ML model ────────────────────────────────────────────
-    predictor = MLPredictor()
-    if not predictor.load():
+    # ── Step 3: Get cached ML model ──────────────────────────────────────
+    predictor = get_ml_predictor()
+    if predictor.clf is None:
         return {"error": "ML model not trained — POST /api/ml/train first",
                 "results": []}
 
@@ -564,7 +586,7 @@ async def _refresh_execute_cache():
     execute_cache.is_refreshing = True
     try:
         import pandas as pd
-        from ml.model import MLPredictor, THRESHOLDS
+        from ml.model import THRESHOLDS
         from ml.regime import compute_regime
 
         regime_data = compute_regime()
@@ -588,8 +610,8 @@ async def _refresh_execute_cache():
                     }
                 symbol_map[sym]["strategies"].append(strategy_id)
 
-        predictor = MLPredictor()
-        if not predictor.load():
+        predictor = get_ml_predictor()
+        if predictor.clf is None:
             return
 
         engine  = get_engine()
@@ -884,6 +906,8 @@ async def _run_ml_training():
         result = predictor.train()
         ml_train_state.last_result = result
         ml_train_state.last_trained = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Reload the singleton so all endpoints immediately use the new model
+        reload_ml_predictor()
     except Exception as e:
         print(f"ML Training Error: {e}")
         ml_train_state.last_result = {"error": str(e)}
@@ -909,8 +933,7 @@ async def ml_train(
 @app.get("/api/ml/train/status")
 async def ml_train_status():
     """Return ML training status and last result."""
-    from ml.model import MLPredictor
-    predictor = MLPredictor()
+    predictor = get_ml_predictor()
     return {
         "is_training":  ml_train_state.is_training,
         "last_trained": ml_train_state.last_trained,
@@ -953,11 +976,10 @@ async def ml_predict_all():
     Prices are overlaid with live feed LTP where the feed is running.
     """
     try:
-        from ml.model import MLPredictor
         from ml.regime import compute_regime
 
-        predictor = MLPredictor()
-        if not predictor.load():
+        predictor = get_ml_predictor()
+        if predictor.clf is None:
             return {"error": "Model not trained yet — POST /api/ml/train first", "results": []}
 
         regime_data = compute_regime()
@@ -982,11 +1004,10 @@ async def ml_predict_symbol(symbol: str):
     """Run ML prediction for a single symbol with live price overlay."""
     try:
         import pandas as pd
-        from ml.model import MLPredictor
         from ml.regime import compute_regime
 
-        predictor = MLPredictor()
-        if not predictor.load():
+        predictor = get_ml_predictor()
+        if predictor.clf is None:
             return {"error": "Model not trained yet — POST /api/ml/train first"}
 
         regime_data = compute_regime()
@@ -1023,6 +1044,97 @@ async def ml_predict_symbol(symbol: str):
         return {"error": str(e)}
 
 
+@app.get("/api/ml/data-validation")
+async def ml_data_validation():
+    """
+    Validate what data the model was actually trained on.
+    Returns per-symbol date ranges, total rows, years span.
+    """
+    from ml.model import META_PATH
+    import json as _json
+
+    # Load model meta for train_samples, symbols_used, trained_at
+    meta = {}
+    try:
+        if os.path.exists(META_PATH):
+            with open(META_PATH) as f:
+                meta = _json.load(f)
+    except Exception:
+        pass
+
+    # Query actual DB coverage per symbol
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT
+                    symbol,
+                    MIN(trade_date) AS oldest,
+                    MAX(trade_date) AS latest,
+                    COUNT(*)        AS rows
+                FROM {TABLE_NAME}
+                GROUP BY symbol
+                ORDER BY symbol
+            """)
+            cols = [d[0] for d in cur.description]
+            sym_rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+            cur.execute(f"""
+                SELECT
+                    MIN(trade_date) AS oldest,
+                    MAX(trade_date) AS latest,
+                    COUNT(*)        AS total_rows,
+                    COUNT(DISTINCT symbol) AS total_symbols
+                FROM {TABLE_NAME}
+            """)
+            summary = cur.fetchone()
+
+        for r in sym_rows:
+            r["oldest"] = str(r["oldest"])
+            r["latest"] = str(r["latest"])
+            oldest_dt = r["oldest"]
+            latest_dt = r["latest"]
+            try:
+                from datetime import date as _date
+                o = _date.fromisoformat(r["oldest"])
+                l = _date.fromisoformat(r["latest"])
+                r["years"] = round((l - o).days / 365.25, 1)
+            except Exception:
+                r["years"] = None
+
+        oldest_overall = str(summary[0]) if summary[0] else None
+        latest_overall = str(summary[1]) if summary[1] else None
+        total_rows     = int(summary[2]) if summary[2] else 0
+        total_symbols  = int(summary[3]) if summary[3] else 0
+
+        years_span = None
+        if oldest_overall and latest_overall:
+            from datetime import date as _date
+            years_span = round(
+                (_date.fromisoformat(latest_overall) - _date.fromisoformat(oldest_overall)).days / 365.25, 1
+            )
+
+        return {
+            "db_coverage": {
+                "oldest":        oldest_overall,
+                "latest":        latest_overall,
+                "total_rows":    total_rows,
+                "total_symbols": total_symbols,
+                "years_span":    years_span,
+            },
+            "model_meta": {
+                "train_samples": meta.get("train_samples"),
+                "test_samples":  meta.get("test_samples"),
+                "symbols_used":  meta.get("symbols_used"),
+                "trained_at":    meta.get("trained_at"),
+                "auc_roc":       meta.get("auc_roc"),
+            },
+            "per_symbol": sym_rows,
+        }
+    finally:
+        conn.close()
+
+
 @app.get("/api/ml/regime")
 async def ml_regime():
     """
@@ -1044,8 +1156,7 @@ async def ml_reliability():
     Shows: when model predicted X%, actual hit rate was Y%.
     """
     try:
-        from ml.model import MLPredictor
-        predictor = MLPredictor()
+        predictor = get_ml_predictor()
         meta = predictor.get_meta()
         return {
             "reliability_buckets": meta.get("reliability_buckets", []),
@@ -1062,7 +1173,7 @@ async def ml_reliability():
 # Yahoo Finance backfill endpoints
 # -------------------------------------------------------
 
-async def _run_yfinance_task():
+async def _run_yfinance_task(symbols: list = None):
     yf_state.is_running = True
     yf_state.last_run = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     yf_state.processed = 0
@@ -1077,7 +1188,7 @@ async def _run_yfinance_task():
 
     try:
         from fetcher.yfinance_fetcher import run_yfinance_backfill
-        result = run_yfinance_backfill(progress_cb=progress_cb)
+        result = run_yfinance_backfill(symbols=symbols, progress_cb=progress_cb)
         yf_state.last_result = result
         yf_state.current_symbol = "Done"
     except Exception as e:
@@ -1091,16 +1202,28 @@ async def _run_yfinance_task():
 @app.post("/api/start_yfinance_backfill")
 async def start_yfinance_backfill(
     background_tasks: BackgroundTasks,
+    index: str = None,
     _: str = Depends(require_admin),
 ):
     """
     Fetch full historical data (up to 30 years) for all symbols from Yahoo Finance.
+    Optional ?index=NIFTY+50 to limit to a specific index.
     Runs in background — poll /api/yfinance/status for progress. Admin only.
     """
     if yf_state.is_running:
         return {"message": "Yahoo Finance backfill already running", "status": "busy"}
-    background_tasks.add_task(_run_yfinance_task)
-    return {"message": "Yahoo Finance backfill started", "status": "started"}
+
+    symbols = None
+    index_label = "All symbols"
+    if index:
+        from config.nse_indices import get_index_symbols
+        symbols = get_index_symbols(index)
+        if not symbols:
+            raise HTTPException(status_code=400, detail=f"Unknown index: {index}")
+        index_label = f"{index} ({len(symbols)} symbols)"
+
+    background_tasks.add_task(_run_yfinance_task, symbols)
+    return {"message": f"Yahoo Finance backfill started for {index_label}", "status": "started"}
 
 
 @app.get("/api/yfinance/status")
@@ -1176,6 +1299,85 @@ async def scheduler_run_ml_now(
         return {"message": "ML retrain already running", "status": "busy"}
     background_tasks.add_task(trigger_ml_retrain_now)
     return {"message": "ML retrain triggered", "status": "started"}
+
+
+# -------------------------------------------------------
+# Index registry endpoints
+# -------------------------------------------------------
+
+@app.get("/api/indices")
+async def list_indices():
+    """Return all available NSE indices with metadata (name, category, count)."""
+    from config.nse_indices import list_indices as _list
+    return {"indices": _list()}
+
+
+@app.get("/api/indices/{index_name}/symbols")
+async def index_symbols(index_name: str):
+    """Return the symbol list for a specific index."""
+    from config.nse_indices import get_index_symbols, INDEX_REGISTRY
+    # URL may encode spaces as %20 — FastAPI decodes automatically
+    if index_name not in INDEX_REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Unknown index: {index_name}")
+    symbols = get_index_symbols(index_name)
+    return {"index": index_name, "count": len(symbols), "symbols": symbols}
+
+
+# -------------------------------------------------------
+# Screener endpoints
+# -------------------------------------------------------
+
+@app.get("/api/screener/rs")
+async def screener_rs(index: str = None):
+    """Relative Strength scan — stocks ranked by RS vs universe.
+    Optional ?index=NIFTY+50 to scope to a specific index.
+    """
+    from strategies.screener import relative_strength_scan
+    symbols = None
+    if index:
+        from config.nse_indices import get_index_symbols
+        symbols = get_index_symbols(index) or None
+    return {"results": relative_strength_scan(symbols=symbols), "index": index or "NIFTY 100"}
+
+
+@app.get("/api/screener/52w")
+async def screener_52w(index: str = None):
+    """52-week high scan — stocks near breakout levels."""
+    from strategies.screener import fiftytwo_week_scan
+    symbols = None
+    if index:
+        from config.nse_indices import get_index_symbols
+        symbols = get_index_symbols(index) or None
+    return {"results": fiftytwo_week_scan(symbols=symbols), "index": index or "NIFTY 100"}
+
+
+@app.get("/api/screener/volume")
+async def screener_volume(min_multiplier: float = 2.0, index: str = None):
+    """Volume spike scan — unusual volume vs 20-day average."""
+    from strategies.screener import volume_spike_scan
+    symbols = None
+    if index:
+        from config.nse_indices import get_index_symbols
+        symbols = get_index_symbols(index) or None
+    return {"results": volume_spike_scan(min_multiplier, symbols=symbols), "index": index or "NIFTY 100"}
+
+
+@app.get("/api/sector/heatmap")
+async def sector_heatmap():
+    """Sector performance heatmap — 1D/1W/1M/3M returns by sector."""
+    from strategies.screener import sector_heatmap as _heatmap
+    return {"sectors": _heatmap()}
+
+
+@app.get("/api/earnings")
+async def earnings_calendar(days_ahead: int = 21, index: str = None):
+    """Upcoming earnings dates (next N days). Optional ?index= to scope."""
+    from strategies.screener import earnings_calendar as _cal
+    symbols = None
+    if index:
+        from config.nse_indices import get_index_symbols
+        symbols = get_index_symbols(index) or None
+    return {"results": _cal(days_ahead, symbols=symbols), "days_ahead": days_ahead, "index": index or "NIFTY 100"}
 
 
 # -------------------------------------------------------

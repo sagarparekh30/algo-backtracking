@@ -63,6 +63,10 @@ services:
       - app_logs:/app/logs
       - app_models:/app/ml/models
       - ./auth:/app/auth           # bind-mount local auth/ so token.json is always in sync
+    deploy:
+      resources:
+        limits:
+          memory: 3g
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
       interval: 30s

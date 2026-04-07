@@ -171,16 +171,16 @@ class MLPredictor:
             ("scaler", RobustScaler()),
             ("clf", CalibratedClassifierCV(
                 RandomForestClassifier(
-                    n_estimators=300,
-                    max_depth=10,
-                    min_samples_leaf=8,
+                    n_estimators=100,   # reduced from 300 — saves ~3x memory
+                    max_depth=8,        # reduced from 10
+                    min_samples_leaf=12,
                     max_features="sqrt",
                     class_weight="balanced",
                     random_state=42,
-                    n_jobs=-1,
+                    n_jobs=2,           # limit cores to avoid OOM
                 ),
                 method="isotonic",
-                cv=5,
+                cv=3,                   # reduced from 5 — saves memory
             )),
         ])
         calibrated_clf.fit(X_train, y_clf_tr)
@@ -202,12 +202,12 @@ class MLPredictor:
         reg_pipeline = Pipeline([
             ("scaler", RobustScaler()),
             ("reg", RandomForestRegressor(
-                n_estimators=200,
-                max_depth=8,
-                min_samples_leaf=10,
+                n_estimators=80,    # reduced from 200
+                max_depth=6,        # reduced from 8
+                min_samples_leaf=12,
                 max_features="sqrt",
                 random_state=42,
-                n_jobs=-1,
+                n_jobs=2,
             )),
         ])
         reg_pipeline.fit(X_train, y_reg_tr)

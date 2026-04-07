@@ -300,7 +300,33 @@
     .nav-btn[data-tab="live"]    { --c: var(--live); }
     .nav-btn[data-tab="ml"]      { --c: #6366f1;     }
     .nav-btn[data-tab="execute"] { --c: #f43f5e;     }
+    .nav-btn[data-tab="screener"] { --c: #22d3ee;    }
     .nav-btn[data-tab="journal"] { --c: #10b981;     }
+
+    .scr-tab-btn {
+      padding: 7px 14px; font-size: 12px; font-weight: 600;
+      background: var(--s3); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--txt3); cursor: pointer;
+      white-space: nowrap; transition: all .15s;
+    }
+    .scr-tab-btn.active {
+      background: rgba(34,211,238,.12); color: #22d3ee;
+      border-color: rgba(34,211,238,.3);
+    }
+    .scr-row {
+      padding: 11px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .scr-row:last-child { border-bottom: none; }
+    .scr-sym { font-size: 14px; font-weight: 800; color: var(--txt); }
+    .scr-badge {
+      font-size: 9px; font-weight: 700; padding: 2px 7px;
+      border-radius: 5px; margin-left: 6px;
+    }
+    .sector-tile {
+      padding: 14px; border-radius: 10px; margin-bottom: 8px;
+      background: var(--s3); border: 1px solid var(--border);
+    }
 
     .nav-btn.active { color: var(--c); }
     .nav-btn.active::before { background: var(--c); opacity: 1; }
@@ -905,6 +931,14 @@
             Yahoo prices are adjusted for splits/dividends — Fyers prices are raw.
           </div>
 
+          <!-- Index selector for backfill -->
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="font-size:11px;color:var(--txt3);font-weight:600;">Index to backfill</label>
+            <select id="yf-index-select" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;width:100%;">
+              <option value="">All Symbols (full universe)</option>
+            </select>
+          </div>
+
           <div style="display:flex;gap:8px;">
             <button class="btn btn-full" id="yf-btn" onclick="startYFinance()"
               style="background:var(--live);color:#431407;padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;">
@@ -1380,6 +1414,68 @@
         </div>
       </div>
 
+      <!-- Training Data Validation Card -->
+      <div class="card" id="ml-data-card" style="display:none;">
+        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Training Data Validation</span>
+          <button onclick="loadMLDataValidation()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Refresh</button>
+        </div>
+        <div class="divider"></div>
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:12px;">
+
+          <!-- Summary row -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;">
+              <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Train Samples</div>
+              <div id="val-train-samples" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:#6366f1;">—</div>
+              <div style="font-size:10px;color:var(--txt3);margin-top:2px;">rows used</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;">
+              <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Symbols</div>
+              <div id="val-symbols" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:#6366f1;">—</div>
+              <div style="font-size:10px;color:var(--txt3);margin-top:2px;">of 100</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;">
+              <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Data Span</div>
+              <div id="val-years" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:#6366f1;">—</div>
+              <div style="font-size:10px;color:var(--txt3);margin-top:2px;">years</div>
+            </div>
+          </div>
+
+          <!-- Date range -->
+          <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+            <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Date Range Used for Training</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <div style="font-size:9px;color:var(--txt3);">OLDEST RECORD</div>
+                <div id="val-oldest" style="font-size:14px;font-weight:700;color:var(--txt);margin-top:2px;">—</div>
+              </div>
+              <div style="color:var(--txt3);font-size:18px;">→</div>
+              <div style="text-align:right;">
+                <div style="font-size:9px;color:var(--txt3);">LATEST RECORD</div>
+                <div id="val-latest" style="font-size:14px;font-weight:700;color:var(--txt);margin-top:2px;">—</div>
+              </div>
+            </div>
+            <!-- Timeline bar -->
+            <div style="margin-top:10px;height:4px;background:var(--s3);border-radius:99px;overflow:hidden;">
+              <div id="val-timeline-bar" style="height:4px;background:linear-gradient(90deg,#6366f1,#22d3ee);border-radius:99px;width:0%;transition:width 1s;"></div>
+            </div>
+          </div>
+
+          <!-- Per-symbol coverage -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Per-Symbol Coverage</div>
+            <div id="val-symbols-body" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+          </div>
+
+          <!-- Trained at -->
+          <div style="font-size:11px;color:var(--txt3);padding:8px 10px;background:var(--s2);border-radius:8px;border-left:3px solid #6366f1;">
+            <span id="val-trained-at">—</span>
+          </div>
+
+        </div>
+      </div>
+
       <!-- Prediction results -->
       <div class="card" id="ml-results-card" style="display:none;">
         <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
@@ -1561,6 +1657,113 @@
     </div>
   </div>
 
+  <!-- ───────────── TAB: SCREENER ───────────── -->
+  <div id="tab-screener" class="tab">
+    <div class="tab-banner" style="--banner-from:#0f1a2e;--banner-to:#0a1020;">
+      <div>
+        <div class="tab-banner-title">Screener</div>
+        <div class="tab-banner-sub">RS · 52W Highs · Volume Spikes · Sectors · Earnings</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;color:#22d3ee;" id="scr-total">—</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px;">SIGNALS</div>
+      </div>
+    </div>
+
+    <div class="page">
+
+      <!-- Sub-nav tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:4px;overflow-x:auto;padding-bottom:2px;">
+        <button class="scr-tab-btn active" data-scr="sector"   onclick="scrGo('sector',this)">Sector Map</button>
+        <button class="scr-tab-btn"        data-scr="rs"       onclick="scrGo('rs',this)">Rel. Strength</button>
+        <button class="scr-tab-btn"        data-scr="52w"      onclick="scrGo('52w',this)">52W Highs</button>
+        <button class="scr-tab-btn"        data-scr="volume"   onclick="scrGo('volume',this)">Volume Spikes</button>
+        <button class="scr-tab-btn"        data-scr="earnings" onclick="scrGo('earnings',this)">Earnings Risk</button>
+      </div>
+
+      <!-- Index selector for screener (shown on RS/52W/Volume/Earnings panels) -->
+      <div id="scr-index-bar" style="display:none;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:11px;color:var(--txt3);white-space:nowrap;">Scan Index:</span>
+        <select id="scr-index-select" onchange="scrRefreshCurrent()"
+          style="flex:1;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--txt);font-size:12px;">
+          <option value="">All Symbols</option>
+        </select>
+      </div>
+
+      <!-- ── Sector Heatmap ── -->
+      <div id="scr-sector" class="scr-panel">
+        <div class="card">
+          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Sector Performance</span>
+            <button onclick="loadSectors()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Refresh</button>
+          </div>
+          <div class="divider"></div>
+          <div id="scr-sector-body" style="padding:12px 16px;">
+            <div class="empty"><div class="empty-icon">🗺️</div><div class="empty-title">Loading sectors…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Relative Strength ── -->
+      <div id="scr-rs" class="scr-panel" style="display:none;">
+        <div class="card">
+          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Relative Strength Leaders</span>
+            <button onclick="loadRS()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Refresh</button>
+          </div>
+          <div class="divider"></div>
+          <div id="scr-rs-body" style="padding:8px 0;">
+            <div class="empty"><div class="empty-icon">📊</div><div class="empty-title">Click Refresh to scan</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 52W High ── -->
+      <div id="scr-52w" class="scr-panel" style="display:none;">
+        <div class="card">
+          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">52-Week High Breakouts</span>
+            <button onclick="load52W()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Refresh</button>
+          </div>
+          <div class="divider"></div>
+          <div id="scr-52w-body" style="padding:8px 0;">
+            <div class="empty"><div class="empty-icon">🚀</div><div class="empty-title">Click Refresh to scan</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Volume Spikes ── -->
+      <div id="scr-volume" class="scr-panel" style="display:none;">
+        <div class="card">
+          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Volume Spikes (2x+ avg)</span>
+            <button onclick="loadVolume()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Refresh</button>
+          </div>
+          <div class="divider"></div>
+          <div id="scr-volume-body" style="padding:8px 0;">
+            <div class="empty"><div class="empty-icon">📈</div><div class="empty-title">Click Refresh to scan</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Earnings Risk ── -->
+      <div id="scr-earnings" class="scr-panel" style="display:none;">
+        <div class="card">
+          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Upcoming Earnings (21 days)</span>
+            <button onclick="loadEarnings()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Fetch</button>
+          </div>
+          <div style="padding:8px 16px 0;font-size:11px;color:var(--txt3);">⚠️ Avoid holding swing trades through earnings — gap risk can wipe out a setup.</div>
+          <div class="divider" style="margin-top:10px;"></div>
+          <div id="scr-earnings-body" style="padding:8px 0;">
+            <div class="empty"><div class="empty-icon">📅</div><div class="empty-title">Click Fetch to load earnings dates</div><div class="empty-sub">Takes ~30 seconds — fetches from Yahoo Finance</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div><!-- /scroll -->
 
 <!-- ══════════════════════════════════ NAV -->
@@ -1589,6 +1792,10 @@
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
     Execute
     <span id="execute-badge" style="display:none;position:absolute;top:4px;right:4px;background:#f43f5e;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;line-height:16px;padding:0 4px;text-align:center;"></span>
+  </button>
+  <button class="nav-btn" data-tab="screener" onclick="go('screener',this)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+    Screener
   </button>
   <button class="nav-btn" data-tab="journal" onclick="go('journal',this)">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
@@ -1741,7 +1948,8 @@ function go(id, el) {
   document.querySelector('.scroll').scrollTo(0, 0);
   if (id === 'live')    { loadWatchlist(); refreshLive(); }
   if (id === 'execute') { loadExecuteRegime(); _updateExecuteBadge(0); _execPrevCount = 0; }
-  if (id === 'journal') { loadJournal(); }
+  if (id === 'journal')  { loadJournal(); }
+  if (id === 'screener') { scrGo('sector', document.querySelector('.scr-tab-btn[data-scr="sector"]')); loadSectors(); }
 }
 
 // ── Clock ──────────────────────────────────────────────
@@ -2074,11 +2282,69 @@ async function checkMLStatus() {
       document.getElementById('ml-results-card').style.display = 'block';
       document.getElementById('ml-analytics-card').style.display = 'block';
       document.getElementById('ml-regime-card').style.display = 'block';
+      document.getElementById('ml-data-card').style.display = 'block';
       if (d.meta && d.meta.auc_roc) renderMLMeta(d.meta);
       loadMLAnalytics();
       loadRegime();
+      loadMLDataValidation();
     }
   } catch(e) {}
+}
+
+async function loadMLDataValidation() {
+  try {
+    const d = await j(`${API}/api/ml/data-validation`);
+    const db  = d.db_coverage  || {};
+    const mm  = d.model_meta   || {};
+    const sym = d.per_symbol   || [];
+
+    // Summary tiles
+    const trainSamples = mm.train_samples || db.total_rows || 0;
+    document.getElementById('val-train-samples').textContent = trainSamples > 0 ? trainSamples.toLocaleString('en-IN') : '—';
+    document.getElementById('val-symbols').textContent = mm.symbols_used || db.total_symbols || '—';
+    document.getElementById('val-years').textContent   = db.years_span   != null ? db.years_span : '—';
+
+    // Date range
+    document.getElementById('val-oldest').textContent = db.oldest || '—';
+    document.getElementById('val-latest').textContent = db.latest || '—';
+
+    // Timeline bar — wider = more history
+    const maxYears = 30;
+    const pct = db.years_span ? Math.min((db.years_span / maxYears) * 100, 100) : 0;
+    setTimeout(() => {
+      const bar = document.getElementById('val-timeline-bar');
+      if (bar) bar.style.width = pct + '%';
+    }, 200);
+
+    // Trained at
+    const ta = mm.trained_at || '';
+    document.getElementById('val-trained-at').innerHTML =
+      ta ? `Last trained: <b>${new Date(ta).toLocaleString('en-IN')}</b> · AUC ${mm.auc_roc ? (mm.auc_roc*100).toFixed(1)+'%' : '—'} · ${mm.symbols_used||'—'} symbols · ${(mm.train_samples||0).toLocaleString('en-IN')} train rows` : 'Model not yet trained';
+
+    // Per-symbol coverage
+    const body = document.getElementById('val-symbols-body');
+    if (sym.length) {
+      const maxRows = Math.max(...sym.map(s => s.rows));
+      body.innerHTML = sym.map(s => {
+        const barW = maxRows > 0 ? Math.round((s.rows / maxRows) * 100) : 0;
+        const yrs  = s.years != null ? s.years + 'y' : '—';
+        const color = (s.years || 0) >= 20 ? 'var(--green)' : (s.years || 0) >= 5 ? '#22d3ee' : 'var(--live)';
+        return `
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:72px;font-size:11px;font-weight:700;flex-shrink:0;">${s.symbol}</div>
+            <div style="flex:1;height:6px;background:var(--s3);border-radius:99px;overflow:hidden;">
+              <div style="height:6px;background:${color};border-radius:99px;width:${barW}%;"></div>
+            </div>
+            <div style="width:32px;text-align:right;font-size:10px;color:var(--txt3);flex-shrink:0;">${yrs}</div>
+            <div style="width:50px;text-align:right;font-size:10px;color:var(--txt3);flex-shrink:0;">${s.rows.toLocaleString('en-IN')}</div>
+          </div>`;
+      }).join('');
+    } else {
+      body.innerHTML = '<div style="font-size:12px;color:var(--txt3);">No data found — run a backfill first</div>';
+    }
+  } catch(e) {
+    console.error('Data validation error', e);
+  }
 }
 
 function renderMLMeta(meta) {
@@ -2305,8 +2571,13 @@ async function startYFinance() {
   btn.disabled = true;
   btn.innerHTML = '<div class="spin" style="color:#431407;"></div> Starting…';
 
+  const selectedIndex = document.getElementById('yf-index-select')?.value || '';
+  const url = selectedIndex
+    ? `${API}/api/start_yfinance_backfill?index=${encodeURIComponent(selectedIndex)}`
+    : `${API}/api/start_yfinance_backfill`;
+
   try {
-    const r = await jAuth(`${API}/api/start_yfinance_backfill`, {method:'POST'});
+    const r = await jAuth(url, {method:'POST'});
     if (r.status === 'busy') {
       btn.disabled = false;
       return;
@@ -2592,6 +2863,259 @@ async function runExecute() {
 }
 
 // ══════════════════════════════════════════════════════
+// SCREENER
+// ══════════════════════════════════════════════════════
+
+let _scrCurrent = 'sector';
+
+function scrGo(id, el) {
+  _scrCurrent = id;
+  document.querySelectorAll('.scr-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.scr-tab-btn').forEach(b => b.classList.remove('active'));
+  const panel = document.getElementById('scr-' + id);
+  if (panel) panel.style.display = 'block';
+  if (el) el.classList.add('active');
+
+  // Show/hide index selector bar (not relevant for sector heatmap)
+  const bar = document.getElementById('scr-index-bar');
+  if (bar) bar.style.display = (id === 'sector') ? 'none' : 'flex';
+}
+
+function scrRefreshCurrent() {
+  if (_scrCurrent === 'rs')       loadRS();
+  else if (_scrCurrent === '52w') load52W();
+  else if (_scrCurrent === 'volume') loadVolume();
+  else if (_scrCurrent === 'earnings') loadEarnings();
+}
+
+function _scrIndex() {
+  return document.getElementById('scr-index-select')?.value || '';
+}
+
+// Populate both index dropdowns from API
+async function loadIndexOptions() {
+  try {
+    const d = await j(`${API}/api/indices`);
+    const indices = d.indices || [];
+
+    // Group by category for <optgroup>
+    const groups = {};
+    indices.forEach(idx => {
+      (groups[idx.category] = groups[idx.category] || []).push(idx);
+    });
+
+    function buildOptions() {
+      let html = '<option value="">All Symbols</option>';
+      for (const [cat, items] of Object.entries(groups)) {
+        html += `<optgroup label="${cat}">`;
+        items.forEach(i => {
+          html += `<option value="${i.name}">${i.name} (${i.count})</option>`;
+        });
+        html += '</optgroup>';
+      }
+      return html;
+    }
+
+    const scrSel = document.getElementById('scr-index-select');
+    if (scrSel) scrSel.innerHTML = buildOptions();
+
+    // Backfill selector: "All Symbols" means full universe
+    const yfSel = document.getElementById('yf-index-select');
+    if (yfSel) {
+      let html = '<option value="">All Symbols (full universe)</option>';
+      for (const [cat, items] of Object.entries(groups)) {
+        html += `<optgroup label="${cat}">`;
+        items.forEach(i => {
+          html += `<option value="${i.name}">${i.name} (${i.count})</option>`;
+        });
+        html += '</optgroup>';
+      }
+      yfSel.innerHTML = html;
+    }
+  } catch(e) {}
+}
+
+// ── Sector Heatmap ──────────────────────────────────────
+async function loadSectors() {
+  const body = document.getElementById('scr-sector-body');
+  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Calculating sector performance…</div></div>';
+  try {
+    const d = await j(`${API}/api/sector/heatmap`);
+    const sectors = d.sectors || [];
+    set('scr-total', sectors.length);
+    if (!sectors.length) { body.innerHTML = '<div class="empty"><div class="empty-title">No data — run a backfill first</div></div>'; return; }
+
+    body.innerHTML = sectors.map(s => {
+      const r1d  = s.avg_1d  != null ? _retSpan(s.avg_1d)  : '—';
+      const r1w  = s.avg_1w  != null ? _retSpan(s.avg_1w)  : '—';
+      const r1m  = s.avg_1m  != null ? _retSpan(s.avg_1m)  : '—';
+      const r3m  = s.avg_3m  != null ? _retSpan(s.avg_3m)  : '—';
+      const barColor = (s.avg_1m || 0) >= 0 ? 'var(--green)' : 'var(--red)';
+      const barWidth = Math.min(Math.abs(s.avg_1m || 0) * 5, 100);
+      return `
+        <div class="sector-tile">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div>
+              <span style="font-size:14px;font-weight:800;">${s.sector}</span>
+              <span style="font-size:10px;color:var(--txt3);margin-left:6px;">${s.stock_count} stocks</span>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:16px;font-weight:800;">${r1m}</div>
+              <div style="font-size:9px;color:var(--txt3);">1-Month</div>
+            </div>
+          </div>
+          <div style="background:var(--s2);border-radius:4px;height:4px;margin-bottom:8px;">
+            <div style="height:4px;border-radius:4px;background:${barColor};width:${barWidth}%;"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center;">
+            <div><div style="font-size:9px;color:var(--txt3);">1D</div><div style="font-size:12px;font-weight:700;">${r1d}</div></div>
+            <div><div style="font-size:9px;color:var(--txt3);">1W</div><div style="font-size:12px;font-weight:700;">${r1w}</div></div>
+            <div><div style="font-size:9px;color:var(--txt3);">1M</div><div style="font-size:12px;font-weight:700;">${r1m}</div></div>
+            <div><div style="font-size:9px;color:var(--txt3);">3M</div><div style="font-size:12px;font-weight:700;">${r3m}</div></div>
+          </div>
+          ${s.top_stock ? `<div style="margin-top:8px;font-size:11px;color:var(--txt3);">Top: <b style="color:var(--green);">${s.top_stock}</b> ${_retSpan(s.top_stock_ret)}</div>` : ''}
+        </div>`;
+    }).join('');
+  } catch(e) {
+    body.innerHTML = `<div class="empty"><div class="empty-title">Error: ${e.message}</div></div>`;
+  }
+}
+
+function _retSpan(v) {
+  if (v == null) return '—';
+  const color = v >= 0 ? 'var(--green)' : 'var(--red)';
+  return `<span style="color:${color};font-weight:700;">${v >= 0 ? '+' : ''}${v}%</span>`;
+}
+
+// ── Relative Strength ────────────────────────────────────
+async function loadRS() {
+  const body = document.getElementById('scr-rs-body');
+  const idx = _scrIndex();
+  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Calculating RS scores…</div></div>';
+  try {
+    const url = idx ? `${API}/api/screener/rs?index=${encodeURIComponent(idx)}` : `${API}/api/screener/rs`;
+    const d = await j(url);
+    const rows = (d.results || []).slice(0, 50);
+    const gradeColors = { 'A+':'var(--green)', 'A':'var(--green)', 'B':'#22d3ee', 'C':'var(--live)', 'D':'var(--red)', '—':'var(--txt3)' };
+    body.innerHTML = rows.map((r, i) => `
+      <div class="scr-row">
+        <div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="scr-sym">${r.symbol}</span>
+            <span class="scr-badge" style="background:rgba(34,211,238,.12);color:#22d3ee;">${r.sector}</span>
+          </div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:2px;">20D: ${_retSpan(r.return_20d)} &nbsp; 50D: ${_retSpan(r.return_50d)}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:20px;font-weight:900;color:${gradeColors[r.rs_grade]};">${r.rs_grade}</div>
+          <div style="font-size:10px;color:var(--txt3);">RS ${r.rs_20 != null ? r.rs_20 : '—'}</div>
+        </div>
+      </div>`).join('') || '<div class="empty"><div class="empty-title">No data</div></div>';
+  } catch(e) {
+    body.innerHTML = `<div class="empty"><div class="empty-title">Error: ${e.message}</div></div>`;
+  }
+}
+
+// ── 52W High ─────────────────────────────────────────────
+async function load52W() {
+  const body = document.getElementById('scr-52w-body');
+  const idx = _scrIndex();
+  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Scanning 52-week highs…</div></div>';
+  try {
+    const url = idx ? `${API}/api/screener/52w?index=${encodeURIComponent(idx)}` : `${API}/api/screener/52w`;
+    const d = await j(url);
+    const rows = (d.results || []).slice(0, 50);
+    body.innerHTML = rows.map(r => {
+      const breakoutBadge = r.is_breakout
+        ? `<span class="scr-badge" style="background:rgba(16,185,129,.2);color:var(--green);">BREAKOUT</span>`
+        : '';
+      const pct = r.pct_from_high;
+      const pctColor = pct >= -2 ? 'var(--green)' : pct >= -10 ? 'var(--live)' : 'var(--txt3)';
+      return `
+        <div class="scr-row">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="scr-sym">${r.symbol}</span>${breakoutBadge}
+              <span class="scr-badge" style="background:var(--s3);color:var(--txt3);">${r.sector}</span>
+            </div>
+            <div style="font-size:11px;color:var(--txt3);margin-top:2px;">52W High: ₹${r.high_52w?.toLocaleString('en-IN')} &nbsp; Vol: ${r.vol_ratio}x avg</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:15px;font-weight:800;color:${pctColor};">${pct >= 0 ? '+' : ''}${pct}%</div>
+            <div style="font-size:10px;color:var(--txt3);">from 52W high</div>
+          </div>
+        </div>`;
+    }).join('') || '<div class="empty"><div class="empty-title">No data</div></div>';
+  } catch(e) {
+    body.innerHTML = `<div class="empty"><div class="empty-title">Error: ${e.message}</div></div>`;
+  }
+}
+
+// ── Volume Spikes ────────────────────────────────────────
+async function loadVolume() {
+  const body = document.getElementById('scr-volume-body');
+  const idx = _scrIndex();
+  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Scanning volume spikes…</div></div>';
+  try {
+    const url = idx ? `${API}/api/screener/volume?index=${encodeURIComponent(idx)}` : `${API}/api/screener/volume`;
+    const d = await j(url);
+    const rows = d.results || [];
+    const sigColors = { 'Accumulation':'var(--green)', 'Distribution':'var(--red)', 'Neutral':'var(--txt3)' };
+    body.innerHTML = rows.map(r => `
+      <div class="scr-row">
+        <div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="scr-sym">${r.symbol}</span>
+            <span class="scr-badge" style="color:${sigColors[r.signal]};background:var(--s3);">${r.signal.toUpperCase()}</span>
+          </div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:2px;">${r.sector} &nbsp;·&nbsp; Change: ${_retSpan(r.change_pct)}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:18px;font-weight:800;color:#f59e0b;">${r.vol_ratio}x</div>
+          <div style="font-size:10px;color:var(--txt3);">avg volume</div>
+        </div>
+      </div>`).join('') || '<div class="empty"><div class="empty-title">No volume spikes today</div><div class="empty-sub">Market may be in low-volume consolidation</div></div>';
+  } catch(e) {
+    body.innerHTML = `<div class="empty"><div class="empty-title">Error: ${e.message}</div></div>`;
+  }
+}
+
+// ── Earnings Calendar ────────────────────────────────────
+async function loadEarnings() {
+  const body = document.getElementById('scr-earnings-body');
+  const idx = _scrIndex();
+  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Fetching from Yahoo Finance…</div><div class="empty-sub">Takes ~30–60 seconds</div></div>';
+  try {
+    const url = idx ? `${API}/api/earnings?index=${encodeURIComponent(idx)}` : `${API}/api/earnings`;
+    const d = await j(url);
+    const rows = d.results || [];
+    if (!rows.length) {
+      body.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">No earnings in next 21 days</div><div class="empty-sub">Safe to hold positions</div></div>';
+      return;
+    }
+    body.innerHTML = rows.map(r => {
+      const riskColor = r.risk_level === 'High' ? 'var(--red)' : 'var(--live)';
+      return `
+        <div class="scr-row">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="scr-sym">${r.symbol}</span>
+              <span class="scr-badge" style="background:var(--s3);color:var(--txt3);">${r.sector}</span>
+            </div>
+            <div style="font-size:11px;color:var(--txt3);margin-top:2px;">Results on ${r.earnings_date}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:14px;font-weight:800;color:${riskColor};">${r.risk_level} Risk</div>
+            <div style="font-size:10px;color:var(--txt3);">in ${r.days_away} day${r.days_away !== 1 ? 's' : ''}</div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    body.innerHTML = `<div class="empty"><div class="empty-title">Error: ${e.message}</div></div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════
 // TRADE JOURNAL
 // ══════════════════════════════════════════════════════
 
@@ -2826,6 +3350,7 @@ setInterval(_pollExecute, 5 * 60 * 1000);
 // ── Init ───────────────────────────────────────────────
 refreshStatus();
 refreshScheduler();
+loadIndexOptions();
 setInterval(refreshStatus, 5000);
 setInterval(refreshScheduler, 15000);
 setInterval(() => { if (document.getElementById('tab-live').classList.contains('active')) refreshLive(); }, 3000);
