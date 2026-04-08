@@ -294,6 +294,7 @@
       opacity: 0;
       transition: opacity .2s;
     }
+    .nav-btn[data-tab="home"]    { --c: #818cf8;     }
     .nav-btn[data-tab="data"]    { --c: var(--data); }
     .nav-btn[data-tab="signals"] { --c: var(--sig);  }
     .nav-btn[data-tab="bt"]      { --c: var(--bt);   }
@@ -787,6 +788,226 @@
       color: #fff;
     }
     .tab-banner-sub { font-size: 12px; color: rgba(255,255,255,.55); margin-top: 3px; }
+
+    /* ═══════════════════════════════════════════
+       SKELETON LOADER
+    ═══════════════════════════════════════════ */
+    @keyframes sk-wave {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    .sk {
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--s3) 25%, var(--border2) 50%, var(--s3) 75%);
+      background-size: 800px 100%;
+      animation: sk-wave 1.4s ease-in-out infinite;
+    }
+    .sk-line  { height: 12px; margin-bottom: 8px; }
+    .sk-title { height: 20px; width: 60%; margin-bottom: 12px; }
+    .sk-value { height: 32px; width: 50%; margin-bottom: 6px; }
+    .sk-full  { width: 100%; }
+    .sk-75    { width: 75%; }
+    .sk-50    { width: 50%; }
+    .sk-card  { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+
+    /* ═══════════════════════════════════════════
+       HOME TAB — Command Centre
+    ═══════════════════════════════════════════ */
+    .home-hero {
+      background: linear-gradient(160deg, #0d1b3e 0%, #060d1f 60%, #0a0d18 100%);
+      padding: 22px 18px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .home-hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 70% 20%, rgba(99,102,241,.12), transparent);
+      pointer-events: none;
+    }
+    .home-hero-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; color: rgba(255,255,255,.4); margin-bottom: 6px;
+    }
+    .home-regime-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+      border-radius: 999px; padding: 5px 14px 5px 10px;
+      font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 16px;
+    }
+    .home-regime-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .breadth-bar-track {
+      height: 6px; background: rgba(255,255,255,.08); border-radius: 99px; overflow: hidden;
+      margin: 6px 0 4px;
+    }
+    .breadth-bar-fill {
+      height: 100%; border-radius: 99px;
+      transition: width .8s cubic-bezier(.4,0,.2,1);
+      background: linear-gradient(90deg, #10b981, #34d399);
+    }
+    .home-stat-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px;
+    }
+    .home-stat {
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px; padding: 12px 10px; text-align: center;
+    }
+    .home-stat-val {
+      font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700;
+      color: #fff; letter-spacing: -1px;
+    }
+    .home-stat-lbl { font-size: 9px; font-weight: 600; color: rgba(255,255,255,.4);
+      text-transform: uppercase; letter-spacing: .5px; margin-top: 3px; }
+
+    /* Trade card in HOME — compact top-3 picks */
+    .home-pick {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+    }
+    .home-pick:last-child { border-bottom: none; }
+    .home-pick-rank {
+      width: 24px; height: 24px; border-radius: 8px; display: flex;
+      align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; flex-shrink: 0;
+    }
+    .home-pick-body { flex: 1; min-width: 0; }
+    .home-pick-sym { font-size: 15px; font-weight: 800; letter-spacing: -.3px; }
+    .home-pick-meta { font-size: 11px; color: var(--txt3); margin-top: 2px; }
+    .home-pick-right { text-align: right; flex-shrink: 0; }
+    .home-pick-prob { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; }
+
+    /* Quick-action shortcuts */
+    .home-shortcuts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .home-shortcut {
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 16px;
+      display: flex; align-items: center; gap: 12px;
+      cursor: pointer; transition: border-color .15s, background .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .home-shortcut:active { background: var(--s3); }
+    .home-shortcut-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .home-shortcut-label { font-size: 13px; font-weight: 700; }
+    .home-shortcut-sub { font-size: 10px; color: var(--txt3); margin-top: 2px; }
+
+    /* System health row */
+    .health-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+    }
+    .health-row:last-child { border-bottom: none; }
+    .health-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    }
+    .health-dot.ok     { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .health-dot.warn   { background: var(--live);  box-shadow: 0 0 6px var(--live);  }
+    .health-dot.error  { background: var(--red);   box-shadow: 0 0 6px var(--red);   }
+    .health-dot.idle   { background: var(--txt3); }
+
+    /* ═══════════════════════════════════════════
+       ENHANCED EXECUTE TRADE CARD
+    ═══════════════════════════════════════════ */
+    .rr-bar-wrap {
+      margin-top: 8px; display: flex; align-items: center; gap: 8px;
+    }
+    .rr-bar-track {
+      flex: 1; height: 5px; background: var(--red-d); border-radius: 99px;
+      overflow: visible; position: relative;
+    }
+    .rr-bar-reward {
+      position: absolute; left: 0; top: 0; height: 100%;
+      background: var(--green); border-radius: 99px;
+      transition: width .5s;
+    }
+    .rr-label { font-size: 10px; font-weight: 700; color: var(--txt3); white-space: nowrap; }
+
+    /* AI reasoning chip */
+    .ai-reason {
+      font-size: 11px; color: var(--txt2); line-height: 1.55;
+      padding: 7px 10px; background: rgba(99,102,241,.06);
+      border-left: 2px solid #6366f1; border-radius: 0 8px 8px 0;
+      margin-top: 8px;
+    }
+
+    /* Sector badge */
+    .sector-badge {
+      font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 5px;
+      background: rgba(34,211,238,.1); color: #22d3ee;
+      border: 1px solid rgba(34,211,238,.2); letter-spacing: .3px;
+    }
+
+    /* Horizon badges row */
+    .horizon-row {
+      display: flex; gap: 5px; flex-wrap: wrap; margin: 8px 0 4px;
+    }
+    .horizon-badge {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 4px 9px; border-radius: 7px; border: 1px solid;
+      min-width: 58px;
+    }
+    .horizon-badge-label { font-size: 8px; font-weight: 700; letter-spacing: .4px; opacity: .7; }
+    .horizon-badge-pct   { font-size: 13px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+
+    /* Stability badge */
+    .stab-badge {
+      font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 5px;
+      letter-spacing: .4px; white-space: nowrap;
+    }
+
+    /* Meta filter pill */
+    .meta-pill {
+      font-size: 9px; font-weight: 800; padding: 2px 9px; border-radius: 99px;
+      letter-spacing: .5px; white-space: nowrap;
+    }
+
+    /* AI Explanation accordion */
+    .ai-expl-wrap { margin: 10px 0 4px; }
+    .ai-expl-toggle {
+      width: 100%; text-align: left; background: rgba(99,102,241,.07);
+      border: 1px solid rgba(99,102,241,.18); border-radius: 8px;
+      padding: 7px 11px; font-size: 11px; font-weight: 700; color: #818cf8;
+      cursor: pointer; display: flex; align-items: center; gap: 6px;
+    }
+    .ai-expl-toggle:hover { background: rgba(99,102,241,.13); }
+    .ai-expl-body {
+      display: none; padding: 10px 12px 8px;
+      background: rgba(99,102,241,.04); border: 1px solid rgba(99,102,241,.12);
+      border-top: none; border-radius: 0 0 8px 8px;
+      font-size: 11px; line-height: 1.6;
+    }
+    .ai-expl-body.open { display: block; }
+    .ai-expl-headline { font-weight: 700; color: var(--txt1); margin-bottom: 8px; }
+    .ai-expl-bullets  { list-style: none; padding: 0; margin: 0 0 7px; }
+    .ai-expl-bullets li { padding: 2px 0 2px 14px; position: relative; color: var(--txt2); }
+    .ai-expl-bullets li::before { content: '↗'; position: absolute; left: 0; color: var(--green); font-size: 10px; }
+    .ai-expl-cautions { list-style: none; padding: 0; margin: 0 0 7px; }
+    .ai-expl-cautions li { padding: 2px 0 2px 14px; position: relative; color: #f59e0b; }
+    .ai-expl-cautions li::before { content: '⚠'; position: absolute; left: 0; font-size: 9px; top: 3px; }
+    .ai-expl-summary { color: var(--txt3); font-style: italic; border-top: 1px solid var(--border); padding-top: 6px; margin-top: 4px; }
+    .ai-expl-score   { color: var(--txt3); font-size: 10px; margin-top: 4px; }
+
+    /* AI Insight card in execute tab */
+    .ai-insight-card {
+      background: linear-gradient(135deg, rgba(99,102,241,.08) 0%, rgba(139,92,246,.05) 100%);
+      border: 1px solid rgba(99,102,241,.2); border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .ai-insight-hdr {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    }
+    .ai-insight-icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: rgba(99,102,241,.2); display: flex;
+      align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .ai-insight-title { font-size: 12px; font-weight: 700; color: #a5b4fc; }
+    .ai-insight-body { font-size: 12px; color: var(--txt2); line-height: 1.65; }
+    .ai-insight-key { color: #c4b5fd; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -845,8 +1066,153 @@
 <!-- ══════════════════════════════════ SCROLL -->
 <div class="scroll">
 
+  <!-- ───────────── TAB: HOME ───────────── -->
+  <div id="tab-home" class="tab active">
+
+    <!-- Hero: Market Regime -->
+    <div class="home-hero">
+      <div class="home-hero-label">Market Condition</div>
+      <div id="hm-regime-pill" class="home-regime-pill">
+        <div class="home-regime-dot" id="hm-regime-dot" style="background:var(--txt3);"></div>
+        <span id="hm-regime-txt">Loading…</span>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+        <span style="font-size:11px;color:rgba(255,255,255,.45);">Market Breadth — % stocks above SMA50</span>
+        <span id="hm-breadth-pct" style="font-size:13px;font-weight:700;color:rgba(255,255,255,.7);">—%</span>
+      </div>
+      <div class="breadth-bar-track">
+        <div class="breadth-bar-fill" id="hm-breadth-bar" style="width:0%;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:18px;">
+        <span style="font-size:10px;color:rgba(255,255,255,.3);">Bear ← 0%</span>
+        <span style="font-size:10px;color:rgba(255,255,255,.3);">50% → Bull</span>
+      </div>
+
+      <div class="home-stat-grid">
+        <div class="home-stat">
+          <div class="home-stat-val" id="hm-ai-thresh">—%</div>
+          <div class="home-stat-lbl">AI Threshold</div>
+        </div>
+        <div class="home-stat">
+          <div class="home-stat-val" id="hm-volatility">—</div>
+          <div class="home-stat-lbl">Volatility</div>
+        </div>
+        <div class="home-stat">
+          <div class="home-stat-val" id="hm-db-rows" style="font-size:16px;">—</div>
+          <div class="home-stat-lbl">DB Records</div>
+        </div>
+      </div>
+
+      <div style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:5px;">
+        <span id="hm-updated">Updated: —</span>
+      </div>
+    </div>
+
+    <div class="page">
+
+      <!-- Today's Best Trades -->
+      <div class="card" style="border-top:2px solid #f43f5e;">
+        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:13px;font-weight:700;">Today's Best Trades</div>
+            <div style="font-size:10px;color:var(--txt3);margin-top:2px;">AI-confirmed, high-conviction setups</div>
+          </div>
+          <button onclick="go('execute',document.querySelector('[data-tab=execute]'));runExecute();"
+            style="font-size:11px;font-weight:700;padding:5px 11px;background:rgba(244,63,94,.12);color:#f43f5e;border:1px solid rgba(244,63,94,.25);border-radius:8px;cursor:pointer;">
+            Run Scan →
+          </button>
+        </div>
+        <div class="divider"></div>
+        <div id="hm-picks">
+          <div class="empty" style="padding:28px 20px;">
+            <div class="empty-icon" style="background:rgba(244,63,94,.1);font-size:20px;">⚡</div>
+            <div class="empty-title">No scan today yet</div>
+            <div class="empty-sub">Tap "Run Scan" or go to Execute tab to find today's best setups. Results are cached here automatically.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.7px;padding:0 2px 4px;">Quick Actions</div>
+      <div class="home-shortcuts">
+        <div class="home-shortcut" onclick="go('execute',document.querySelector('[data-tab=execute]'))">
+          <div class="home-shortcut-icon" style="background:rgba(244,63,94,.12);">
+            <svg width="18" height="18" fill="none" stroke="#f43f5e" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+          </div>
+          <div>
+            <div class="home-shortcut-label">Execute</div>
+            <div class="home-shortcut-sub">AI-validated trades</div>
+          </div>
+        </div>
+        <div class="home-shortcut" onclick="go('signals',document.querySelector('[data-tab=signals]'))">
+          <div class="home-shortcut-icon" style="background:rgba(16,185,129,.1);">
+            <svg width="18" height="18" fill="none" stroke="var(--sig)" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div>
+            <div class="home-shortcut-label">Signals</div>
+            <div class="home-shortcut-sub">16 strategies</div>
+          </div>
+        </div>
+        <div class="home-shortcut" onclick="go('screener',document.querySelector('[data-tab=screener]'))">
+          <div class="home-shortcut-icon" style="background:rgba(34,211,238,.1);">
+            <svg width="18" height="18" fill="none" stroke="#22d3ee" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          </div>
+          <div>
+            <div class="home-shortcut-label">Screener</div>
+            <div class="home-shortcut-sub">RS · 52W · Sectors</div>
+          </div>
+        </div>
+        <div class="home-shortcut" onclick="go('journal',document.querySelector('[data-tab=journal]'))">
+          <div class="home-shortcut-icon" style="background:rgba(16,185,129,.1);">
+            <svg width="18" height="18" fill="none" stroke="var(--green)" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+          </div>
+          <div>
+            <div class="home-shortcut-label">Journal</div>
+            <div class="home-shortcut-sub">Track your trades</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Health -->
+      <div class="card">
+        <div style="padding:13px 16px 10px;font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">System Health</div>
+        <div class="divider"></div>
+        <div class="health-row">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="health-dot" id="hm-h-data"></div>
+            <span style="font-size:12px;font-weight:600;">Historical Data</span>
+          </div>
+          <span style="font-size:11px;color:var(--txt3);" id="hm-h-data-val">—</span>
+        </div>
+        <div class="health-row">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="health-dot" id="hm-h-model"></div>
+            <span style="font-size:12px;font-weight:600;">AI Price Model</span>
+          </div>
+          <span style="font-size:11px;color:var(--txt3);" id="hm-h-model-val">—</span>
+        </div>
+        <div class="health-row">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="health-dot" id="hm-h-feedback"></div>
+            <span style="font-size:12px;font-weight:600;">Trade Feedback Model</span>
+          </div>
+          <span style="font-size:11px;color:var(--txt3);" id="hm-h-feedback-val">—</span>
+        </div>
+        <div class="health-row">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="health-dot" id="hm-h-fyers"></div>
+            <span style="font-size:12px;font-weight:600;">Fyers Connection</span>
+          </div>
+          <span style="font-size:11px;color:var(--txt3);" id="hm-h-fyers-val">—</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ───────────── TAB: DATA ───────────── -->
-  <div id="tab-data" class="tab active">
+  <div id="tab-data" class="tab">
     <div class="tab-banner" style="--banner-from:#0f1f4a;--banner-to:#0c1a3a;">
       <div>
         <div class="tab-banner-title">Data Station</div>
@@ -1790,6 +2156,17 @@
         </div>
       </div>
 
+      <!-- AI Market Insight -->
+      <div class="ai-insight-card" id="exec-ai-insight" style="display:none;">
+        <div class="ai-insight-hdr">
+          <div class="ai-insight-icon">
+            <svg width="14" height="14" fill="none" stroke="#818cf8" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082"/></svg>
+          </div>
+          <div class="ai-insight-title">AI Market Insight</div>
+        </div>
+        <div class="ai-insight-body" id="exec-ai-insight-text">—</div>
+      </div>
+
       <!-- Results -->
       <div class="card">
         <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
@@ -2136,7 +2513,11 @@
 
 <!-- ══════════════════════════════════ NAV -->
 <nav class="nav">
-  <button class="nav-btn active" data-tab="data" onclick="go('data',this)">
+  <button class="nav-btn active" data-tab="home" onclick="go('home',this)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>
+    Home
+  </button>
+  <button class="nav-btn" data-tab="data" onclick="go('data',this)">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8M8 8h8M8 16h4"/></svg>
     Data
   </button>
@@ -2434,8 +2815,9 @@ function go(id, el) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(n => n.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
-  el.classList.add('active');
+  if (el) el.classList.add('active');
   document.querySelector('.scroll').scrollTo(0, 0);
+  if (id === 'home')      { loadHome(); }
   if (id === 'live')      { loadWatchlist(); refreshLive(); }
   if (id === 'execute')   { loadExecuteRegime(); _updateExecuteBadge(0); _execPrevCount = 0; }
   if (id === 'journal')   { loadJournal(); }
@@ -3421,13 +3803,32 @@ function setTrendPeriod(period, el) {
 }
 
 async function runExecute() {
-  const btn  = document.getElementById('exec-run-btn');
-  const body = document.getElementById('exec-body');
+  const btn     = document.getElementById('exec-run-btn');
+  const body    = document.getElementById('exec-body');
+  const insight = document.getElementById('exec-ai-insight');
   btn.disabled = true;
   btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Scanning 100 stocks…';
-  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1.2s linear infinite;font-size:32px;">⚡</div><div class="empty-title">Running 16 strategies + AI filter</div><div class="empty-sub">Analysing all 100 Nifty stocks — takes 30–90 seconds</div></div>';
+
+  // Skeleton loading state
+  body.innerHTML = [1,2,3].map(() => `
+    <div style="padding:16px;border-bottom:1px solid var(--border);">
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <div class="sk sk-value" style="width:80px;height:22px;"></div>
+        <div style="flex:1;"></div>
+        <div class="sk" style="width:48px;height:22px;"></div>
+      </div>
+      <div class="sk sk-line sk-full"></div>
+      <div class="sk sk-line sk-75" style="margin-top:6px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;">
+        <div class="sk" style="height:44px;border-radius:8px;"></div>
+        <div class="sk" style="height:44px;border-radius:8px;"></div>
+        <div class="sk" style="height:44px;border-radius:8px;"></div>
+      </div>
+    </div>`).join('');
+  insight.style.display = 'none';
 
   const periodParam = _execTrendPeriod !== 'any' ? `?trend_period=${_execTrendPeriod}` : '';
+  let _regime = 'Neutral';
   try {
     const d = await j(`${API}/api/combined/signals${periodParam}`);
 
@@ -3437,24 +3838,44 @@ async function runExecute() {
     set('exec-stat-confirmed', d.ml_confirmed           || 0);
     set('exec-count', (d.count || 0) + ' trade ideas');
 
-    // Refresh regime from response
+    // Regime
     if (d.regime) {
-      const regime = d.regime.regime || 'Unknown';
+      _regime = d.regime.regime || 'Neutral';
       const colors = { Bull:'var(--green)', Neutral:'var(--live)', Bear:'var(--red)' };
       const dot = document.getElementById('exec-regime-dot');
-      dot.style.background = colors[regime] || 'var(--txt3)';
-      dot.style.boxShadow  = `0 0 10px ${colors[regime] || 'var(--txt3)'}`;
-      set('exec-regime-label', regime + ' Market');
-      set('exec-regime-sub', `${d.regime.breadth_pct||0}% stocks above SMA50 · ${d.regime.volatility_label||''} volatility`);
+      dot.style.background = colors[_regime] || 'var(--txt3)';
+      dot.style.boxShadow  = `0 0 10px ${colors[_regime] || 'var(--txt3)'}`;
+      set('exec-regime-label', _regime + ' Market');
+      set('exec-regime-sub', `${d.regime.breadth_pct||0}% stocks above SMA50 · ${d.regime.volatility_label||''} volatility · ${d.regime.symbols_checked||0} stocks analysed`);
       const thresh = { Bull:'55%', Neutral:'60%', Bear:'65%' };
-      set('exec-threshold', thresh[regime] || '60%');
+      set('exec-threshold', thresh[_regime] || '60%');
     }
+
+    // AI Insight
+    const insightTexts = {
+      Bull:    `<span class="ai-insight-key">Bull regime detected</span> — ${d.regime?.breadth_pct||0}% of Nifty100 stocks are above SMA50. Broad participation confirms bullish breadth. AI buy threshold is lowered to <span class="ai-insight-key">55%</span> to capture more opportunities. Focus on momentum and breakout setups. Trend-following strategies outperform in this environment.`,
+      Neutral: `<span class="ai-insight-key">Neutral/consolidating market</span> — ${d.regime?.breadth_pct||0}% breadth indicates mixed conditions. AI buy threshold set at <span class="ai-insight-key">60%</span>. Be selective — favour stocks with multi-strategy confluence and stronger relative strength. Mean reversion setups may complement trend trades.`,
+      Bear:    `<span class="ai-insight-key">Bear regime</span> — only ${d.regime?.breadth_pct||0}% stocks above SMA50. Elevated threshold of <span class="ai-insight-key">65%</span> ensures only the highest-conviction setups pass. Keep positions smaller. Prefer defensive sectors (FMCG, Pharma) and stocks showing relative strength against the index.`,
+    };
+    const insightText = insightTexts[_regime] || insightTexts['Neutral'];
+    document.getElementById('exec-ai-insight-text').innerHTML = insightText;
+    insight.style.display = 'block';
 
     if (!d.results || !d.results.length) {
       const pct = Math.round((d.buy_threshold || 0) * 100);
-      const mkt  = d.regime && d.regime.regime ? d.regime.regime : '';
-      body.innerHTML = `<div class="empty"><div class="empty-icon" style="background:rgba(244,63,94,.1);">🔍</div><div class="empty-title">No confirmed trades today</div><div class="empty-sub">Strategies found ${d.symbols_with_signals||0} setups but none cleared the ${pct}% AI threshold in the current ${mkt} market. Try again tomorrow or after new data loads.</div></div>`;
+      body.innerHTML = `<div class="empty"><div class="empty-icon" style="background:rgba(244,63,94,.1);">🔍</div><div class="empty-title">No confirmed trades today</div><div class="empty-sub">Strategies found ${d.symbols_with_signals||0} setups but none cleared the ${pct}% AI threshold in the current ${_regime} market. Try again tomorrow or after new data loads.</div></div>`;
       return;
+    }
+
+    // Cache for HOME tab
+    _homePicksCache = d.results;
+    renderHomePicks(d.results);
+
+    function _hColor(p) {
+      if (p >= 0.70) return {bg:'rgba(16,185,129,.12)',border:'rgba(16,185,129,.3)',color:'#10b981'};
+      if (p >= 0.60) return {bg:'rgba(34,211,238,.10)',border:'rgba(34,211,238,.3)',color:'#22d3ee'};
+      if (p >= 0.50) return {bg:'rgba(245,158,11,.10)',border:'rgba(245,158,11,.3)',color:'#f59e0b'};
+      return {bg:'var(--s3)',border:'var(--border2)',color:'var(--txt3)'};
     }
 
     body.innerHTML = d.results.map((r, i) => {
@@ -3480,12 +3901,95 @@ async function runExecute() {
           <div style="font-size:8px;color:var(--txt3);letter-spacing:.3px;font-weight:600;">SCORE</div>
         </div>` : '';
 
+      // R:R ratio bar
+      const entry  = r.entry || r.price || 0;
+      const sl     = r.stop_loss || 0;
+      const tgt    = r.target || r.price_target || 0;
+      const risk   = entry > 0 && sl > 0 ? Math.abs(entry - sl) : 0;
+      const reward = entry > 0 && tgt > 0 ? Math.abs(tgt - entry) : 0;
+      const rr     = risk > 0 ? (reward / risk) : 0;
+      const rrPct  = rr > 0 ? Math.min((reward / (risk + reward)) * 100, 95) : 0;
+      const rrBar  = risk > 0 ? `
+        <div class="rr-bar-wrap">
+          <span class="rr-label" style="color:var(--red);">Risk</span>
+          <div class="rr-bar-track">
+            <div class="rr-bar-reward" style="width:${rrPct}%;"></div>
+          </div>
+          <span class="rr-label" style="color:var(--green);">R:R ${rr.toFixed(1)}</span>
+        </div>` : '';
+
+      // Sector badge
+      const sector = _getSector(r.symbol);
+      const sectorBadge = `<span class="sector-badge">${sector}</span>`;
+
+      // AI reasoning line
+      const aiReason = `<div class="ai-reason">${_buildAIReason(r, _regime)}</div>`;
+
       const stratTags = (r.strategies || []).map(s =>
         `<span class="strat-tag">${_stratLabel(s)}</span>`
       ).join('');
       const multiTag = r.strategy_count > 1
         ? `<span class="strat-tag" style="background:rgba(244,63,94,.2);color:#fb7185;border-color:rgba(244,63,94,.3);">⚡ ${r.strategy_count} strategies</span>`
         : '';
+
+      // Multi-horizon badges
+      const horizonRow = (r.prob_3d != null || r.prob_5d != null || r.prob_10d != null) ? (() => {
+        const make = (label, p) => {
+          if (p == null) return '';
+          const c = _hColor(p); const pp = Math.round(p * 100);
+          return `<div class="horizon-badge" style="background:${c.bg};border-color:${c.border};color:${c.color};">
+            <span class="horizon-badge-label">${label}</span>
+            <span class="horizon-badge-pct">${pp}%</span>
+          </div>`;
+        };
+        return `<div class="horizon-row">${make('3D',r.prob_3d)}${make('5D',r.prob_5d||r.buy_probability)}${make('10D',r.prob_10d)}</div>`;
+      })() : '';
+
+      // Stability badge
+      const stabMap = {
+        HIGH:         {bg:'rgba(16,185,129,.15)',color:'#10b981',border:'rgba(16,185,129,.3)',icon:'●'},
+        MEDIUM:       {bg:'rgba(245,158,11,.12)',color:'#f59e0b',border:'rgba(245,158,11,.3)',icon:'●'},
+        LOW:          {bg:'rgba(244,63,94,.12)',color:'#f43f5e',border:'rgba(244,63,94,.3)',icon:'●'},
+        INSUFFICIENT: {bg:'var(--s3)',color:'var(--txt3)',border:'var(--border2)',icon:'○'},
+      };
+      const stabBadge = r.stability ? (() => {
+        const s = stabMap[r.stability] || stabMap.INSUFFICIENT;
+        return `<span class="stab-badge" style="background:${s.bg};color:${s.color};border:1px solid ${s.border};">${s.icon} ${r.stability}</span>`;
+      })() : '';
+
+      // Meta filter pill
+      const metaDecision = r.meta_filter?.decision;
+      const metaPill = metaDecision ? (() => {
+        const isTake = metaDecision === 'TAKE';
+        const style = isTake
+          ? 'background:rgba(16,185,129,.18);color:#10b981;border:1px solid rgba(16,185,129,.35);'
+          : 'background:rgba(244,63,94,.15);color:#f43f5e;border:1px solid rgba(244,63,94,.3);';
+        const prob_meta = r.meta_filter?.take_probability != null
+          ? ` ${Math.round(r.meta_filter.take_probability*100)}%` : '';
+        return `<span class="meta-pill" style="${style}">${isTake ? '✓ TAKE' : '✗ AVOID'}${prob_meta}</span>`;
+      })() : '';
+
+      // AI Explanation accordion
+      const expl = r.explanation;
+      const explSection = expl ? (() => {
+        const uid = `expl-${r.symbol}-${i}`;
+        const bullets = (expl.bullets || []).map(b => `<li>${b}</li>`).join('');
+        const cautions = (expl.cautions || []).map(c => `<li>${c}</li>`).join('');
+        return `
+          <div class="ai-expl-wrap">
+            <button class="ai-expl-toggle" onclick="(function(el){const b=document.getElementById('${uid}');b.classList.toggle('open');el.querySelector('span.chevron').textContent=b.classList.contains('open')?'▲':'▼';})(this)">
+              <svg width="13" height="13" fill="none" stroke="#818cf8" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+              AI Analysis <span class="chevron" style="margin-left:auto;font-size:9px;">▼</span>
+            </button>
+            <div class="ai-expl-body" id="${uid}">
+              <div class="ai-expl-headline">${expl.headline || ''}</div>
+              ${bullets ? `<ul class="ai-expl-bullets">${bullets}</ul>` : ''}
+              ${cautions ? `<ul class="ai-expl-cautions">${cautions}</ul>` : ''}
+              ${expl.summary ? `<div class="ai-expl-summary">${expl.summary}</div>` : ''}
+              ${expl.score_narrative ? `<div class="ai-expl-score">${expl.score_narrative}</div>` : ''}
+            </div>
+          </div>`;
+      })() : '';
 
       const priceLabel = r.price_source === 'live'
         ? `<span style="color:var(--green);font-size:10px;font-weight:700;">●LIVE</span>`
@@ -3507,8 +4011,8 @@ async function runExecute() {
       return `
         <div class="comb-card">
           <div class="comb-card-top">
-            <div style="display:flex;align-items:center;flex:1;min-width:0;">
-              <div class="comb-symbol">${r.symbol}</div>${rankBadge}
+            <div style="display:flex;align-items:center;flex:1;min-width:0;gap:6px;">
+              <div class="comb-symbol">${r.symbol}</div>${rankBadge}${sectorBadge}
             </div>
             <div class="comb-prob-wrap" style="flex:1;">
               <div style="display:flex;justify-content:space-between;align-items:baseline;">
@@ -3518,27 +4022,38 @@ async function runExecute() {
               <div class="comb-prob-bar-bg">
                 <div class="comb-prob-bar-fill" style="width:${pct}%;background:${color};"></div>
               </div>
-              <div class="comb-conf-badge" style="${_confBadgeStyle(conf)};margin-top:5px;display:inline-block;">${conf}</div>
+              <div style="display:flex;align-items:center;gap:5px;margin-top:5px;flex-wrap:wrap;">
+                <div class="comb-conf-badge" style="${_confBadgeStyle(conf)};display:inline-block;">${conf}</div>
+                ${stabBadge}
+                ${metaPill}
+              </div>
             </div>
             ${qsRing}
           </div>
 
+          ${horizonRow}
+
           <div class="comb-strategies">${multiTag}${trendTag}${stratTags}</div>
 
-          <div class="comb-trade-grid">
+          ${aiReason}
+          ${explSection}
+
+          <div class="comb-trade-grid" style="margin-top:10px;">
             <div class="comb-trade-cell">
               <div class="comb-trade-label">Entry</div>
-              <div class="comb-trade-val">${fmt(r.entry || r.price)}</div>
+              <div class="comb-trade-val">${fmt(entry)}</div>
             </div>
-            <div class="comb-trade-cell">
-              <div class="comb-trade-label">Stop Loss</div>
-              <div class="comb-trade-val" style="color:var(--red);">${fmt(r.stop_loss)}</div>
+            <div class="comb-trade-cell" style="border:1px solid rgba(244,63,94,.2);background:rgba(244,63,94,.05);">
+              <div class="comb-trade-label" style="color:var(--red);">Stop Loss</div>
+              <div class="comb-trade-val" style="color:var(--red);">${fmt(sl)}</div>
             </div>
-            <div class="comb-trade-cell">
-              <div class="comb-trade-label">Target</div>
-              <div class="comb-trade-val" style="color:var(--green);">${fmt(r.target || r.price_target)}</div>
+            <div class="comb-trade-cell" style="border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.05);">
+              <div class="comb-trade-label" style="color:var(--green);">Target</div>
+              <div class="comb-trade-val" style="color:var(--green);">${fmt(tgt)}</div>
             </div>
           </div>
+
+          ${rrBar}
 
           <div class="comb-footer">
             <div style="display:flex;align-items:center;gap:6px;">
@@ -3549,18 +4064,23 @@ async function runExecute() {
           </div>
           <div style="padding:10px 16px 14px;border-top:1px solid var(--border);display:flex;gap:8px;">
             <button onclick='logTrade(${JSON.stringify({symbol:r.symbol,entry_price:r.entry||r.price,stop_loss:r.stop_loss,target:r.target||r.price_target,strategy_tags:(r.strategies||[]).join(","),buy_probability:r.buy_probability,expected_return_pct:r.expected_return_pct})},this)'
-              style="flex:1;padding:8px;font-size:12px;font-weight:700;background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25);border-radius:8px;cursor:pointer;">
-              + Paper Trade
+              style="flex:1;padding:9px;font-size:12px;font-weight:700;background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25);border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>Paper
+            </button>
+            <button onclick="openChart('${r.symbol}')"
+              style="padding:9px 12px;font-size:12px;font-weight:700;background:var(--s3);color:var(--txt2);border:1px solid var(--border2);border-radius:9px;cursor:pointer;">
+              Chart ↗
             </button>
             <button onclick='logTrade(${JSON.stringify({symbol:r.symbol,entry_price:r.entry||r.price,stop_loss:r.stop_loss,target:r.target||r.price_target,strategy_tags:(r.strategies||[]).join(","),buy_probability:r.buy_probability,expected_return_pct:r.expected_return_pct,trade_type:"live"})},this)'
-              style="flex:1;padding:8px;font-size:12px;font-weight:700;background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.25);border-radius:8px;cursor:pointer;">
-              + Live Trade
+              style="flex:1;padding:9px;font-size:12px;font-weight:700;background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.25);border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+              <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M4.5 6.375a4.125 4.125 0 118.25 0 4.125 4.125 0 01-8.25 0zM14.25 8.625a3.375 3.375 0 116.75 0 3.375 3.375 0 01-6.75 0zM1.5 19.125a7.125 7.125 0 0114.25 0v.003l-.001.119a.75.75 0 01-.363.63 13.067 13.067 0 01-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 01-.364-.63l-.001-.122zM17.25 19.128l-.001.144a2.25 2.25 0 01-.233.96 10.088 10.088 0 005.06-1.01.75.75 0 00.42-.643 4.875 4.875 0 00-6.957-4.611 8.586 8.586 0 011.71 5.157v.003z"/></svg>Live
             </button>
           </div>
         </div>`;
     }).join('');
 
   } catch(e) {
+    insight.style.display = 'none';
     body.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">Error</div><div class="empty-sub">${e.message || 'Check that ML model is trained'}</div></div>`;
   } finally {
     btn.disabled = false;
@@ -4341,7 +4861,146 @@ async function adminDeleteUser(userId, username) {
 }
 
 
+// ══════════════════════════════════════════════════════
+// HOME TAB
+// ══════════════════════════════════════════════════════
+
+// Cache last execute results for the HOME top-picks display
+let _homePicksCache = null;
+
+async function loadHome() {
+  // 1. Regime / breadth from status endpoint
+  try {
+    const d = await j(`${API}/api/status`);
+    const rows = (d.unique_symbols || 0).toLocaleString('en-IN');
+    const totalRows = (d.total_rows || 0).toLocaleString('en-IN');
+    document.getElementById('hm-db-rows').textContent = totalRows;
+    const ts = d.last_sync_ist || d.last_update || '—';
+    document.getElementById('hm-updated').textContent = 'Last sync: ' + ts;
+
+    // Fyers health
+    const fyersOk = d.fyers_token_valid === true;
+    const hFyers = document.getElementById('hm-h-fyers');
+    hFyers.className = 'health-dot ' + (fyersOk ? 'ok' : 'warn');
+    document.getElementById('hm-h-fyers-val').textContent = fyersOk ? 'Token valid' : 'Token expired';
+
+    // Data health
+    const dataOk = (d.total_rows || 0) > 10000;
+    const hData = document.getElementById('hm-h-data');
+    hData.className = 'health-dot ' + (dataOk ? 'ok' : 'warn');
+    document.getElementById('hm-h-data-val').textContent = dataOk ? totalRows + ' records' : 'Run a sync first';
+  } catch(e) {}
+
+  // 2. Market regime
+  try {
+    const r = await j(`${API}/api/regime`);
+    const regime = r.regime || 'Unknown';
+    const colors = { Bull: 'var(--green)', Neutral: 'var(--live)', Bear: 'var(--red)' };
+    const dot = document.getElementById('hm-regime-dot');
+    dot.style.background = colors[regime] || 'var(--txt3)';
+    dot.style.boxShadow = `0 0 8px ${colors[regime] || 'var(--txt3)'}`;
+    document.getElementById('hm-regime-txt').textContent = regime + ' Market';
+    const breadth = r.breadth_pct || 0;
+    document.getElementById('hm-breadth-pct').textContent = breadth + '%';
+    document.getElementById('hm-breadth-bar').style.width = Math.min(breadth, 100) + '%';
+    const thresh = { Bull: '55%', Neutral: '60%', Bear: '65%' };
+    document.getElementById('hm-ai-thresh').textContent = thresh[regime] || '60%';
+    document.getElementById('hm-volatility').textContent = r.volatility_label || '—';
+  } catch(e) {}
+
+  // 3. AI Model health
+  try {
+    const m = await j(`${API}/api/ml/status`);
+    const trained = m.trained === true || m.is_trained === true;
+    const hModel = document.getElementById('hm-h-model');
+    hModel.className = 'health-dot ' + (trained ? 'ok' : 'warn');
+    document.getElementById('hm-h-model-val').textContent = trained
+      ? 'AUC ' + ((m.meta && m.meta.auc_roc) ? (m.meta.auc_roc * 100).toFixed(1) + '%' : '—')
+      : 'Not trained';
+  } catch(e) {}
+
+  // 4. Feedback model health
+  try {
+    const fb = await j(`${API}/api/ml/trade-feedback/status`);
+    const fbTrained = fb.is_trained === true;
+    const hFb = document.getElementById('hm-h-feedback');
+    hFb.className = 'health-dot ' + (fbTrained ? 'ok' : (fb.ready_to_train ? 'warn' : 'idle'));
+    document.getElementById('hm-h-feedback-val').textContent = fbTrained
+      ? 'AUC ' + ((fb.meta && fb.meta.auc_roc) ? (fb.meta.auc_roc * 100).toFixed(1) + '%' : '—')
+      : (fb.ready_to_train ? 'Ready to train' : 'Need more trades');
+  } catch(e) {}
+
+  // 5. Show cached top picks if available
+  if (_homePicksCache && _homePicksCache.length > 0) {
+    renderHomePicks(_homePicksCache);
+  }
+}
+
+function renderHomePicks(results) {
+  const picks = document.getElementById('hm-picks');
+  if (!results || !results.length) return;
+  const top3 = results.slice(0, 3);
+  const rankColors = ['#f43f5e', '#f59e0b', '#6366f1'];
+  const rankBgs    = ['rgba(244,63,94,.15)', 'rgba(245,158,11,.15)', 'rgba(99,102,241,.15)'];
+  picks.innerHTML = top3.map((r, i) => {
+    const prob = Math.round((r.buy_probability || 0) * 100);
+    const color = _probColor(r.buy_probability || 0);
+    const fmt = v => v != null ? '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0}) : '—';
+    const rr = r.risk_reward ? r.risk_reward.toFixed(1) + 'R' : '—';
+    return `<div class="home-pick" onclick="go('execute',document.querySelector('[data-tab=execute]'))">
+      <div class="home-pick-rank" style="background:${rankBgs[i]};color:${rankColors[i]};">#${i+1}</div>
+      <div class="home-pick-body">
+        <div class="home-pick-sym">${r.symbol}</div>
+        <div class="home-pick-meta">SL ${fmt(r.stop_loss)} · T ${fmt(r.target || r.price_target)} · RR ${rr}</div>
+      </div>
+      <div class="home-pick-right">
+        <div class="home-pick-prob" style="color:${color};">${prob}%</div>
+        <div style="font-size:10px;color:var(--txt3);">AI score</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════
+// EXECUTE — AI INSIGHT + ENHANCED TRADE CARDS
+// ══════════════════════════════════════════════════════
+
+// Sector map for badges (mirrors strategies/sector_map.py)
+const _SECTOR_MAP = {
+  TCS:'IT',INFY:'IT',WIPRO:'IT',HCLTECH:'IT',TECHM:'IT',LTIM:'IT',PERSISTENT:'IT',COFORGE:'IT',MPHASIS:'IT',OFSS:'IT',
+  HDFCBANK:'Banking',ICICIBANK:'Banking',KOTAKBANK:'Banking',AXISBANK:'Banking',SBIN:'Banking',BANKBARODA:'Banking',PNB:'Banking',CANBK:'Banking',INDUSINDBK:'Banking',FEDERALBNK:'Banking',IDFCFIRSTB:'Banking',BANDHANBNK:'Banking',AUBANK:'Banking',
+  BAJFINANCE:'Finance',BAJAJFINSV:'Finance',CHOLAFIN:'Finance',LICHSGFIN:'Finance',MUTHOOTFIN:'Finance',SHRIRAMFIN:'Finance',HDFCAMC:'Finance',ICICIGI:'Finance',HDFCLIFE:'Finance',SBILIFE:'Finance',SBICARD:'Finance',
+  RELIANCE:'Energy',ONGC:'Energy',IOC:'Energy',BPCL:'Energy',GAIL:'Energy',POWERGRID:'Energy',NTPC:'Energy',TATAPOWER:'Energy',ADANIGREEN:'Energy',ADANIENSOL:'Energy',ADANIPOWER:'Energy',TORNTPOWER:'Energy',
+  HINDUNILVR:'FMCG',ITC:'FMCG',NESTLEIND:'FMCG',BRITANNIA:'FMCG',DABUR:'FMCG',MARICO:'FMCG',GODREJCP:'FMCG',COLPAL:'FMCG',EMAMILTD:'FMCG',TATACONSUM:'FMCG',VBL:'FMCG',
+  MARUTI:'Auto','TATAMOTORS':'Auto','M&M':'Auto','BAJAJ-AUTO':'Auto',EICHERMOT:'Auto',HEROMOTOCO:'Auto',TVSMOTORS:'Auto',ASHOKLEY:'Auto',BALKRISIND:'Auto',MOTHERSON:'Auto',BOSCHLTD:'Auto',BHARATFORG:'Auto',
+  SUNPHARMA:'Pharma',DRREDDY:'Pharma',CIPLA:'Pharma',DIVISLAB:'Pharma',BIOCON:'Pharma',AUROPHARMA:'Pharma',ALKEM:'Pharma',TORNTPHARM:'Pharma',LUPIN:'Pharma',MAXHEALTH:'Pharma',APOLLOHOSP:'Pharma',FORTIS:'Pharma',
+  TATASTEEL:'Metals',JSWSTEEL:'Metals',HINDALCO:'Metals',VEDL:'Metals',COALINDIA:'Metals',NMDC:'Metals',SAIL:'Metals',NATIONALUM:'Metals',HINDCOPPER:'Metals',JSWENERGY:'Metals',
+  LT:'Capital Goods',SIEMENS:'Capital Goods',ABB:'Capital Goods',BHEL:'Capital Goods',CUMMINSIND:'Capital Goods',THERMAX:'Capital Goods',HAVELLS:'Capital Goods',CGPOWER:'Capital Goods',BEL:'Capital Goods',HAL:'Capital Goods',IRFC:'Capital Goods',RVNL:'Capital Goods',TIINDIA:'Capital Goods',
+  TITAN:'Consumer',VOLTAS:'Consumer',DMART:'Consumer',TRENT:'Consumer',NYKAA:'Consumer',ZOMATO:'Consumer',JUBLFOOD:'Consumer',
+  ULTRACEMCO:'Cement',GRASIM:'Cement',AMBUJACEM:'Cement',ACC:'Cement',SHREECEM:'Cement',
+  BHARTIARTL:'Telecom',IDEA:'Telecom',
+  DLF:'Real Estate',GODREJPROP:'Real Estate',OBEROIRLTY:'Real Estate',PHOENIXLTD:'Real Estate',PRESTIGE:'Real Estate',
+};
+
+function _getSector(sym) { return _SECTOR_MAP[sym.toUpperCase()] || 'Others'; }
+
+function _buildAIReason(r, regime) {
+  const parts = [];
+  const regime_str = regime || 'Neutral';
+  if (regime_str === 'Bull')    parts.push('<span class="ai-insight-key">Bull market</span> — lower threshold favours entry');
+  if (regime_str === 'Bear')    parts.push('<span class="ai-insight-key">Bear market</span> — elevated threshold, proceed cautiously');
+  if (regime_str === 'Neutral') parts.push('<span class="ai-insight-key">Neutral market</span> — selective conditions');
+  if (r.strategy_count >= 3)   parts.push(`<span class="ai-insight-key">${r.strategy_count} strategies</span> fired simultaneously (strong confluence)`);
+  if (r.trend_return_pct > 5)  parts.push(`positive <span class="ai-insight-key">${r.trend_return_pct}% trend</span> confirms momentum`);
+  if (r.expected_return_pct)   parts.push(`AI regressor projects <span class="ai-insight-key">+${r.expected_return_pct}% gain</span> in 5 days`);
+  const strats = (r.strategies || []);
+  if (strats.includes('golden_rsi') || strats.includes('bollinger_bounce')) parts.push('RSI pullback into oversold zone — classic buy-the-dip');
+  if (strats.includes('breakout') || strats.includes('high_52w')) parts.push('price breaking out with volume confirmation');
+  return parts.length ? parts.join(' · ') : 'Multi-factor convergence passed AI validation threshold.';
+}
+
 // ── Init ───────────────────────────────────────────────
+loadHome();   // HOME tab is default active — load it immediately
 refreshStatus();
 refreshScheduler();
 loadIndexOptions();

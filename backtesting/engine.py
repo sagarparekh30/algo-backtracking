@@ -185,6 +185,7 @@ class BacktestEngine:
         entry_date = None
         entry_idx = 0
         max_hold = MAX_HOLD_DAYS
+        running_capital = self.initial_capital  # tracks equity for realistic sizing
 
         n = len(df)
 
@@ -201,7 +202,7 @@ class BacktestEngine:
 
                     atr_val = signal.get("atr", 0.0) or 0.0
                     trade_params = self.risk_manager.get_trade_params(
-                        entry_price, atr_val
+                        entry_price, atr_val, available_capital=running_capital
                     )
 
                     stop_loss = trade_params["stop_loss"]
@@ -223,14 +224,22 @@ class BacktestEngine:
                 exit_price = None
                 exit_reason = None
 
-                # Check stop loss (low touched or broke stop)
-                if float(current_bar["low"]) <= stop_loss:
-                    exit_price = stop_loss
-                    exit_reason = "Stop Loss"
+                bar_low  = float(current_bar["low"])
+                bar_high = float(current_bar["high"])
+                hit_stop   = bar_low  <= stop_loss
+                hit_target = bar_high >= target
 
-                # Check target (high reached target)
-                elif float(current_bar["high"]) >= target:
-                    exit_price = target
+                # Both hit on the same bar — conservative assumption: stop wins
+                # (open gap could have blown through both levels; we can't know
+                #  which happened first from daily OHLC alone)
+                if hit_stop and hit_target:
+                    exit_price  = stop_loss
+                    exit_reason = "Stop Loss (conflict)"
+                elif hit_stop:
+                    exit_price  = stop_loss
+                    exit_reason = "Stop Loss"
+                elif hit_target:
+                    exit_price  = target
                     exit_reason = "Target Hit"
 
                 # Check max hold days
@@ -264,6 +273,7 @@ class BacktestEngine:
                             "hold_days": bars_held,
                         }
                     )
+                    running_capital += pnl
                     in_trade = False
                     entry_price = stop_loss = target = 0.0
                     shares = 0
@@ -344,11 +354,15 @@ class BacktestEngine:
         gross_loss = abs(sum(losses)) if losses else 0.0
         profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else float("inf")
 
-        # Sharpe ratio (daily returns, annualised)
+        # Sharpe ratio — per-trade basis, annualised by average hold days.
+        # Formula: (mean_trade_pct / std_trade_pct) * sqrt(252 / avg_hold_days)
+        # This approximates how many independent trade-periods fit in a year.
         if len(pnl_pcts) > 1:
-            mean_ret = np.mean(pnl_pcts)
-            std_ret = np.std(pnl_pcts, ddof=1)
-            sharpe = (mean_ret / std_ret) * math.sqrt(252) if std_ret > 0 else 0.0
+            mean_ret  = np.mean(pnl_pcts)
+            std_ret   = np.std(pnl_pcts, ddof=1)
+            avg_hold  = (sum(hold_days) / len(hold_days)) if hold_days else 1.0
+            periods   = max(252 / max(avg_hold, 1), 1)
+            sharpe    = (mean_ret / std_ret) * math.sqrt(periods) if std_ret > 0 else 0.0
         else:
             sharpe = 0.0
 

@@ -683,6 +683,23 @@ async def combined_signals(trend_period: str = "any"):
                 strategy_count=strategy_count,
             )
 
+            # ── Step 5: Meta Filter gate ────────────────────────────────
+            # Runs AFTER quality score so we only compute it for trades that
+            # passed all earlier filters.  If the meta filter is not trained
+            # yet, the trade is kept (graceful degradation).
+            from ml.meta_filter_model import get_meta_filter
+            meta_filter = get_meta_filter()
+            meta_result = {}
+            if meta_filter.clf is not None:
+                try:
+                    meta_result = meta_filter.predict_symbol(df, sym)
+                    take_prob   = meta_result.get("take_trade_probability")
+                    if take_prob is not None and take_prob < 0.50:
+                        # Meta filter says AVOID — drop this trade
+                        continue
+                except Exception as _mfe:
+                    logger.debug(f"Meta filter error for {sym}: {_mfe}")
+
             results.append({
                 "symbol":              sym,
                 "buy_probability":     prob,
@@ -708,6 +725,16 @@ async def combined_signals(trend_period: str = "any"):
                 "trend_return_pct":    trend_return_pct,
                 "trend_3m":            trend_3m,
                 "vol_ratio":           vol_ratio,
+                # Multi-horizon probabilities
+                "prob_3d":             ml.get("prob_3d"),
+                "prob_5d":             ml.get("prob_5d"),
+                "prob_10d":            ml.get("prob_10d"),
+                "horizon_signals":     ml.get("horizon_signals"),
+                # Stability score
+                "stability":           ml.get("stability"),
+                "stability_detail":    ml.get("stability_detail"),
+                # Meta filter
+                "meta_filter":         meta_result,
             })
 
         except Exception as e:
@@ -718,6 +745,15 @@ async def combined_signals(trend_period: str = "any"):
         key=lambda x: (x["quality_score"], x["buy_probability"]),
         reverse=True,
     )
+
+    # ── AI explanations ──────────────────────────────────────────────────
+    # Runs after sort so bullets reference the final ranked position context.
+    # explain_batch mutates results in-place and returns the same list.
+    try:
+        from ml.explainer import explain_batch
+        explain_batch(results)
+    except Exception as _ee:
+        logger.warning(f"Explainer failed: {_ee}")
 
     total_strategy_signals = sum(len(v) for v in all_signals.values())
 
@@ -1102,7 +1138,14 @@ def _overlay_live_prices(results: list) -> list:
 @app.get("/api/ml/predict")
 async def ml_predict_all():
     """
-    Run ML predictions for all symbols, regime-adjusted thresholds.
+    Run multi-horizon ML predictions for all symbols.
+
+    Each result includes:
+      prob_3d / prob_5d / prob_10d — calibrated probabilities per horizon
+      buy_probability              — alias for prob_5d (backward compat)
+      horizon_signals              — per-horizon signal + label
+      expected_return_pct          — 5-day regressor output
+
     Prices are overlaid with live feed LTP where the feed is running.
     """
     try:
@@ -1123,15 +1166,71 @@ async def ml_predict_all():
             "count":      len(results),
             "regime":     regime_data,
             "live_count": live_count,
+            "horizons_available": {
+                "3d":  predictor.clf_3d  is not None,
+                "5d":  predictor.clf_5d  is not None,
+                "10d": predictor.clf_10d is not None,
+            },
         }
     except Exception as e:
         print(f"ML Predict Error: {e}")
         return {"error": str(e), "results": []}
 
 
+@app.get("/api/ml/stability")
+async def ml_stability_snapshot():
+    """
+    Return the current stability score for every symbol that has been
+    predicted at least twice since server start.
+
+    Stability is derived from the variance of the last 5 prob_5d values:
+      HIGH       — variance < 0.0004  (std < 2 %)
+      MEDIUM     — variance < 0.0025  (std < 5 %)
+      LOW        — variance ≥ 0.0025  (std ≥ 5 %)
+      INSUFFICIENT — fewer than 2 predictions recorded
+    """
+    from ml.prediction_history import get_prediction_history
+    history = get_prediction_history()
+    snap    = history.snapshot()
+    return {
+        "tracked_symbols": len(history),
+        "scored_symbols":  len(snap),
+        "stability":       snap,
+    }
+
+
+@app.get("/api/ml/stability/{symbol}")
+async def ml_stability_symbol(symbol: str):
+    """Return the stability score for a single symbol."""
+    from ml.prediction_history import get_prediction_history
+    result = get_prediction_history().stability(symbol.upper())
+    result["symbol"] = symbol.upper()
+    return result
+
+
 @app.get("/api/ml/predict/{symbol}")
 async def ml_predict_symbol(symbol: str):
-    """Run ML prediction for a single symbol with live price overlay."""
+    """
+    Run multi-horizon ML prediction for a single symbol.
+
+    Response shape:
+      {
+        "symbol":          "RELIANCE",
+        "prob_3d":         0.55,      # Short-term (3-day)
+        "prob_5d":         0.68,      # Swing      (5-day)  ← primary
+        "prob_10d":        0.72,      # Positional (10-day)
+        "buy_probability": 0.68,      # = prob_5d  (backward compat)
+        "expected_return_pct": 3.2,   # 5-day regressor
+        "horizon_signals": {
+          "3d":  {"probability": 0.55, "signal": "NEUTRAL", "label": "Short-term", ...},
+          "5d":  {"probability": 0.68, "signal": "BUY",     "label": "Swing",      ...},
+          "10d": {"probability": 0.72, "signal": "BUY",     "label": "Positional", ...}
+        },
+        "signal":          "BUY",     # 5d signal
+        "confidence":      "High",
+        ...
+      }
+    """
     try:
         import pandas as pd
         from ml.regime import compute_regime
@@ -1168,6 +1267,7 @@ async def ml_predict_symbol(symbol: str):
         else:
             result["price_source"] = "last_close"
 
+        result["regime"] = regime_data
         return result
     except Exception as e:
         print(f"ML Predict Symbol Error: {e}")
@@ -1365,20 +1465,38 @@ async def feedback_status():
 
 
 class FeedbackPredictRequest(BaseModel):
-    entry_price:         float
-    stop_loss:           float
-    target:              float
-    buy_probability:     float = 0.0
-    expected_return_pct: float = 0.0
-    strategy_tags:       str   = ""
-    trade_type:          str   = "paper"
+    entry_price:          float
+    stop_loss:            float
+    target:               float
+    buy_probability:      float = 0.0
+    expected_return_pct:  float = 0.0
+    strategy_tags:        str   = ""
+    trade_type:           str   = "paper"
+    # ── Optional context — pass for higher-fidelity prediction ──────────
+    # Either supply the raw feature_snapshot dict (preferred), or pass
+    # individual market-context fields.  All default to neutral values.
+    snapshot:             Optional[dict] = None
+    regime:               str   = "Neutral"
+    atr_norm:             Optional[float] = None
+    bb_position:          Optional[float] = None
+    vol_ratio:            Optional[float] = None
+    sector_score:         Optional[float] = None
+    trend_score:          Optional[float] = None
+    gap_pct:              Optional[float] = None
+    quality_score:        Optional[int]   = None
 
 
 @app.post("/api/ml/trade-feedback/predict")
 async def feedback_predict(body: FeedbackPredictRequest):
     """
-    Predict trade success probability using the feedback model.
-    Returns feedback_probability, signal (boost/neutral/penalise), and quality score adjustment.
+    Predict trade success probability using the feedback model (15 features).
+
+    For best accuracy pass either:
+      • snapshot  — the full feature_snapshot dict stored at trade creation, OR
+      • individual context fields (regime, atr_norm, bb_position, vol_ratio, …)
+
+    Without context fields the prediction falls back to neutral defaults for the
+    7 contextual features and uses only the 8 core trade-parameter features.
     """
     model = get_feedback_model()
     result = model.predict(
@@ -1389,8 +1507,122 @@ async def feedback_predict(body: FeedbackPredictRequest):
         expected_return_pct=body.expected_return_pct,
         strategy_tags=body.strategy_tags,
         trade_type=body.trade_type,
+        snapshot=body.snapshot,
+        regime=body.regime,
+        atr_norm=body.atr_norm,
+        bb_position=body.bb_position,
+        vol_ratio=body.vol_ratio,
+        sector_score=body.sector_score,
+        trend_score=body.trend_score,
+        gap_pct=body.gap_pct,
+        quality_score=body.quality_score,
     )
     return result
+
+
+# -------------------------------------------------------
+# Meta Filter Model endpoints
+# -------------------------------------------------------
+
+class _MetaTrainState:
+    is_training: bool = False
+    last_trained: str = None
+    last_result: dict = {}
+
+_meta_train_state = _MetaTrainState()
+
+
+def _run_meta_filter_training():
+    """Background task: train the meta filter model."""
+    from ml.meta_filter_model import MetaFilterModel, reload_meta_filter
+
+    _meta_train_state.is_training = True
+    steps = []
+
+    def progress_cb(step: str):
+        steps.append(step)
+        logger.info(f"[MetaFilter train] {step}")
+
+    try:
+        model  = MetaFilterModel()
+        result = model.train(progress_cb=progress_cb)
+        _meta_train_state.last_result  = result
+        _meta_train_state.last_trained = datetime.now().isoformat()
+        if "error" not in result:
+            reload_meta_filter()
+    except Exception as e:
+        logger.error(f"[MetaFilter train] Error: {e}")
+        _meta_train_state.last_result = {"error": str(e)}
+    finally:
+        _meta_train_state.is_training = False
+
+
+@app.post("/api/ml/meta/train")
+async def meta_filter_train(
+    background_tasks: BackgroundTasks,
+    _: str = Depends(require_admin),
+):
+    """
+    Train the meta filter model in the background. Admin only.
+
+    The meta filter learns which trade setups actually hit their target
+    before their stop loss using a realistic bar-by-bar simulation —
+    distinct from the price-direction model's simple 2% forward return.
+    """
+    if _meta_train_state.is_training:
+        return {"message": "Meta filter training already in progress", "status": "busy"}
+    background_tasks.add_task(_run_meta_filter_training)
+    return {"message": "Meta filter training started", "status": "started"}
+
+
+@app.get("/api/ml/meta/status")
+async def meta_filter_status():
+    """Return meta filter training status and model metrics."""
+    from ml.meta_filter_model import get_meta_filter
+    model = get_meta_filter()
+    return {
+        "is_training":  _meta_train_state.is_training,
+        "last_trained": _meta_train_state.last_trained,
+        "is_trained":   model.is_trained(),
+        "meta":         model.get_meta(),
+        "last_result":  _meta_train_state.last_result,
+    }
+
+
+class MetaFilterPredictRequest(BaseModel):
+    symbol: str
+
+
+@app.post("/api/ml/meta/predict")
+async def meta_filter_predict(body: MetaFilterPredictRequest):
+    """
+    Predict TAKE / AVOID for a single symbol using the meta filter.
+
+    Loads the latest OHLCV bars from the DB, computes features, and
+    returns take_trade_probability + decision.
+    """
+    import pandas as pd
+    from ml.meta_filter_model import get_meta_filter
+
+    symbol = body.symbol.strip().upper()
+    try:
+        engine = get_engine()
+        df     = pd.read_sql(
+            f"SELECT trade_date, open, high, low, close, volume "
+            f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
+            engine, params={"sym": symbol},
+        )
+        if df.empty or len(df) < 260:
+            return {
+                "symbol": symbol,
+                "error":  f"Insufficient data ({len(df)} bars, need ≥260)",
+            }
+        model  = get_meta_filter()
+        result = model.predict_symbol(df, symbol)
+        return result
+    except Exception as e:
+        logger.error(f"meta_filter_predict error for {symbol}: {e}")
+        return {"symbol": symbol, "error": str(e)}
 
 
 # -------------------------------------------------------
@@ -1661,29 +1893,141 @@ class TradeCloseRequest(BaseModel):
     notes:      str = ""
 
 
+def _build_trade_snapshot(symbol: str, strategy_tags: str,
+                           buy_probability: float, expected_return_pct: float) -> dict | None:
+    """
+    Compute and return a feature snapshot for storage at trade-log time.
+
+    Fetches the latest OHLCV bar from the DB, runs compute_features(), and
+    packages the 26 feature values alongside ML outputs, regime, and quality
+    score into a single JSON-serialisable dict.
+
+    Returns None on any failure — the trade is still logged without a snapshot.
+    """
+    try:
+        import pandas as pd
+        import numpy as np
+        from datetime import datetime as _dt
+        from ml.features import compute_features, FEATURE_NAMES
+        from ml.regime import compute_regime
+        from ml.quality_score import compute_quality_score
+
+        engine = get_engine()
+        df = pd.read_sql(
+            f"SELECT trade_date, open, high, low, close, volume "
+            f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
+            engine, params={"sym": symbol},
+        )
+        if df.empty or len(df) < 210:   # need ≥200 bars for SMA-200
+            return None
+
+        feats = compute_features(df)
+        latest_row = feats.iloc[-1][FEATURE_NAMES]
+        if latest_row.isnull().any():
+            return None
+
+        feature_dict = {k: round(float(v), 6) for k, v in latest_row.items()}
+
+        # Signal-bar opening gap: (open[-1] / close[-2]) - 1
+        # Captures overnight sentiment at the exact bar the signal fired.
+        gap_pct = None
+        if len(df) >= 2:
+            try:
+                gap_pct = round(
+                    float(df["open"].iloc[-1]) / float(df["close"].iloc[-2]) - 1, 6
+                )
+            except Exception:
+                pass
+
+        # Regime
+        try:
+            regime_data = compute_regime()
+            regime = regime_data.get("regime", "Neutral")
+        except Exception:
+            regime = "Neutral"
+
+        # Volume ratio for quality score
+        vol_ratio = feature_dict.get("vol_ratio")
+
+        # 3-month trend from raw close
+        closes = df["close"].values
+        trend_3m = None
+        if len(closes) >= 64:
+            trend_3m = round((float(closes[-1]) / float(closes[-64]) - 1) * 100, 2)
+
+        # Strategy list
+        strategies = [s.strip() for s in strategy_tags.split(",") if s.strip()]
+        strategy_count = len(strategies) or 1
+
+        qs = compute_quality_score(
+            buy_probability=buy_probability or 0.0,
+            regime=regime,
+            trend_return_3m=trend_3m,
+            vol_ratio=vol_ratio,
+            strategy_count=strategy_count,
+        )
+
+        return {
+            "features":            feature_dict,
+            "ml_prob":             round(float(buy_probability or 0.0), 4),
+            "expected_return_pct": round(float(expected_return_pct or 0.0), 4),
+            "regime":              regime,
+            "quality_score":       qs["score"],
+            "score_breakdown":     qs["breakdown"],
+            "strategies":          strategies,
+            "strategy_count":      strategy_count,
+            "gap_pct":             gap_pct,
+            "captured_at":         _dt.utcnow().isoformat(),
+        }
+
+    except Exception as e:
+        logger.warning(f"_build_trade_snapshot failed for {symbol}: {e}")
+        return None
+
+
 @app.post("/api/journal/trade")
 async def journal_log_trade(
     body: TradeLogRequest,
     _: str = Depends(require_admin),
 ):
     """Log a trade to the journal (paper or live)."""
+    import json as _json
+
+    symbol = body.symbol.upper()
+
+    # Compute feature snapshot synchronously — fast (~50ms) and keeps the
+    # INSERT atomic.  Falls back to NULL if any step fails.
+    snapshot = _build_trade_snapshot(
+        symbol=symbol,
+        strategy_tags=body.strategy_tags,
+        buy_probability=body.buy_probability,
+        expected_return_pct=body.expected_return_pct,
+    )
+    snapshot_json = _json.dumps(snapshot) if snapshot is not None else None
+
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO trade_journal
                     (symbol, strategy_tags, entry_price, stop_loss, target,
-                     trade_type, notes, buy_probability, expected_return_pct, quantity)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     trade_type, notes, buy_probability, expected_return_pct,
+                     quantity, feature_snapshot)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 RETURNING id
             """, (
-                body.symbol.upper(), body.strategy_tags, body.entry_price,
+                symbol, body.strategy_tags, body.entry_price,
                 body.stop_loss, body.target, body.trade_type, body.notes,
                 body.buy_probability, body.expected_return_pct, body.quantity,
+                snapshot_json,
             ))
             trade_id = cur.fetchone()[0]
         conn.commit()
-        return {"id": trade_id, "message": "Trade logged"}
+        return {
+            "id":               trade_id,
+            "message":          "Trade logged",
+            "snapshot_captured": snapshot is not None,
+        }
     finally:
         conn.close()
 
