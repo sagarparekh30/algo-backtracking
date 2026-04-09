@@ -81,21 +81,25 @@ def decode_token(token: str) -> dict:
 
 # ── DB user lookup ───────────────────────────────────────────────────────
 
-def _get_db_user(username: str) -> Optional[dict]:
-    """Fetch a user row from the DB. Returns None if not found."""
+def _get_db_user(identifier: str) -> Optional[dict]:
+    """
+    Fetch a user row by username OR mobile number.
+    Returns None if not found.
+    """
     try:
         from db.connection import get_conn
         conn = get_conn()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, username, email, password_hash, role, plan_type, "
-                "plan_start, plan_expiry, is_active FROM users WHERE username=%s",
-                (username,)
+                "SELECT id, username, email, mobile, password_hash, role, plan_type, "
+                "plan_start, plan_expiry, is_active FROM users "
+                "WHERE username=%s OR mobile=%s",
+                (identifier, identifier)
             )
             row = cur.fetchone()
             if not row:
                 return None
-            cols = ["id", "username", "email", "password_hash", "role",
+            cols = ["id", "username", "email", "mobile", "password_hash", "role",
                     "plan_type", "plan_start", "plan_expiry", "is_active"]
             return dict(zip(cols, row))
     except Exception:

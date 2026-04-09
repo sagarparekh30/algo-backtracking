@@ -1011,8 +1011,8 @@
     </div>
     <div id="login-error" style="display:none;background:#FCEBEB;color:#791F1F;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
     <div style="margin-bottom:14px;">
-      <div style="font-size:10px;color:#a0a0a0;margin-bottom:6px;font-weight:500;letter-spacing:.6px;text-transform:uppercase;">Username</div>
-      <input id="login-user" type="text" autocomplete="username" placeholder="admin"
+      <div style="font-size:10px;color:#a0a0a0;margin-bottom:6px;font-weight:500;letter-spacing:.6px;text-transform:uppercase;">Username or Mobile</div>
+      <input id="login-user" type="text" autocomplete="username" placeholder="Username or mobile number"
         style="width:100%;box-sizing:border-box;background:#f5f5f4;border:0.5px solid rgba(0,0,0,0.12);border-radius:10px;padding:11px 14px;color:#1a1a1a;font-size:14px;outline:none;"
         onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
     </div>
@@ -2569,12 +2569,13 @@
       </div>
 
       <!-- Create user -->
-      <div class="card card-p" style="border-top:2px solid #a855f7;display:flex;flex-direction:column;gap:10px;">
+      <div class="card card-p" style="border-top:2px solid var(--data);display:flex;flex-direction:column;gap:10px;">
         <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Create New User</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <input id="adm-new-username" placeholder="Username" class="adm-input">
-          <input id="adm-new-email" placeholder="Email" type="email" class="adm-input">
-          <input id="adm-new-pass" placeholder="Password" type="password" class="adm-input">
+          <input id="adm-new-username" placeholder="Username *" class="adm-input">
+          <input id="adm-new-email" placeholder="Email *" type="email" class="adm-input">
+          <input id="adm-new-pass" placeholder="Password *" type="password" class="adm-input">
+          <input id="adm-new-mobile" placeholder="Mobile (optional)" type="tel" class="adm-input">
           <select id="adm-new-plan" class="adm-input">
             <option value="1m">1 Month</option>
             <option value="3m" selected>3 Months</option>
@@ -2583,7 +2584,7 @@
           </select>
         </div>
         <button onclick="adminCreateUser()" id="adm-create-btn"
-          style="background:rgba(168,85,247,.15);color:#a855f7;border:1px solid rgba(168,85,247,.3);padding:10px;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;">
+          style="background:var(--data-d);color:var(--data);border:1px solid rgba(83,74,183,.3);padding:10px;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;">
           + Create User
         </button>
         <div id="adm-create-msg" style="font-size:12px;display:none;padding:8px;border-radius:8px;text-align:center;"></div>
@@ -2789,7 +2790,11 @@ async function jAuth(url, opts = {}) {
     showLogin();
     throw new Error('Session expired — please log in again.');
   }
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { const b = await r.json(); msg = b.detail || b.message || msg; } catch(_) {}
+    throw new Error(msg);
+  }
   return r.json();
 }
 
@@ -5033,11 +5038,12 @@ async function adminCreateUser() {
   const uname  = document.getElementById('adm-new-username').value.trim();
   const email  = document.getElementById('adm-new-email').value.trim();
   const pass   = document.getElementById('adm-new-pass').value;
+  const mobile = document.getElementById('adm-new-mobile').value.trim();
   const plan   = document.getElementById('adm-new-plan').value;
 
   msgEl.style.display = 'none';
   if (!uname || !email || !pass) {
-    msgEl.textContent = 'Fill in all fields';
+    msgEl.textContent = 'Username, email and password are required';
     msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:#FCEBEB;color:#A32D2D;';
     return;
   }
@@ -5045,15 +5051,16 @@ async function adminCreateUser() {
   btn.disabled = true;
   btn.textContent = 'Creating…';
   try {
-    await jAuth(`${API}/api/admin/users`, {
+    const res = await jAuth(`${API}/api/admin/users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: uname, email, password: pass, plan_type: plan }),
+      body: JSON.stringify({ username: uname, email, password: pass, mobile: mobile || null, plan_type: plan }),
     });
     document.getElementById('adm-new-username').value = '';
     document.getElementById('adm-new-email').value    = '';
     document.getElementById('adm-new-pass').value     = '';
-    msgEl.textContent = `User "${uname}" created successfully`;
+    document.getElementById('adm-new-mobile').value   = '';
+    msgEl.textContent = `✓ User "${uname}" created — welcome email sent to ${email}`;
     msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:#EAF3DE;color:var(--green);';
     await loadAdminUsers();
     await loadAdminStats();
@@ -5112,7 +5119,7 @@ async function loadAdminUsers() {
               </button>
             </div>
           </div>
-          <div style="font-size:11px;color:var(--txt3);">${u.email} · Joined ${u.created_at ? u.created_at.slice(0,10) : '—'} · Last login ${u.last_login ? u.last_login.slice(0,10) : 'never'}</div>
+          <div style="font-size:11px;color:var(--txt3);">${u.email}${u.mobile ? ' · 📱 ' + u.mobile : ''} · Joined ${u.created_at ? u.created_at.slice(0,10) : '—'} · Last login ${u.last_login ? u.last_login.slice(0,10) : 'never'}</div>
         </div>`;
     }).join('');
   } catch(e) {

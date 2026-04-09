@@ -2662,6 +2662,7 @@ class CreateUserRequest(BaseModel):
     username:   str
     email:      str
     password:   str
+    mobile:     Optional[str] = None
     plan_type:  str = "1m"    # 1m | 3m | 6m | 12m
     role:       str = "user"
 
@@ -2681,10 +2682,12 @@ async def admin_create_user(
     _: str = Depends(require_admin),
 ):
     """Create a new user with a subscription plan. Admin only."""
+    import asyncio
     from datetime import date, timedelta
     from dashboard.auth import hash_password as _hash
+    from utils.email_utils import send_welcome_email
 
-    days = PLAN_DAYS.get(body.plan_type, 30)
+    days   = PLAN_DAYS.get(body.plan_type, 30)
     today  = date.today()
     expiry = today + timedelta(days=days)
 
@@ -2692,16 +2695,14 @@ async def admin_create_user(
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO users (username, email, password_hash, role, plan_type, plan_start, plan_expiry)
-                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+                INSERT INTO users (username, email, password_hash, role, plan_type, plan_start, plan_expiry, mobile)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
             """, (
                 body.username, body.email, _hash(body.password),
-                body.role, body.plan_type, today, expiry,
+                body.role, body.plan_type, today, expiry, body.mobile,
             ))
             user_id = cur.fetchone()[0]
         conn.commit()
-        return {"id": user_id, "username": body.username,
-                "plan_expiry": str(expiry), "message": "User created"}
     except Exception as e:
         conn.rollback()
         if "unique" in str(e).lower():
@@ -2709,6 +2710,15 @@ async def admin_create_user(
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+    # Send welcome email in background (don't block the response)
+    asyncio.get_event_loop().run_in_executor(None, send_welcome_email,
+        body.email, body.username, body.password,
+        body.plan_type, str(expiry), body.mobile,
+    )
+
+    return {"id": user_id, "username": body.username,
+            "plan_expiry": str(expiry), "message": "User created"}
 
 
 @app.get("/api/admin/users")
@@ -2719,7 +2729,7 @@ async def admin_list_users(_: str = Depends(require_admin)):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, username, email, role, plan_type,
+                SELECT id, username, email, mobile, role, plan_type,
                        plan_start, plan_expiry, is_active, created_at, last_login
                 FROM users ORDER BY created_at DESC
             """)
@@ -2847,15 +2857,17 @@ async def auth_login(body: dict):
     if not user:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
 
+    # Always use the actual username from DB (login may have used mobile number)
+    actual_username = user.get("username", username)
     role  = user.get("role", "user")
-    token = create_access_token(username, role=role)
+    token = create_access_token(actual_username, role=role)
 
     # Update last_login for DB users
     if role != "admin":
         try:
             conn = get_conn()
             with conn.cursor() as cur:
-                cur.execute("UPDATE users SET last_login=NOW() WHERE username=%s", (username,))
+                cur.execute("UPDATE users SET last_login=NOW() WHERE username=%s", (actual_username,))
             conn.commit()
             conn.close()
         except Exception:
@@ -2865,7 +2877,7 @@ async def auth_login(body: dict):
         "access_token": token,
         "token_type":   "bearer",
         "role":         role,
-        "username":     username,
+        "username":     actual_username,
         "plan_type":    user.get("plan_type"),
         "plan_expiry":  str(user.get("plan_expiry", "")),
     }
