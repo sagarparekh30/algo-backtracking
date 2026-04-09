@@ -13,7 +13,8 @@ import os
 import sys
 import logging
 import math
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 
 import pandas as pd
 import numpy as np
@@ -64,12 +65,13 @@ class BacktestEngine:
         Args:
             strategy_id: Strategy key (e.g. 'golden_rsi').
             symbol: If provided, only backtest this symbol; else all symbols.
-            start_date: ISO date string filter (optional).
-            end_date: ISO date string filter (optional).
+            start_date: ISO date string — only count trades on or after this date.
+            end_date: ISO date string — only count trades on or before this date.
 
         Returns:
             dict with keys: trades, metrics, equity_curve, per_symbol
         """
+        _t0 = time.time()
         all_trades = []
         per_symbol = {}
 
@@ -85,6 +87,22 @@ class BacktestEngine:
                 "error": f"Unknown strategy: {strategy_id}",
             }
 
+        # Parse the requested trade window (for post-simulation filtering)
+        trade_start = pd.to_datetime(start_date) if start_date else None
+        trade_end   = pd.to_datetime(end_date)   if end_date   else None
+
+        # Extend the data load window backwards so indicators are fully warmed
+        # up before the first bar the user asked about.
+        # MIN_HISTORY=200 trading days ≈ 280 calendar days.  We add an extra
+        # 60-day buffer to handle weekends/holidays, giving ~340 days total.
+        # This is fixed regardless of how short the requested trade window is —
+        # so even a 1W or 15D backtest gets correct RSI/EMA/MACD values.
+        WARMUP_CALENDAR_DAYS = int(MIN_HISTORY * 1.7)   # ~340 days
+        if trade_start is not None:
+            data_start = (trade_start - timedelta(days=WARMUP_CALENDAR_DAYS)).strftime("%Y-%m-%d")
+        else:
+            data_start = None
+
         try:
             conn = get_engine()
 
@@ -97,11 +115,19 @@ class BacktestEngine:
 
             for sym in symbols:
                 try:
-                    df = self._load_symbol_data(sym, start_date, end_date)
+                    # Load with warm-up buffer; end_date stays as requested
+                    df = self._load_symbol_data(sym, data_start, end_date)
                     if df is None or len(df) < MIN_HISTORY + 5:
                         continue
 
                     trades = self._simulate_symbol(df, sym, strategy_fn)
+
+                    # Filter trades to the user-requested date window
+                    if trade_start is not None:
+                        trades = [t for t in trades if pd.to_datetime(t["entry_date"]) >= trade_start]
+                    if trade_end is not None:
+                        trades = [t for t in trades if pd.to_datetime(t["entry_date"]) <= trade_end]
+
                     if trades:
                         all_trades.extend(trades)
                         per_symbol[sym] = self._calculate_metrics(
@@ -115,13 +141,170 @@ class BacktestEngine:
 
         metrics = self._calculate_metrics(all_trades, self.initial_capital)
         equity_curve = self._build_equity_curve(all_trades, self.initial_capital)
+        elapsed_ms = int((time.time() - _t0) * 1000)
 
-        return {
+        result = {
             "trades": all_trades,
             "metrics": metrics,
             "equity_curve": equity_curve,
             "per_symbol": per_symbol,
         }
+
+        # Persist run to DB (non-blocking — failure does not affect the result)
+        try:
+            run_id = self._persist_run(
+                strategy_id=strategy_id,
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                metrics=metrics,
+                trades=all_trades,
+                equity_curve=equity_curve,
+                per_symbol=per_symbol,
+                elapsed_ms=elapsed_ms,
+            )
+            result["run_id"] = run_id
+        except Exception as e:
+            logger.warning(f"Could not persist backtest run: {e}")
+
+        return result
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    def _persist_run(
+        self,
+        strategy_id: str,
+        symbol: str | None,
+        start_date: str | None,
+        end_date: str | None,
+        metrics: dict,
+        trades: list,
+        equity_curve: list,
+        per_symbol: dict,
+        elapsed_ms: int = 0,
+    ) -> int | None:
+        """
+        Save a completed backtest run to the DB.
+        Returns the run_id on success, None on failure.
+        """
+        engine = get_engine()
+        with engine.begin() as conn:
+            # 1. Insert run summary
+            row = conn.execute(
+                """
+                INSERT INTO backtest_runs (
+                    strategy, symbol, start_date, end_date,
+                    capital, risk_pct,
+                    total_trades, win_count, loss_count, win_rate,
+                    total_pnl, total_pnl_pct, avg_pnl_trade,
+                    max_drawdown, max_drawdown_pct,
+                    sharpe_ratio, profit_factor,
+                    best_trade, worst_trade, avg_hold_days,
+                    run_duration_ms
+                ) VALUES (
+                    %(strategy)s, %(symbol)s, %(start_date)s, %(end_date)s,
+                    %(capital)s, %(risk_pct)s,
+                    %(total_trades)s, %(win_count)s, %(loss_count)s, %(win_rate)s,
+                    %(total_pnl)s, %(total_pnl_pct)s, %(avg_pnl_trade)s,
+                    %(max_drawdown)s, %(max_drawdown_pct)s,
+                    %(sharpe_ratio)s, %(profit_factor)s,
+                    %(best_trade)s, %(worst_trade)s, %(avg_hold_days)s,
+                    %(run_duration_ms)s
+                )
+                RETURNING id
+                """,
+                {
+                    "strategy":        strategy_id,
+                    "symbol":          symbol,
+                    "start_date":      start_date,
+                    "end_date":        end_date,
+                    "capital":         self.initial_capital,
+                    "risk_pct":        self.risk_manager.risk_pct,
+                    "total_trades":    metrics.get("total_trades", 0),
+                    "win_count":       metrics.get("win_count", 0),
+                    "loss_count":      metrics.get("loss_count", 0),
+                    "win_rate":        metrics.get("win_rate"),
+                    "total_pnl":       metrics.get("total_pnl"),
+                    "total_pnl_pct":   metrics.get("total_pnl_pct"),
+                    "avg_pnl_trade":   metrics.get("avg_pnl_per_trade"),
+                    "max_drawdown":    metrics.get("max_drawdown"),
+                    "max_drawdown_pct":metrics.get("max_drawdown_pct"),
+                    "sharpe_ratio":    metrics.get("sharpe_ratio"),
+                    "profit_factor":   metrics.get("profit_factor"),
+                    "best_trade":      metrics.get("best_trade"),
+                    "worst_trade":     metrics.get("worst_trade"),
+                    "avg_hold_days":   metrics.get("avg_hold_days"),
+                    "run_duration_ms": elapsed_ms,
+                },
+            )
+            run_id = row.fetchone()[0]
+
+            # 2. Insert individual trades
+            if trades:
+                conn.execute(
+                    """
+                    INSERT INTO backtest_trades (
+                        run_id, symbol, entry_date, exit_date,
+                        entry_price, exit_price, stop_loss, target,
+                        shares, pnl, pnl_pct, exit_reason, hold_days
+                    ) VALUES (
+                        %(run_id)s, %(symbol)s, %(entry_date)s, %(exit_date)s,
+                        %(entry_price)s, %(exit_price)s, %(stop_loss)s, %(target)s,
+                        %(shares)s, %(pnl)s, %(pnl_pct)s, %(exit_reason)s, %(hold_days)s
+                    )
+                    """,
+                    [{"run_id": run_id, **t} for t in trades],
+                )
+
+            # 3. Insert equity curve
+            if equity_curve:
+                conn.execute(
+                    """
+                    INSERT INTO backtest_equity_curve (run_id, curve_date, equity)
+                    VALUES (%(run_id)s, %(date)s, %(equity)s)
+                    ON CONFLICT (run_id, curve_date) DO UPDATE SET equity = EXCLUDED.equity
+                    """,
+                    [{"run_id": run_id, "date": p["date"], "equity": p["equity"]}
+                     for p in equity_curve],
+                )
+
+            # 4. Insert per-symbol summary
+            if per_symbol:
+                conn.execute(
+                    """
+                    INSERT INTO backtest_per_symbol (
+                        run_id, symbol, total_trades, win_count, loss_count,
+                        win_rate, total_pnl, total_pnl_pct,
+                        sharpe_ratio, profit_factor, max_drawdown
+                    ) VALUES (
+                        %(run_id)s, %(symbol)s, %(total_trades)s, %(win_count)s, %(loss_count)s,
+                        %(win_rate)s, %(total_pnl)s, %(total_pnl_pct)s,
+                        %(sharpe_ratio)s, %(profit_factor)s, %(max_drawdown)s
+                    )
+                    ON CONFLICT (run_id, symbol) DO NOTHING
+                    """,
+                    [
+                        {
+                            "run_id":       run_id,
+                            "symbol":       sym,
+                            "total_trades": m.get("total_trades"),
+                            "win_count":    m.get("win_count"),
+                            "loss_count":   m.get("loss_count"),
+                            "win_rate":     m.get("win_rate"),
+                            "total_pnl":    m.get("total_pnl"),
+                            "total_pnl_pct":m.get("total_pnl_pct"),
+                            "sharpe_ratio": m.get("sharpe_ratio"),
+                            "profit_factor":m.get("profit_factor"),
+                            "max_drawdown": m.get("max_drawdown"),
+                        }
+                        for sym, m in per_symbol.items()
+                    ],
+                )
+
+        logger.info(f"Backtest run {run_id} persisted ({len(trades)} trades, {elapsed_ms}ms)")
+        return run_id
 
     # ------------------------------------------------------------------
     # Data loading
@@ -133,27 +316,39 @@ class BacktestEngine:
         start_date: str = None,
         end_date: str = None,
     ) -> pd.DataFrame | None:
-        """Load OHLCV data for a symbol from the database."""
+        """
+        Load OHLCV data for a symbol from the database.
+
+        start_date / end_date bound the rows fetched from the DB.
+        For backtesting with a user date range, callers should pass a
+        start_date that includes the warm-up buffer (see run()).
+        """
         try:
             engine = get_engine()
+
+            # Build query with optional date bounds pushed to SQL for efficiency
+            conditions = ["symbol = %(sym)s"]
+            params: dict = {"sym": symbol}
+            if start_date:
+                conditions.append("trade_date >= %(start)s")
+                params["start"] = start_date
+            if end_date:
+                conditions.append("trade_date <= %(end)s")
+                params["end"] = end_date
+
+            where = " AND ".join(conditions)
             query = (
                 f"SELECT trade_date, open, high, low, close, volume "
-                f"FROM {self.table_name} WHERE symbol = %(sym)s ORDER BY trade_date ASC"
+                f"FROM {self.table_name} WHERE {where} ORDER BY trade_date ASC"
             )
-            df = pd.read_sql(query, engine, params={"sym": symbol})
+            df = pd.read_sql(query, engine, params=params)
 
             if df.empty:
                 return None
 
             df["trade_date"] = pd.to_datetime(df["trade_date"])
-
-            if start_date:
-                df = df[df["trade_date"] >= pd.to_datetime(start_date)]
-            if end_date:
-                df = df[df["trade_date"] <= pd.to_datetime(end_date)]
-
             df = df.reset_index(drop=True)
-            return df if len(df) > 0 else None
+            return df
 
         except Exception as e:
             logger.error(f"_load_symbol_data error for {symbol}: {e}")

@@ -159,7 +159,7 @@ def fiftytwo_week_scan(symbols: list = None) -> list:
             vol_ratio  = round(today_vol / recent_vol, 1) if recent_vol > 0 else None
 
             # Breakout flag: within 2% of 52W high with above-avg volume
-            is_breakout = pct_from_high >= -2.0 and (vol_ratio or 0) >= 1.2
+            is_breakout = bool(pct_from_high >= -2.0 and (vol_ratio or 0) >= 1.2)
 
             results.append({
                 "symbol":         sym,

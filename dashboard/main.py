@@ -1,3 +1,9 @@
+import logging
+import numpy as np
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
 import os
 import json
 import asyncio
@@ -2410,6 +2416,240 @@ async def run_backtest(
             end_date=end,
         )
         return result
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# -------------------------------------------------------
+# Price Action
+# -------------------------------------------------------
+
+@app.get("/api/price-action")
+async def price_action(
+    symbol: str,
+    days:   int = 30,
+    _: dict = Depends(require_user),
+):
+    """
+    Return OHLCV candles with derived price-action metrics for a symbol.
+
+    Derived columns per bar:
+      change_pct      — % change vs previous close
+      range_pct       — (high-low)/close × 100  (intraday volatility)
+      body_pct        — (close-open)/open × 100  (candle body direction & size)
+      upper_wick_pct  — upper wick as % of total range
+      lower_wick_pct  — lower wick as % of total range
+      gap_pct         — (open - prev_close)/prev_close × 100
+      vol_ratio       — volume / 20-day avg volume
+      pattern         — simple candlestick pattern label
+    Plus summary stats: trend, avg_range, avg_volume, 52w_high/low.
+    """
+    symbol = symbol.strip().upper()
+    days   = max(5, min(days, 365 * 5))   # clamp 5 – 1825 days
+
+    try:
+        engine = get_engine()
+
+        # Fetch candles with a 30-day extra buffer for vol_ratio MA
+        df = pd.read_sql(
+            f"""
+            SELECT trade_date, open, high, low, close, volume
+            FROM {TABLE_NAME}
+            WHERE symbol = %(sym)s
+            ORDER BY trade_date ASC
+            """,
+            engine,
+            params={"sym": symbol},
+        )
+
+        if df.empty:
+            return {"error": f"No data found for {symbol}"}
+
+        df["trade_date"] = pd.to_datetime(df["trade_date"])
+
+        # ── Derived columns ────────────────────────────────────────────
+        df["prev_close"]     = df["close"].shift(1)
+        df["change_pct"]     = ((df["close"] - df["prev_close"]) / df["prev_close"] * 100).round(2)
+        df["gap_pct"]        = ((df["open"]  - df["prev_close"]) / df["prev_close"] * 100).round(2)
+        df["range_pct"]      = ((df["high"]  - df["low"])        / df["close"]       * 100).round(2)
+        df["body_pct"]       = ((df["close"] - df["open"])       / df["open"]        * 100).round(2)
+
+        total_range = (df["high"] - df["low"]).replace(0, float("nan"))
+        body_high   = df[["open", "close"]].max(axis=1)
+        body_low    = df[["open", "close"]].min(axis=1)
+        df["upper_wick_pct"] = ((df["high"] - body_high) / total_range * 100).round(2)
+        df["lower_wick_pct"] = ((body_low  - df["low"])  / total_range * 100).round(2)
+
+        # 20-day rolling average volume for vol_ratio
+        df["vol_ma20"]   = df["volume"].rolling(20).mean()
+        df["vol_ratio"]  = (df["volume"] / df["vol_ma20"]).round(2)
+
+        # Simple pattern detection
+        def _pattern(row):
+            if pd.isna(row["prev_close"]):
+                return None
+            body   = abs(row["body_pct"])
+            upper  = row["upper_wick_pct"] or 0
+            lower  = row["lower_wick_pct"] or 0
+            is_bull = row["close"] >= row["open"]
+
+            if body < 0.1:
+                return "Doji"
+            if lower >= 60 and body < 30 and is_bull:
+                return "Hammer"
+            if lower >= 60 and body < 30 and not is_bull:
+                return "Hanging Man"
+            if upper >= 60 and body < 30 and is_bull:
+                return "Inverted Hammer"
+            if upper >= 60 and body < 30 and not is_bull:
+                return "Shooting Star"
+            if body >= 60 and is_bull:
+                return "Bullish Marubozu" if upper < 5 and lower < 5 else "Bullish"
+            if body >= 60 and not is_bull:
+                return "Bearish Marubozu" if upper < 5 and lower < 5 else "Bearish"
+            return "Bullish" if is_bull else "Bearish"
+
+        df["pattern"] = df.apply(_pattern, axis=1)
+
+        # ── Trim to requested window ───────────────────────────────────
+        df = df.tail(days).copy()
+
+        # ── Summary stats ──────────────────────────────────────────────
+        last  = df.iloc[-1]
+        high_52w = float(df["high"].tail(252).max())
+        low_52w  = float(df["low"].tail(252).min())
+        close_now = float(last["close"])
+
+        # Simple trend: compare latest close to 20-bar SMA
+        sma20 = float(df["close"].tail(20).mean())
+        sma50 = float(df["close"].tail(50).mean()) if len(df) >= 50 else None
+
+        # Consecutive green/red streak
+        streak = 0
+        streak_dir = "green" if df.iloc[-1]["body_pct"] >= 0 else "red"
+        for _, row in df.iloc[::-1].iterrows():
+            if (row["body_pct"] >= 0) == (streak_dir == "green"):
+                streak += 1
+            else:
+                break
+
+        summary = {
+            "symbol":           symbol,
+            "last_close":       close_now,
+            "change_pct":       float(last["change_pct"]) if not pd.isna(last["change_pct"]) else None,
+            "high_52w":         round(high_52w, 2),
+            "low_52w":          round(low_52w, 2),
+            "pct_from_52w_high": round((close_now - high_52w) / high_52w * 100, 2),
+            "pct_from_52w_low":  round((close_now - low_52w)  / low_52w  * 100, 2),
+            "sma20":            round(sma20, 2),
+            "sma50":            round(sma50, 2) if sma50 else None,
+            "trend":            "Above SMA20" if close_now > sma20 else "Below SMA20",
+            "avg_range_pct":    round(float(df["range_pct"].mean()), 2),
+            "avg_vol_ratio":    round(float(df["vol_ratio"].dropna().mean()), 2),
+            "streak":           streak,
+            "streak_dir":       streak_dir,
+            "total_candles":    len(df),
+            "bull_candles":     int((df["body_pct"] >= 0).sum()),
+            "bear_candles":     int((df["body_pct"] < 0).sum()),
+        }
+
+        # ── Serialise candles ──────────────────────────────────────────
+        df["trade_date"] = df["trade_date"].dt.strftime("%Y-%m-%d")
+        df = df.drop(columns=["prev_close", "vol_ma20"])
+        df = df.where(pd.notna(df), None)
+
+        candles = df.iloc[::-1].to_dict(orient="records")   # newest first
+
+        return {"summary": summary, "candles": candles}
+
+    except Exception as e:
+        logger.error(f"price_action error for {symbol}: {e}")
+        return {"error": str(e)}
+
+
+# -------------------------------------------------------
+# Backtest — Run History
+# -------------------------------------------------------
+
+@app.get("/api/backtest/history")
+async def backtest_history(
+    strategy: str = None,
+    symbol:   str = None,
+    limit:    int = 20,
+    _: dict = Depends(require_user),
+):
+    """
+    Return recent backtest runs, newest first.
+    Optionally filter by strategy or symbol.
+    """
+    try:
+        engine = get_engine()
+        conditions = []
+        params: dict = {"limit": min(limit, 100)}
+
+        if strategy:
+            conditions.append("strategy = %(strategy)s")
+            params["strategy"] = strategy
+        if symbol:
+            conditions.append("symbol = %(symbol)s")
+            params["symbol"] = symbol.upper()
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        rows = pd.read_sql(
+            f"""
+            SELECT id, strategy, symbol, period_label,
+                   start_date::text, end_date::text,
+                   capital, risk_pct,
+                   total_trades, win_count, loss_count, win_rate,
+                   total_pnl, total_pnl_pct,
+                   max_drawdown, max_drawdown_pct,
+                   sharpe_ratio, profit_factor,
+                   avg_hold_days, best_trade, worst_trade,
+                   run_duration_ms,
+                   created_at::text
+            FROM backtest_runs
+            {where}
+            ORDER BY created_at DESC
+            LIMIT %(limit)s
+            """,
+            engine,
+            params=params,
+        )
+        return {"runs": rows.to_dict(orient="records")}
+    except Exception as e:
+        return {"error": str(e), "runs": []}
+
+
+@app.get("/api/backtest/history/{run_id}/trades")
+async def backtest_run_trades(
+    run_id: int,
+    _: dict = Depends(require_user),
+):
+    """Return all trades for a specific backtest run."""
+    try:
+        engine = get_engine()
+        trades = pd.read_sql(
+            """
+            SELECT symbol, entry_date::text, exit_date::text,
+                   entry_price, exit_price, stop_loss, target,
+                   shares, pnl, pnl_pct, exit_reason, hold_days
+            FROM backtest_trades
+            WHERE run_id = %(run_id)s
+            ORDER BY entry_date ASC
+            """,
+            engine,
+            params={"run_id": run_id},
+        )
+        run = pd.read_sql(
+            "SELECT strategy, symbol, period_label, start_date::text, end_date::text FROM backtest_runs WHERE id = %(id)s",
+            engine,
+            params={"id": run_id},
+        )
+        return {
+            "run_id": run_id,
+            "meta": run.iloc[0].to_dict() if not run.empty else {},
+            "trades": trades.to_dict(orient="records"),
+        }
     except Exception as e:
         return {"error": str(e)}
 
