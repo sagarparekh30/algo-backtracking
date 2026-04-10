@@ -34,6 +34,7 @@ import load_env  # noqa: F401
 from config.settings import (
     SCHEDULER_ENABLED,
     SCHEDULER_DATA_UPDATE_TIME,
+    SCHEDULER_ML_DAILY_TIME,
     SCHEDULER_ML_RETRAIN_DAY,
     SCHEDULER_ML_RETRAIN_TIME,
     LOG_DIR,
@@ -46,12 +47,15 @@ IST = pytz.timezone("Asia/Kolkata")
 # ── Shared state (read by the API) ──────────────────────────────────────
 class SchedulerState:
     scheduler: BackgroundScheduler = None
-    last_data_update:  str = "Never"
-    last_data_result:  dict = {}
-    last_ml_retrain:   str = "Never"
-    last_ml_result:    dict = {}
-    data_update_running: bool = False
-    ml_retrain_running:  bool = False
+    last_data_update:    str = "Never"
+    last_data_result:    dict = {}
+    last_ml_retrain:     str = "Never"
+    last_ml_result:      dict = {}
+    last_daily_ml:       str = "Never"
+    last_daily_ml_result: dict = {}
+    data_update_running:  bool = False
+    ml_retrain_running:   bool = False
+    daily_ml_running:     bool = False
 
 
 _state = SchedulerState()
@@ -209,8 +213,18 @@ def _job_daily_data_update():
         }
         logger.info(f"[Scheduler] Daily data update done. candles={total_candles} success={success}")
 
-        # After data is refreshed, run combined signals and send Telegram alert
+        # After data is refreshed: retrain ML model, then send Telegram alert
         if success:
+            # Trigger daily ML retrain in a background thread so it doesn't
+            # block the data-update job from completing
+            import threading
+            threading.Thread(
+                target=_job_daily_ml_retrain,
+                name="post-fetch-ml-retrain",
+                daemon=True,
+            ).start()
+            logger.info("[Scheduler] Triggered daily ML retrain after data update.")
+
             try:
                 _run_execute_alert()
             except Exception as e:
@@ -226,39 +240,70 @@ def _job_daily_data_update():
         _state.data_update_running = False
 
 
+def _run_ml_retrain(label: str) -> dict:
+    """
+    Core ML retrain logic — shared by daily and weekly jobs.
+    Returns result dict.
+    """
+    started = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
+    logger.info(f"[Scheduler] {label} ML retrain started at {started}")
+    try:
+        from ml.model import MLPredictor
+        predictor = MLPredictor()
+        meta = predictor.train()
+        completed = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
+        # meta.horizons contains per-horizon AUC — pick the first available
+        horizons = meta.get("horizons", {})
+        first_h = next(iter(horizons.values()), {}) if horizons else {}
+        auc = first_h.get("auc_roc") or meta.get("auc_roc")
+        result = {
+            "success":       True,
+            "started_at":    started,
+            "completed_at":  completed,
+            "auc_roc":       auc,
+            "symbols_used":  meta.get("symbols_used"),
+            "train_samples": meta.get("train_samples"),
+            "error":         meta.get("error"),
+        }
+        logger.info(f"[Scheduler] {label} ML retrain done. AUC={auc} symbols={meta.get('symbols_used')}")
+        return result
+    except Exception as e:
+        logger.error(f"[Scheduler] {label} ML retrain error: {e}")
+        return {"success": False, "error": str(e), "started_at": started}
+
+
+def _job_daily_ml_retrain():
+    """
+    Daily ML retrain — runs every weekday after the data update (default 18:00 IST).
+    Incremental retrain on latest data.
+    """
+    if _state.daily_ml_running or _state.ml_retrain_running:
+        logger.warning("[Scheduler] Daily ML retrain skipped — another retrain already running.")
+        return
+
+    _state.daily_ml_running = True
+    try:
+        result = _run_ml_retrain("Daily")
+        _state.last_daily_ml = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
+        _state.last_daily_ml_result = result
+    finally:
+        _state.daily_ml_running = False
+
+
 def _job_weekly_ml_retrain():
     """
     Full ML retrain job — runs every Sunday night.
     Trains on all available history in the DB (up to 10 years).
     """
     if _state.ml_retrain_running:
-        logger.warning("[Scheduler] ML retrain already running — skipping.")
+        logger.warning("[Scheduler] Weekly ML retrain already running — skipping.")
         return
 
     _state.ml_retrain_running = True
-    started = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
-    logger.info(f"[Scheduler] Weekly ML retrain started at {started}")
-
     try:
-        from ml.model import MLPredictor
-        predictor = MLPredictor()
-        meta = predictor.train()
-
+        result = _run_ml_retrain("Weekly")
         _state.last_ml_retrain = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
-        _state.last_ml_result  = {
-            "started_at":   started,
-            "completed_at": _state.last_ml_retrain,
-            "auc_roc":      meta.get("auc_roc"),
-            "accuracy":     meta.get("accuracy"),
-            "symbols_used": meta.get("symbols_used"),
-            "train_samples":meta.get("train_samples"),
-            "error":        meta.get("error"),
-        }
-        logger.info(f"[Scheduler] ML retrain done. AUC={meta.get('auc_roc')} acc={meta.get('accuracy')}")
-
-    except Exception as e:
-        _state.last_ml_result = {"success": False, "error": str(e), "started_at": started}
-        logger.error(f"[Scheduler] ML retrain error: {e}")
+        _state.last_ml_result = result
     finally:
         _state.ml_retrain_running = False
 
@@ -293,7 +338,25 @@ def start_scheduler():
         misfire_grace_time=3600,
     )
 
-    # ── Job 2: Weekly ML retrain ────────────────────────────────────────
+    # ── Job 2: Daily ML retrain (Mon–Fri after data update) ────────────
+    if SCHEDULER_ML_DAILY_TIME:
+        dml_h, dml_m = SCHEDULER_ML_DAILY_TIME.split(":")
+        scheduler.add_job(
+            _job_daily_ml_retrain,
+            trigger=CronTrigger(
+                day_of_week="mon-fri",
+                hour=int(dml_h),
+                minute=int(dml_m),
+                timezone=IST,
+            ),
+            id="daily_ml_retrain",
+            name="Daily ML Retrain",
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+
+    # ── Job 3: Weekly deep ML retrain (Sunday night) ────────────────────
     ml_h, ml_m = SCHEDULER_ML_RETRAIN_TIME.split(":")
     scheduler.add_job(
         _job_weekly_ml_retrain,
@@ -316,7 +379,8 @@ def start_scheduler():
     logger.info(
         f"[Scheduler] Started. "
         f"Data update: Mon–Fri {SCHEDULER_DATA_UPDATE_TIME} IST | "
-        f"ML retrain: {SCHEDULER_ML_RETRAIN_DAY.capitalize()} {SCHEDULER_ML_RETRAIN_TIME} IST"
+        f"Daily ML retrain: Mon–Fri {SCHEDULER_ML_DAILY_TIME} IST | "
+        f"Weekly deep retrain: {SCHEDULER_ML_RETRAIN_DAY.capitalize()} {SCHEDULER_ML_RETRAIN_TIME} IST"
     )
 
 
@@ -344,13 +408,19 @@ def get_scheduler_status() -> dict:
         "running":               bool(_state.scheduler and _state.scheduler.running),
         "jobs":                  jobs,
         "data_update": {
-            "schedule":          f"Mon–Fri {SCHEDULER_DATA_UPDATE_TIME} IST",
+            "schedule":          f"Mon–Fri {SCHEDULER_DATA_UPDATE_TIME} IST (after market close)",
             "last_run":          _state.last_data_update,
             "last_result":       _state.last_data_result,
             "currently_running": _state.data_update_running,
         },
-        "ml_retrain": {
-            "schedule":          f"{SCHEDULER_ML_RETRAIN_DAY.capitalize()} {SCHEDULER_ML_RETRAIN_TIME} IST",
+        "daily_ml_retrain": {
+            "schedule":          f"Mon–Fri {SCHEDULER_ML_DAILY_TIME} IST (auto after data fetch)",
+            "last_run":          _state.last_daily_ml,
+            "last_result":       _state.last_daily_ml_result,
+            "currently_running": _state.daily_ml_running,
+        },
+        "weekly_ml_retrain": {
+            "schedule":          f"{SCHEDULER_ML_RETRAIN_DAY.capitalize()} {SCHEDULER_ML_RETRAIN_TIME} IST (deep retrain)",
             "last_run":          _state.last_ml_retrain,
             "last_result":       _state.last_ml_result,
             "currently_running": _state.ml_retrain_running,
@@ -376,11 +446,11 @@ def trigger_ml_retrain_now():
     """Manually trigger ML retrain outside the schedule."""
     if _state.scheduler:
         _state.scheduler.add_job(
-            _job_weekly_ml_retrain,
+            _job_daily_ml_retrain,
             id="manual_ml_retrain",
             name="Manual ML Retrain",
             replace_existing=True,
         )
     else:
         import threading
-        threading.Thread(target=_job_weekly_ml_retrain, daemon=True).start()
+        threading.Thread(target=_job_daily_ml_retrain, daemon=True).start()

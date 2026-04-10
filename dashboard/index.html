@@ -4,7 +4,10 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
   <title>Apex Trading</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/></noscript>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -998,7 +1001,7 @@
 
 <!-- ══════════════════════════════════ LOGIN MODAL -->
 <div id="login-overlay" style="
-  display:none;position:fixed;inset:0;z-index:9999;
+  display:flex;position:fixed;inset:0;z-index:9999;
   background:rgba(0,0,0,0.35);backdrop-filter:blur(6px);
   align-items:center;justify-content:center;">
   <div style="
@@ -1043,7 +1046,7 @@
       <span>Auth</span>
     </div>
     <span id="plan-info-chip" style="display:none;"></span>
-    <span id="admin-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 10px;background:rgba(99,102,241,.18);color:#534AB7;border-radius:999px;cursor:pointer;" onclick="doLogout()" title="Click to sign out"></span>
+    <span id="admin-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 10px;background:var(--s2);color:var(--txt2);border-radius:999px;cursor:pointer;border:0.5px solid var(--border);" onclick="openMoreSheet()" title="Account & sign out"></span>
   </div>
 </header>
 
@@ -1213,6 +1216,19 @@
       <div id="run-banner" style="display:none;" class="run-banner">
         <div class="spin" style="color:var(--data)"></div>
         <span>Syncing — <strong id="cur-sym">...</strong></span>
+      </div>
+
+      <!-- First-run bootstrap banner -->
+      <div id="bootstrap-banner" style="display:none;background:linear-gradient(135deg,#1e3a5f,#0f2540);color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px;gap:12px;align-items:flex-start;">
+        <div style="font-size:20px;flex-shrink:0;">🚀</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:4px;">First-Run Setup in Progress</div>
+          <div style="font-size:12px;opacity:.85;" id="bootstrap-step-label">Initialising...</div>
+          <div style="background:rgba(255,255,255,.15);border-radius:4px;height:4px;margin-top:8px;overflow:hidden;">
+            <div id="bootstrap-progress-bar" style="height:100%;background:#4ade80;border-radius:4px;transition:width .4s ease;width:0%"></div>
+          </div>
+          <div style="font-size:11px;opacity:.7;margin-top:4px;" id="bootstrap-progress-detail"></div>
+        </div>
       </div>
 
       <!-- Tiles -->
@@ -1463,26 +1479,72 @@
             <optgroup label="── Trend Following">
               <option value="golden_rsi">Golden RSI — Bullish Pullback</option>
               <option value="sma_cross">SMA 20/50 Cross — Momentum</option>
-              <option value="macd_cross">MACD Cross — Trend Reversal</option>
               <option value="golden_cross">Golden Cross — SMA 50/200</option>
-              <option value="supertrend">Supertrend — ATR Trend Flip</option>
-              <option value="adx_trend">ADX Trend — Strong Uptrend</option>
+              <option value="triple_ma">Triple MA — 20/50/200 Stack</option>
               <option value="ema_ribbon">EMA Ribbon — 8/21/55 Align</option>
+              <option value="ma_price_action">MA Price Action — Bounce</option>
+              <option value="supertrend">Supertrend — ATR Trend Flip</option>
+              <option value="supertrend_ema">Supertrend + EMA Confirm</option>
+              <option value="supertrend_volume">Supertrend + Volume</option>
+              <option value="supertrend_adx">Supertrend + ADX</option>
+              <option value="supertrend_adx_vol">Supertrend + ADX + Volume</option>
+              <option value="adx_trend">ADX Trend — Strong Uptrend</option>
+              <option value="adx_breakout">ADX Breakout — New High</option>
+            </optgroup>
+            <optgroup label="── MACD">
+              <option value="macd_cross">MACD Cross — Signal Line</option>
+              <option value="macd_histogram">MACD Histogram — Turning Up</option>
+              <option value="macd_trend">MACD Trend — Above Zero</option>
+              <option value="macd_zero_line">MACD Zero Line Cross</option>
+              <option value="macd_divergence">MACD Divergence — Bullish</option>
+            </optgroup>
+            <optgroup label="── RSI">
+              <option value="rsi_support">RSI Support — Bounce Zone</option>
+              <option value="rsi_50_trend">RSI 50 Cross — Trend Shift</option>
+              <option value="rsi_swing_reject">RSI Swing Reject — Dip Buy</option>
+              <option value="rsi_divergence">RSI Divergence — Bullish</option>
+              <option value="rsi_macd">RSI + MACD Combo</option>
+              <option value="rsi_fibonacci">RSI + Fibonacci Level</option>
+            </optgroup>
+            <optgroup label="── Ichimoku">
+              <option value="ichimoku_cloud">Ichimoku Cloud — Above Kumo</option>
+              <option value="ichimoku_volume">Ichimoku + Volume</option>
+              <option value="tenkan_kijun_cross">Tenkan/Kijun Cross</option>
+              <option value="kumo_twist">Kumo Twist — Bullish Flip</option>
+            </optgroup>
+            <optgroup label="── Fibonacci">
+              <option value="fib_retracement">Fibonacci Retracement</option>
+              <option value="fib_trend">Fibonacci + Trend</option>
             </optgroup>
             <optgroup label="── Mean Reversion">
               <option value="bollinger_bounce">Bollinger Bounce — Lower Band</option>
+              <option value="double_bb">Double Bollinger — Breakout</option>
+              <option value="bb_rsi">Bollinger + RSI Combo</option>
               <option value="stochastic">Stochastic — Oversold Bounce</option>
+              <option value="stoch_trend">Stochastic Trend — Pullback</option>
+              <option value="stoch_divergence">Stochastic Divergence</option>
               <option value="cci_bounce">CCI Bounce — Oversold Recovery</option>
+              <option value="williams_r_bounce">Williams %R Bounce</option>
+              <option value="pivot_bounce">Pivot Point Bounce</option>
             </optgroup>
             <optgroup label="── Breakout">
               <option value="breakout">Breakout — 20-Day High</option>
               <option value="high_52w">52-Week High Breakout</option>
               <option value="squeeze">TTM Squeeze — Volatility Breakout</option>
+              <option value="donchian_breakout">Donchian Channel Breakout</option>
+              <option value="parabolic_sar">Parabolic SAR Flip</option>
             </optgroup>
-            <optgroup label="── Volume & Candle Patterns">
+            <optgroup label="── Volume & OBV">
               <option value="volume_surge">Volume Surge — Accumulation</option>
+              <option value="obv_trend">OBV Trend — Rising Volume</option>
+              <option value="acc_dist">A/D Line — Accumulation</option>
+              <option value="vwap_bounce">VWAP Bounce — Intraday</option>
+              <option value="vwap_price_action">VWAP Price Action</option>
+              <option value="ema_rsi_volume">EMA + RSI + Volume Combo</option>
+            </optgroup>
+            <optgroup label="── Candle Patterns">
               <option value="hammer">Hammer — Reversal Candle</option>
-              <option value="bullish_engulfing">Bullish Engulfing — 2-Candle Pattern</option>
+              <option value="bullish_engulfing">Bullish Engulfing — 2-Candle</option>
             </optgroup>
           </select>
         </div>
@@ -1529,24 +1591,70 @@
             <optgroup label="── Trend Following">
               <option value="golden_rsi">Golden RSI</option>
               <option value="sma_cross">SMA 20/50 Cross</option>
-              <option value="macd_cross">MACD Cross</option>
               <option value="golden_cross">Golden Cross</option>
-              <option value="supertrend">Supertrend</option>
-              <option value="adx_trend">ADX Trend</option>
+              <option value="triple_ma">Triple MA</option>
               <option value="ema_ribbon">EMA Ribbon</option>
+              <option value="ma_price_action">MA Price Action</option>
+              <option value="supertrend">Supertrend</option>
+              <option value="supertrend_ema">Supertrend + EMA</option>
+              <option value="supertrend_volume">Supertrend + Volume</option>
+              <option value="supertrend_adx">Supertrend + ADX</option>
+              <option value="supertrend_adx_vol">Supertrend + ADX + Vol</option>
+              <option value="adx_trend">ADX Trend</option>
+              <option value="adx_breakout">ADX Breakout</option>
+            </optgroup>
+            <optgroup label="── MACD">
+              <option value="macd_cross">MACD Cross</option>
+              <option value="macd_histogram">MACD Histogram</option>
+              <option value="macd_trend">MACD Trend</option>
+              <option value="macd_zero_line">MACD Zero Line</option>
+              <option value="macd_divergence">MACD Divergence</option>
+            </optgroup>
+            <optgroup label="── RSI">
+              <option value="rsi_support">RSI Support</option>
+              <option value="rsi_50_trend">RSI 50 Cross</option>
+              <option value="rsi_swing_reject">RSI Swing Reject</option>
+              <option value="rsi_divergence">RSI Divergence</option>
+              <option value="rsi_macd">RSI + MACD</option>
+              <option value="rsi_fibonacci">RSI + Fibonacci</option>
+            </optgroup>
+            <optgroup label="── Ichimoku">
+              <option value="ichimoku_cloud">Ichimoku Cloud</option>
+              <option value="ichimoku_volume">Ichimoku + Volume</option>
+              <option value="tenkan_kijun_cross">Tenkan/Kijun Cross</option>
+              <option value="kumo_twist">Kumo Twist</option>
+            </optgroup>
+            <optgroup label="── Fibonacci">
+              <option value="fib_retracement">Fibonacci Retracement</option>
+              <option value="fib_trend">Fibonacci + Trend</option>
             </optgroup>
             <optgroup label="── Mean Reversion">
               <option value="bollinger_bounce">Bollinger Bounce</option>
+              <option value="double_bb">Double Bollinger</option>
+              <option value="bb_rsi">Bollinger + RSI</option>
               <option value="stochastic">Stochastic</option>
+              <option value="stoch_trend">Stochastic Trend</option>
+              <option value="stoch_divergence">Stochastic Divergence</option>
               <option value="cci_bounce">CCI Bounce</option>
+              <option value="williams_r_bounce">Williams %R Bounce</option>
+              <option value="pivot_bounce">Pivot Bounce</option>
             </optgroup>
             <optgroup label="── Breakout">
               <option value="breakout">Breakout</option>
               <option value="high_52w">52-Week High</option>
               <option value="squeeze">TTM Squeeze</option>
+              <option value="donchian_breakout">Donchian Breakout</option>
+              <option value="parabolic_sar">Parabolic SAR</option>
             </optgroup>
-            <optgroup label="── Volume & Candle">
+            <optgroup label="── Volume & OBV">
               <option value="volume_surge">Volume Surge</option>
+              <option value="obv_trend">OBV Trend</option>
+              <option value="acc_dist">A/D Line</option>
+              <option value="vwap_bounce">VWAP Bounce</option>
+              <option value="vwap_price_action">VWAP Price Action</option>
+              <option value="ema_rsi_volume">EMA + RSI + Volume</option>
+            </optgroup>
+            <optgroup label="── Candle Patterns">
               <option value="hammer">Hammer</option>
               <option value="bullish_engulfing">Bullish Engulfing</option>
             </optgroup>
@@ -2626,7 +2734,7 @@
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
     Screener
   </button>
-  <button class="nav-btn" data-tab="ml" onclick="go('ml',this)">
+  <button class="nav-btn" data-tab="ml" onclick="go('ml',this)" id="nav-ml-btn">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/></svg>
     AI
   </button>
@@ -2640,10 +2748,22 @@
 <div id="more-sheet" style="display:none;position:fixed;inset:0;z-index:200;">
   <div onclick="closeMoreSheet()" style="position:absolute;inset:0;background:rgba(0,0,0,0.25);"></div>
   <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;padding:16px 16px 40px;">
-    <div style="width:36px;height:4px;background:#e5e5e5;border-radius:2px;margin:0 auto 20px;"></div>
+    <div style="width:36px;height:4px;background:#e5e5e5;border-radius:2px;margin:0 auto 16px;"></div>
+    <!-- User info + logout row -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding:0 2px;">
+      <div>
+        <div id="more-sheet-username" style="font-size:13px;font-weight:700;color:var(--txt1);"></div>
+        <div id="more-sheet-plan" style="font-size:11px;color:var(--txt3);margin-top:1px;"></div>
+      </div>
+      <button onclick="closeMoreSheet();doLogout();"
+        style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:#FCEBEB;color:#A32D2D;border:1px solid rgba(163,45,45,.25);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/></svg>
+        Sign out
+      </button>
+    </div>
     <div style="font-size:10px;font-weight:500;color:#a0a0a0;text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;">More tools</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-      <button onclick="closeMoreSheet();go('data',document.querySelector('[data-tab=data]'))"
+      <button id="more-data-btn" onclick="closeMoreSheet();go('data',document.querySelector('[data-tab=data]'))"
         style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f5f5f4;border:0.5px solid #e5e5e5;border-radius:12px;cursor:pointer;">
         <svg width="22" height="22" fill="none" stroke="#534AB7" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8M8 8h8M8 16h4"/></svg>
         <span style="font-size:11px;font-weight:500;color:#1a1a1a;">Data</span>
@@ -2663,7 +2783,7 @@
         <svg width="22" height="22" fill="none" stroke="#854F0B" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
         <span style="font-size:11px;font-weight:500;color:#1a1a1a;">Live</span>
       </button>
-      <button onclick="closeMoreSheet();go('portfolio',document.querySelector('[data-tab=portfolio]'))"
+      <button id="more-portfolio-btn" onclick="closeMoreSheet();go('portfolio',document.querySelector('[data-tab=portfolio]'))"
         style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f5f5f4;border:0.5px solid #e5e5e5;border-radius:12px;cursor:pointer;">
         <svg width="22" height="22" fill="none" stroke="#3B6D11" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75"/></svg>
         <span style="font-size:11px;font-weight:500;color:#1a1a1a;">Portfolio</span>
@@ -2772,7 +2892,7 @@ function initSymbolSearch() {
 
 function getToken() { return localStorage.getItem(AUTH_KEY); }
 function setToken(t) { localStorage.setItem(AUTH_KEY, t); }
-function clearToken() { localStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_KEY + '_role'); }
+function clearToken() { localStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_KEY + '_role'); localStorage.removeItem('apex_username'); }
 function getRole()  { return localStorage.getItem(AUTH_KEY + '_role') || 'user'; }
 function setRole(r) { localStorage.setItem(AUTH_KEY + '_role', r); }
 
@@ -2836,9 +2956,10 @@ async function doLogin() {
     const d = await res.json();
     setToken(d.access_token);
     setRole(d.role || 'user');
+    localStorage.setItem('apex_username', d.username || user);
     document.getElementById('login-pass').value = '';
     hideLogin();
-    _showAdminBadge(user);
+    _showAdminBadge(d.username || user);
     _applyRoleUI(d.role || 'user', d.plan_type, d.plan_expiry);
   } catch(e) {
     err.textContent = e.message;
@@ -2850,6 +2971,14 @@ async function doLogin() {
 }
 
 function doLogout() {
+  const token = getToken();
+  // Revoke server-side in background — don't await, UI responds instantly
+  if (token) {
+    fetch(`${API}/api/auth/logout`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+    }).catch(() => {});
+  }
   clearToken();
   showLogin();
   _showAdminBadge(null);
@@ -2860,35 +2989,79 @@ function _showAdminBadge(username) {
   const el = document.getElementById('admin-badge');
   if (!el) return;
   if (username) {
-    el.textContent = username;
+    el.textContent = '👤 ' + username;
     el.style.display = 'inline-block';
   } else {
     el.style.display = 'none';
   }
+  // Populate More sheet user info
+  const nameEl = document.getElementById('more-sheet-username');
+  if (nameEl) nameEl.textContent = username || '';
 }
 
-function _applyRoleUI(role, planType, planExpiry) {
-  // Show/hide admin nav button
-  const adminNav = document.getElementById('nav-admin-btn');
-  if (adminNav) adminNav.style.display = (role === 'admin') ? 'flex' : 'none';
+// Tabs restricted to admin only
+const ADMIN_ONLY_TABS = ['execute', 'ml', 'data', 'portfolio', 'admin'];
 
-  // Show plan info chip in header for regular users
+function _applyRoleUI(role, planType, planExpiry) {
+  const isAdmin = role === 'admin';
+
+  // ── Nav bar buttons ──────────────────────────────────────────────────
+  const show = (id, visible) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = visible ? 'flex' : 'none';
+  };
+  show('nav-execute-btn',   isAdmin);
+  show('nav-ml-btn',        isAdmin);
+  show('nav-admin-btn',     isAdmin);
+
+  // ── More sheet buttons ───────────────────────────────────────────────
+  const showBlock = (id, visible) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = visible ? 'flex' : 'none';
+  };
+  showBlock('more-data-btn',      isAdmin);
+  showBlock('more-portfolio-btn', isAdmin);
+
+  // ── Home: "Today's Best Trades" Run Scan button (Execute shortcut) ──
+  const homeRunScan = document.querySelector('[onclick*="runExecute"]');
+  if (homeRunScan) homeRunScan.style.display = isAdmin ? '' : 'none';
+
+  // ── Home: "Setups" quick action card ────────────────────────────────
+  const setupsCard = document.querySelector('.home-shortcut[onclick*="execute"]');
+  if (setupsCard) setupsCard.style.display = isAdmin ? 'flex' : 'none';
+
+  // ── Plan info chip (header) ──────────────────────────────────────────
   const planChip = document.getElementById('plan-info-chip');
   if (planChip) {
-    if (role === 'admin') {
+    if (isAdmin) {
       planChip.textContent = 'Admin';
-      planChip.style.cssText = 'font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(168,85,247,.2);color:#a855f7;';
-      planChip.style.display = 'inline-block';
+      planChip.style.cssText = 'font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:var(--data-d);color:var(--data);display:inline-block;';
     } else if (planType && planExpiry) {
-      const expDate = new Date(planExpiry);
-      const today   = new Date();
-      const daysLeft = Math.ceil((expDate - today) / 864e5);
+      const expDate  = new Date(planExpiry);
+      const daysLeft = Math.ceil((expDate - new Date()) / 864e5);
       const expired  = daysLeft <= 0;
       planChip.textContent = expired ? 'Plan expired' : `${planType.toUpperCase()} · ${daysLeft}d left`;
-      planChip.style.cssText = `font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${expired ? '#FCEBEB' : '#EAF3DE'};color:${expired ? '#A32D2D' : 'var(--green)'};`;
-      planChip.style.display = 'inline-block';
+      planChip.style.cssText = `font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${expired ? '#FCEBEB' : '#EAF3DE'};color:${expired ? '#A32D2D' : 'var(--green)'};display:inline-block;`;
     } else {
       planChip.style.display = 'none';
+    }
+  }
+
+  // ── More sheet plan line ─────────────────────────────────────────────
+  const planEl = document.getElementById('more-sheet-plan');
+  if (planEl) {
+    if (isAdmin) {
+      planEl.textContent = 'Administrator · Full access';
+    } else if (planType && planExpiry) {
+      const expDate  = new Date(planExpiry);
+      const daysLeft = Math.ceil((expDate - new Date()) / 864e5);
+      const expired  = daysLeft <= 0;
+      planEl.textContent = expired
+        ? `${planType.toUpperCase()} plan — expired`
+        : `${planType.toUpperCase()} plan · ${daysLeft} days remaining`;
+      planEl.style.color = expired ? '#A32D2D' : 'var(--txt3)';
+    } else {
+      planEl.textContent = '';
     }
   }
 }
@@ -2896,7 +3069,12 @@ function _applyRoleUI(role, planType, planExpiry) {
 // Check existing token on load
 (async function _initAuth() {
   const t = getToken();
-  if (!t) { showLogin(); return; }
+  if (!t) { return; }  // overlay already visible; no token = stay on login
+  // Token exists — validate silently in background; hide overlay optimistically
+  // so returning users land instantly on dashboard
+  hideLogin();
+  _showAdminBadge(localStorage.getItem('apex_username') || '');
+  _applyRoleUI(getRole(), null, null);
   try {
     const res = await fetch(`${API}/api/auth/me`, { headers: { 'Authorization': 'Bearer ' + t } });
     if (!res.ok) { clearToken(); showLogin(); return; }
@@ -2905,31 +3083,72 @@ function _applyRoleUI(role, planType, planExpiry) {
     _applyRoleUI(info.role || getRole(), info.plan_type, info.plan_expiry);
     if (info.role) setRole(info.role);
   } catch(e) {
-    showLogin();
+    // network error — keep user on dashboard, token still local
   }
 })();
 
 const STRAT_DESC = {
   // Trend Following
-  golden_rsi:        "Looks for stocks in a strong long-term uptrend (above 200-day EMA) pulling back (below 20-day EMA) with RSI below 40. Classic buy-the-dip setup.",
-  sma_cross:         "Triggers when the 20-day moving average freshly crosses above the 50-day average — a classic momentum signal indicating short-term strength.",
-  macd_cross:        "Fires when the MACD line crosses above the signal line and histogram turns positive — a shift from bearish to bullish momentum.",
-  golden_cross:      "Triggers when SMA50 freshly crosses above SMA200 — the iconic 'Golden Cross'. One of the strongest long-term buy signals in technical analysis.",
-  supertrend:        "Fires when price crosses above the ATR-based Supertrend line, flipping the trend from bearish to bullish. Clean, objective trend signal.",
-  adx_trend:         "Identifies stocks in a confirmed strong uptrend: ADX above 25 (trend strength), +DI above -DI (bulls in control), price above SMA50.",
-  ema_ribbon:        "Flags fresh EMA alignment — EMA8 > EMA21 > EMA55 all stacked bullishly with price above all three. Indicates momentum across all timeframes.",
+  golden_rsi:          "Looks for stocks in a strong long-term uptrend (above 200-day EMA) pulling back (below 20-day EMA) with RSI below 40. Classic buy-the-dip setup.",
+  sma_cross:           "Triggers when the 20-day moving average freshly crosses above the 50-day average — a classic momentum signal indicating short-term strength.",
+  golden_cross:        "Triggers when SMA50 freshly crosses above SMA200 — the iconic 'Golden Cross'. One of the strongest long-term buy signals in technical analysis.",
+  triple_ma:           "All three moving averages (SMA20 > SMA50 > SMA200) aligned bullishly and price bouncing off the 20-day average — full trend confirmation.",
+  ema_ribbon:          "Flags fresh EMA alignment — EMA8 > EMA21 > EMA55 all stacked bullishly with price above all three. Indicates momentum across all timeframes.",
+  ma_price_action:     "Price pulls back to the 50-day SMA in an uptrend (above SMA200), then closes back above it with a bullish candle — clean trend continuation.",
+  supertrend:          "Fires when price crosses above the ATR-based Supertrend line, flipping the trend from bearish to bullish. Clean, objective trend signal.",
+  supertrend_ema:      "Supertrend bullish flip confirmed by price trading above EMA50 — adds trend filter to reduce false signals.",
+  supertrend_volume:   "Supertrend flip with a volume surge (1.5× average) on the trigger candle — institutional participation confirmed.",
+  supertrend_adx:      "Supertrend bullish with ADX > 20 confirming trend strength. Filters out weak, choppy markets.",
+  supertrend_adx_vol:  "Triple confirmation: Supertrend bullish + ADX strong trend + volume surge. Highest-confidence Supertrend setup.",
+  adx_trend:           "Identifies stocks in a confirmed strong uptrend: ADX above 25 (trend strength), +DI above -DI (bulls in control), price above SMA50.",
+  adx_breakout:        "ADX rising above 20 with price breaking to a new 20-day high and volume confirmation — trend just starting to accelerate.",
+  // MACD
+  macd_cross:          "Fires when the MACD line crosses above the signal line and histogram turns positive — a shift from bearish to bullish momentum.",
+  macd_histogram:      "MACD histogram turns positive for the first time (zero cross) while below zero. Early momentum shift — often precedes price move.",
+  macd_trend:          "MACD line above zero AND above signal line, price above SMA50 — momentum confirmed with trend filter.",
+  macd_zero_line:      "MACD line freshly crosses above zero from below — confirming bullish momentum transition on the primary trend.",
+  macd_divergence:     "Price makes a lower low but MACD makes a higher low — bullish divergence indicating hidden buying strength.",
+  // RSI
+  rsi_support:         "RSI dips into 30–45 zone (pullback without panic), then turns up while price is above SMA200. High probability bounce in uptrend.",
+  rsi_50_trend:        "RSI crosses above 50 (neutral to bullish shift) while price is above SMA50 — momentum turning positive.",
+  rsi_swing_reject:    "RSI dips below 40, then crosses back above 40 while price holds above SMA200. Classic swing low rejection signal.",
+  rsi_divergence:      "Price makes lower low but RSI makes higher low — classic bullish divergence indicating buyer absorption at lows.",
+  rsi_macd:            "RSI above 50 (bullish momentum) AND MACD histogram positive — dual-indicator momentum confirmation.",
+  rsi_fibonacci:       "Price near a key Fibonacci retracement level (38.2%, 50%, or 61.8%) with RSI bouncing from oversold. Confluence reversal zone.",
+  // Ichimoku
+  ichimoku_cloud:      "Price above both Senkou A and B (above the cloud), Tenkan above Kijun — full Ichimoku bullish structure confirmed.",
+  ichimoku_volume:     "Ichimoku bullish structure (above cloud, Tenkan > Kijun) confirmed with volume surge — institutional buying in trend.",
+  tenkan_kijun_cross:  "Tenkan (9-period) freshly crosses above Kijun (26-period) while price is above the cloud — Ichimoku 'TK Cross' buy signal.",
+  kumo_twist:          "Senkou A crosses above Senkou B (cloud twists bullish) — the cloud itself becomes supportive, indicating future bullish bias.",
+  // Fibonacci
+  fib_retracement:     "Price pulls back to a key Fibonacci level (38.2%, 50%, or 61.8%) from a recent swing high, then shows a bullish bounce signal.",
+  fib_trend:           "Fibonacci retracement bounce combined with ADX trend strength confirmation — high-quality trend continuation setup.",
   // Mean Reversion
-  bollinger_bounce:  "Identifies stocks touching the lower Bollinger Band (oversold) while above the 200-day SMA. Mean-reversion long in an uptrend.",
-  stochastic:        "Fires when Stochastic %K crosses above %D from the oversold zone (below 20) while the stock is above its 200-day SMA. Oversold bounce signal.",
-  cci_bounce:        "Triggers when CCI (Commodity Channel Index) crosses upward from below -100 while price is above SMA50. CCI oversold recovery signal.",
+  bollinger_bounce:    "Identifies stocks touching the lower Bollinger Band (oversold) while above the 200-day SMA. Mean-reversion long in an uptrend.",
+  double_bb:           "Price breaks above the middle Bollinger Band (20-day SMA) after being below it — shift from lower to upper band territory.",
+  bb_rsi:              "Price near lower Bollinger Band with RSI below 35 — both indicators confirm oversold condition in an uptrend.",
+  stochastic:          "Fires when Stochastic %K crosses above %D from the oversold zone (below 20) while the stock is above its 200-day SMA. Oversold bounce signal.",
+  stoch_trend:         "Stochastic pullback to 40–50 (not fully oversold) with %K above %D — trend continuation pullback buy in strong uptrend.",
+  stoch_divergence:    "Price makes lower low but Stochastic makes higher low — bullish divergence from oversold zone indicating buyer support.",
+  cci_bounce:          "Triggers when CCI (Commodity Channel Index) crosses upward from below -100 while price is above SMA50. CCI oversold recovery signal.",
+  williams_r_bounce:   "Williams %R crosses above -80 from extreme oversold territory — a fast oscillator signalling a sharp reversal in motion.",
+  pivot_bounce:        "Price dips to a key pivot support level (S1 or S2) and bounces with a bullish candle — classic pivot point reversal.",
   // Breakout
-  breakout:          "Detects stocks closing above their 20-day high with at least 1.5× average volume — confirming institutional breakout participation.",
-  high_52w:          "Fires when price breaks above its 52-week high with volume confirmation (1.5× average). The strongest breakout signal — momentum tends to continue.",
-  squeeze:           "TTM Squeeze: Bollinger Bands were compressed inside Keltner Channels (low volatility). When they break out bullishly, it's a high-probability signal.",
-  // Volume & Candle
-  volume_surge:      "Flags 2× average volume on a bullish candle (close > open) above the 50-day SMA — a sign of institutional accumulation.",
-  hammer:            "Identifies a hammer candle (long lower wick ≥ 2× body, tiny upper wick) appearing after a downtrend. Classic single-candle reversal pattern.",
-  bullish_engulfing: "Two-candle reversal: today's bullish candle completely engulfs yesterday's bearish candle body above SMA50. Strong reversal confirmation.",
+  breakout:            "Detects stocks closing above their 20-day high with at least 1.5× average volume — confirming institutional breakout participation.",
+  high_52w:            "Fires when price breaks above its 52-week high with volume confirmation (1.5× average). The strongest breakout signal — momentum tends to continue.",
+  squeeze:             "TTM Squeeze: Bollinger Bands were compressed inside Keltner Channels (low volatility). When they break out bullishly, it's a high-probability signal.",
+  donchian_breakout:   "Price closes above the 20-period Donchian Channel upper band — a Turtle Trader-style trend breakout with volume confirmation.",
+  parabolic_sar:       "Parabolic SAR dots flip from above price to below — the SAR trend reversal signal confirming a new uptrend beginning.",
+  // Volume & OBV
+  volume_surge:        "Flags 2× average volume on a bullish candle (close > open) above the 50-day SMA — a sign of institutional accumulation.",
+  obv_trend:           "On-Balance Volume rising (OBV above its 20-day SMA) with price also above SMA50 — volume confirming the bullish price trend.",
+  acc_dist:            "Accumulation/Distribution Line rising above its 20-day SMA — money flow confirms institutional accumulation in the stock.",
+  vwap_bounce:         "Price dips below VWAP then closes back above it with a bullish candle — classic intraday mean-reversion signal at VWAP support.",
+  vwap_price_action:   "Price crosses above VWAP with a bullish candle and RSI above 50 — VWAP reclaim with momentum confirmation.",
+  ema_rsi_volume:      "EMA20 > EMA50 (trend up), RSI between 45–65 (healthy momentum), volume above average — three-factor trend continuation.",
+  // Candle Patterns
+  hammer:              "Identifies a hammer candle (long lower wick ≥ 2× body, tiny upper wick) appearing after a downtrend. Classic single-candle reversal pattern.",
+  bullish_engulfing:   "Two-candle reversal: today's bullish candle completely engulfs yesterday's bearish candle body above SMA50. Strong reversal confirmation.",
 };
 
 // ── More sheet ─────────────────────────────────────────
@@ -2942,6 +3161,11 @@ function closeMoreSheet() {
 
 // ── Navigation ─────────────────────────────────────────
 function go(id, el) {
+  // Block access to admin-only tabs for regular users
+  if (ADMIN_ONLY_TABS.includes(id) && getRole() !== 'admin') {
+    _showAccessDenied();
+    return;
+  }
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(n => n.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
@@ -2955,6 +3179,14 @@ function go(id, el) {
   if (id === 'portfolio') { /* user clicks Build Portfolio button */ }
   if (id === 'admin')     { loadAdminStats(); loadAdminUsers(); }
   if (id === 'ml')        { checkMLStatus(); loadFeedbackStatus(); }
+}
+
+function _showAccessDenied() {
+  const toast = document.createElement('div');
+  toast.textContent = '🔒 Admin access required';
+  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;opacity:1;transition:opacity .4s;';
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 2000);
 }
 
 // ── Clock ──────────────────────────────────────────────
@@ -5179,28 +5411,30 @@ async function loadHome() {
   // 1. Regime / breadth from status endpoint
   try {
     const d = await j(`${API}/api/status`);
-    const rows = (d.unique_symbols || 0).toLocaleString('en-IN');
-    const totalRows = (d.total_rows || 0).toLocaleString('en-IN');
-    document.getElementById('hm-db-rows').textContent = totalRows;
-    const ts = d.last_sync_ist || d.last_update || '—';
-    document.getElementById('hm-updated').textContent = 'Last sync: ' + ts;
+    const totalRows = (d.total_db_rows || 0).toLocaleString('en-IN');
+    const dbRowsEl = document.getElementById('hm-db-rows');
+    if (dbRowsEl) dbRowsEl.textContent = totalRows;
+    const ts = d.last_run && d.last_run !== 'Never' ? d.last_run : '—';
+    const updatedEl = document.getElementById('hm-updated');
+    if (updatedEl) updatedEl.textContent = 'Last sync: ' + ts;
 
-    // Fyers health
-    const fyersOk = d.fyers_token_valid === true;
+    // Fyers health  (API field is token_valid, not fyers_token_valid)
+    const fyersOk = d.token_valid === true;
     const hFyers = document.getElementById('hm-h-fyers');
     hFyers.className = 'health-dot ' + (fyersOk ? 'ok' : 'warn');
     document.getElementById('hm-h-fyers-val').textContent = fyersOk ? 'Token valid' : 'Token expired';
 
-    // Data health
-    const dataOk = (d.total_rows || 0) > 10000;
+    // Data health  (API field is total_db_rows, not total_rows)
+    const dataOk = (d.total_db_rows || 0) > 10000;
     const hData = document.getElementById('hm-h-data');
     hData.className = 'health-dot ' + (dataOk ? 'ok' : 'warn');
-    document.getElementById('hm-h-data-val').textContent = dataOk ? totalRows + ' records' : 'Run a sync first';
+    const rowsLabel = (d.total_db_rows || 0).toLocaleString('en-IN');
+    document.getElementById('hm-h-data-val').textContent = dataOk ? rowsLabel + ' records' : 'Run a sync first';
   } catch(e) {}
 
   // 2. Market regime
   try {
-    const r = await j(`${API}/api/regime`);
+    const r = await j(`${API}/api/ml/regime`);
     const regime = r.regime || 'Unknown';
     const colors = { Bull: 'var(--green)', Neutral: 'var(--live)', Bear: 'var(--red)' };
     const dot = document.getElementById('hm-regime-dot');
@@ -5217,12 +5451,18 @@ async function loadHome() {
 
   // 3. AI Model health
   try {
-    const m = await j(`${API}/api/ml/status`);
-    const trained = m.trained === true || m.is_trained === true;
+    const m = await j(`${API}/api/ml/train/status`);
+    const trained = m.is_trained === true;
     const hModel = document.getElementById('hm-h-model');
     hModel.className = 'health-dot ' + (trained ? 'ok' : 'warn');
+    // AUC is per-horizon inside meta.horizons — pick the first available
+    let aucVal = null;
+    if (m.meta && m.meta.horizons) {
+      const firstH = Object.values(m.meta.horizons)[0];
+      if (firstH && firstH.auc_roc != null) aucVal = firstH.auc_roc;
+    }
     document.getElementById('hm-h-model-val').textContent = trained
-      ? 'AUC ' + ((m.meta && m.meta.auc_roc) ? (m.meta.auc_roc * 100).toFixed(1) + '%' : '—')
+      ? 'AUC ' + (aucVal != null ? (aucVal * 100).toFixed(1) + '%' : '—')
       : 'Not trained';
   } catch(e) {}
 
@@ -5314,6 +5554,71 @@ function _buildAIReason(r, regime) {
   if (strats.includes('breakout') || strats.includes('high_52w')) parts.push('price breaking out with volume confirmation');
   return parts.length ? parts.join(' · ') : 'Multi-factor convergence passed AI validation threshold.';
 }
+
+// ── Bootstrap progress poller ──────────────────────────
+let _bootstrapInterval = null;
+
+async function checkBootstrap() {
+  try {
+    const d = await j(`${API}/api/bootstrap/status`);
+    const banner = document.getElementById('bootstrap-banner');
+    if (!banner) return;
+
+    if (!d.running && !d.done && d.step === 'idle') {
+      banner.style.display = 'none';
+      return;
+    }
+
+    if (d.done && d.step === 'complete') {
+      banner.style.display = 'flex';
+      banner.style.background = 'linear-gradient(135deg,#1a3a1e,#0f2a13)';
+      document.getElementById('bootstrap-step-label').textContent = '✅ Setup complete — data loaded & model trained!';
+      document.getElementById('bootstrap-progress-bar').style.width = '100%';
+      document.getElementById('bootstrap-progress-detail').textContent =
+        `Completed at ${d.completed_at}`;
+      if (_bootstrapInterval) { clearInterval(_bootstrapInterval); _bootstrapInterval = null; }
+      setTimeout(() => { banner.style.display = 'none'; refreshStatus(); loadHome(); }, 8000);
+      return;
+    }
+
+    if (d.step === 'error') {
+      banner.style.display = 'flex';
+      banner.style.background = 'linear-gradient(135deg,#3a1a1a,#2a0f0f)';
+      document.getElementById('bootstrap-step-label').textContent = '❌ Setup error: ' + d.error;
+      document.getElementById('bootstrap-progress-bar').style.background = '#f87171';
+      if (_bootstrapInterval) { clearInterval(_bootstrapInterval); _bootstrapInterval = null; }
+      return;
+    }
+
+    // Running
+    banner.style.display = 'flex';
+    const stepLabels = {
+      checking: 'Checking database...',
+      fetching: 'Fetching 30 years of historical data (this may take 20–40 minutes)...',
+      training: 'Training AI model on full dataset...',
+    };
+    document.getElementById('bootstrap-step-label').textContent =
+      stepLabels[d.step] || d.step;
+
+    const p = d.progress || {};
+    if (d.step === 'fetching' && p.total) {
+      const pct = Math.round(p.processed / p.total * 100);
+      document.getElementById('bootstrap-progress-bar').style.width = (pct * 0.8) + '%';
+      document.getElementById('bootstrap-progress-detail').textContent =
+        `${p.processed}/${p.total} symbols — ${p.symbol} (${p.candles || 0} candles)`;
+    } else if (d.step === 'training') {
+      document.getElementById('bootstrap-progress-bar').style.width = '85%';
+      document.getElementById('bootstrap-progress-detail').textContent = 'ML training in progress...';
+    } else {
+      document.getElementById('bootstrap-progress-bar').style.width = '5%';
+      document.getElementById('bootstrap-progress-detail').textContent = '';
+    }
+  } catch(e) {}
+}
+
+// Check immediately on load; poll every 10s while running
+checkBootstrap();
+_bootstrapInterval = setInterval(checkBootstrap, 10000);
 
 // ── Init ───────────────────────────────────────────────
 loadHome();   // HOME tab is default active — load it immediately

@@ -17,6 +17,7 @@ Dependencies:
 
 import os
 import sys
+import uuid
 from datetime import datetime, timedelta, timezone, date
 from typing import Optional
 
@@ -58,19 +59,74 @@ def create_access_token(username: str, role: str = "user") -> str:
     from jose import jwt
     expire = datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS)
     return jwt.encode(
-        {"sub": username, "role": role, "exp": expire},
+        {"sub": username, "role": role, "exp": expire, "jti": str(uuid.uuid4())},
         SECRET_KEY, algorithm=ALGORITHM,
     )
 
 
+def _is_token_revoked(jti: str) -> bool:
+    """Check if a token JTI has been revoked (logged out)."""
+    if not jti:
+        return False
+    try:
+        from db.connection import get_conn
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM revoked_tokens WHERE jti=%s AND expires_at > NOW()",
+                (jti,)
+            )
+            return cur.fetchone() is not None
+    except Exception:
+        return False
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def revoke_token(token: str) -> None:
+    """Add a token to the blacklist. Called on logout."""
+    from jose import jwt as _jwt
+    try:
+        payload = _jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if not jti:
+            return
+        expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+        from db.connection import get_conn
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO revoked_tokens (jti, expires_at) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                (jti, expires_at)
+            )
+            # Clean up already-expired rows
+            cur.execute("DELETE FROM revoked_tokens WHERE expires_at <= NOW()")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
 def decode_token(token: str) -> dict:
-    """Decode JWT. Returns payload dict or raises 401."""
+    """Decode JWT, check blacklist. Returns payload dict or raises 401."""
     from jose import jwt, JWTError
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if not payload.get("sub"):
             raise ValueError("no sub claim")
+        if _is_token_revoked(payload.get("jti", "")):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         return payload
+    except HTTPException:
+        raise
     except JWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

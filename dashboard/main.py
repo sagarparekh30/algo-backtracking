@@ -1,8 +1,23 @@
 import logging
+import math
 import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize(obj):
+    """Recursively replace NaN/Inf floats with None so JSON serialization never fails."""
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    if isinstance(obj, (np.floating, np.integer)):
+        v = float(obj)
+        return None if (math.isnan(v) or math.isinf(v)) else v
+    return obj
 
 import os
 import json
@@ -13,6 +28,7 @@ from datetime import datetime
 from typing import Optional, Dict
 
 from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -56,6 +72,9 @@ async def startup_event():
     from scheduler.auto_scheduler import start_scheduler
     start_scheduler()
     _run_db_migrations()
+    # Auto-bootstrap: fetch 30-year history + train model if DB is empty
+    from scheduler.bootstrap import run_bootstrap_if_needed
+    run_bootstrap_if_needed()
 
 
 def _run_db_migrations():
@@ -1727,6 +1746,29 @@ async def db_sources():
 
 
 # -------------------------------------------------------
+# Bootstrap endpoints
+# -------------------------------------------------------
+
+@app.get("/api/bootstrap/status")
+async def bootstrap_status():
+    """Return first-run bootstrap status (data fetch + ML training progress)."""
+    from scheduler.bootstrap import get_status
+    return get_status()
+
+
+@app.post("/api/bootstrap/trigger")
+async def bootstrap_trigger(_: str = Depends(require_admin)):
+    """Manually trigger bootstrap even if DB already has data. Admin only."""
+    from scheduler.bootstrap import state as bs, _run_bootstrap
+    import threading
+    if bs.running:
+        return {"message": "Bootstrap already running", "status": "busy"}
+    bs.done = False
+    bs.step = "checking"
+    threading.Thread(target=_run_bootstrap, name="manual-bootstrap", daemon=True).start()
+    return {"message": "Bootstrap started", "status": "started"}
+
+
 # Scheduler endpoints
 # -------------------------------------------------------
 
@@ -2511,6 +2553,10 @@ async def price_action(
 
         df["pattern"] = df.apply(_pattern, axis=1)
 
+        # Replace Infinity values produced by division (e.g. prev_close=0)
+        # Must be done before summary stats so mean/float calls don't produce inf
+        df = df.replace([np.inf, -np.inf], np.nan)
+
         # ── Trim to requested window ───────────────────────────────────
         df = df.tail(days).copy()
 
@@ -2556,11 +2602,13 @@ async def price_action(
         # ── Serialise candles ──────────────────────────────────────────
         df["trade_date"] = df["trade_date"].dt.strftime("%Y-%m-%d")
         df = df.drop(columns=["prev_close", "vol_ma20"])
+        # Replace NaN AND Infinity (both not JSON-compliant)
+        df = df.replace([np.inf, -np.inf], np.nan)
         df = df.where(pd.notna(df), None)
 
         candles = df.iloc[::-1].to_dict(orient="records")   # newest first
 
-        return {"summary": summary, "candles": candles}
+        return _sanitize({"summary": summary, "candles": candles})
 
     except Exception as e:
         logger.error(f"price_action error for {symbol}: {e}")
@@ -2887,6 +2935,17 @@ async def auth_login(body: dict):
 async def auth_me(current: dict = Depends(require_user)):
     """Return current user info."""
     return current
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(
+    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)),
+):
+    """Revoke the current JWT so it cannot be used again."""
+    from dashboard.auth import revoke_token
+    if credentials and credentials.credentials:
+        revoke_token(credentials.credentials)
+    return {"message": "Logged out successfully"}
 
 
 # -------------------------------------------------------

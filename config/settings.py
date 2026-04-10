@@ -75,7 +75,11 @@ DAILY_LOOKBACK_DAYS = int(os.getenv("DAILY_LOOKBACK_DAYS", "10"))
 # Daily data update — time in IST (HH:MM), runs after market close
 SCHEDULER_DATA_UPDATE_TIME = os.getenv("SCHEDULER_DATA_UPDATE_TIME", "16:00")
 
-# Weekly ML retrain — day (mon/tue/.../sun) + time in IST
+# Daily ML retrain — runs after data update completes (default 18:00 IST)
+# Set to "" to disable the daily retrain and rely only on the weekly one
+SCHEDULER_ML_DAILY_TIME   = os.getenv("SCHEDULER_ML_DAILY_TIME", "18:00")
+
+# Weekly ML retrain — day (mon/tue/.../sun) + time in IST (full deep retrain)
 SCHEDULER_ML_RETRAIN_DAY  = os.getenv("SCHEDULER_ML_RETRAIN_DAY",  "sun")
 SCHEDULER_ML_RETRAIN_TIME = os.getenv("SCHEDULER_ML_RETRAIN_TIME", "22:00")
 

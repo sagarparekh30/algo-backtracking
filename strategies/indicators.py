@@ -305,3 +305,142 @@ def volume_surge(df: pd.DataFrame, window: int = 20) -> pd.Series:
     """
     avg_vol = df["volume"].rolling(window=window).mean()
     return df["volume"] / avg_vol.replace(0, np.nan)
+
+
+def obv(df: pd.DataFrame) -> pd.Series:
+    """On-Balance Volume — cumulative volume driven by price direction."""
+    direction = np.sign(df["close"].diff()).fillna(0)
+    return (direction * df["volume"]).cumsum()
+
+
+def accumulation_distribution(df: pd.DataFrame) -> pd.Series:
+    """Accumulation/Distribution Line."""
+    clv = ((df["close"] - df["low"]) - (df["high"] - df["close"])) / (df["high"] - df["low"]).replace(0, np.nan)
+    return (clv * df["volume"]).cumsum()
+
+
+def vwap(df: pd.DataFrame, window: int = 20) -> pd.Series:
+    """
+    Approximate rolling VWAP for daily data (no intraday sessions).
+    Uses a rolling window of typical price × volume / volume.
+    """
+    tp  = (df["high"] + df["low"] + df["close"]) / 3
+    cum_tpv = (tp * df["volume"]).rolling(window).sum()
+    cum_vol  = df["volume"].rolling(window).sum()
+    return cum_tpv / cum_vol.replace(0, np.nan)
+
+
+def parabolic_sar(df: pd.DataFrame, initial_af: float = 0.02, max_af: float = 0.2) -> pd.Series:
+    """Parabolic SAR — returns SAR values; below price = bullish, above = bearish."""
+    high   = df["high"].values
+    low    = df["low"].values
+    close  = df["close"].values
+    n      = len(close)
+    sar    = np.zeros(n)
+    ep     = np.zeros(n)   # Extreme Point
+    af     = np.zeros(n)   # Acceleration Factor
+    bull   = np.ones(n, dtype=bool)
+
+    sar[0]  = low[0]
+    ep[0]   = high[0]
+    af[0]   = initial_af
+
+    for i in range(1, n):
+        prev_bull = bull[i - 1]
+        prev_sar  = sar[i - 1]
+        prev_ep   = ep[i - 1]
+        prev_af   = af[i - 1]
+
+        if prev_bull:
+            new_sar = prev_sar + prev_af * (prev_ep - prev_sar)
+            new_sar = min(new_sar, low[i - 1], low[i - 2] if i >= 2 else low[i - 1])
+            if low[i] < new_sar:
+                bull[i] = False
+                sar[i]  = prev_ep
+                ep[i]   = low[i]
+                af[i]   = initial_af
+            else:
+                bull[i] = True
+                sar[i]  = new_sar
+                if high[i] > prev_ep:
+                    ep[i] = high[i]
+                    af[i] = min(prev_af + initial_af, max_af)
+                else:
+                    ep[i] = prev_ep
+                    af[i] = prev_af
+        else:
+            new_sar = prev_sar + prev_af * (prev_ep - prev_sar)
+            new_sar = max(new_sar, high[i - 1], high[i - 2] if i >= 2 else high[i - 1])
+            if high[i] > new_sar:
+                bull[i] = True
+                sar[i]  = prev_ep
+                ep[i]   = high[i]
+                af[i]   = initial_af
+            else:
+                bull[i] = False
+                sar[i]  = new_sar
+                if low[i] < prev_ep:
+                    ep[i] = low[i]
+                    af[i] = min(prev_af + initial_af, max_af)
+                else:
+                    ep[i] = prev_ep
+                    af[i] = prev_af
+
+    return pd.Series(sar, index=df.index)
+
+
+def williams_r(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Williams %R — range -100 to 0; below -80 = oversold, above -20 = overbought."""
+    highest_high = df["high"].rolling(period).max()
+    lowest_low   = df["low"].rolling(period).min()
+    denom = (highest_high - lowest_low).replace(0, np.nan)
+    return -100 * (highest_high - df["close"]) / denom
+
+
+def ichimoku(df: pd.DataFrame) -> dict:
+    """
+    Ichimoku Cloud indicator.
+    Returns: tenkan, kijun, senkou_a, senkou_b, chikou
+    """
+    def mid(h, l, p): return (h.rolling(p).max() + l.rolling(p).min()) / 2
+    tenkan    = mid(df["high"], df["low"], 9)
+    kijun     = mid(df["high"], df["low"], 26)
+    senkou_a  = ((tenkan + kijun) / 2).shift(26)
+    senkou_b  = mid(df["high"], df["low"], 52).shift(26)
+    chikou    = df["close"].shift(-26)
+    return {
+        "tenkan":   tenkan,
+        "kijun":    kijun,
+        "senkou_a": senkou_a,
+        "senkou_b": senkou_b,
+        "chikou":   chikou,
+    }
+
+
+def donchian_channel(df: pd.DataFrame, period: int = 20) -> dict:
+    """Donchian Channel — highest high / lowest low over period."""
+    return {
+        "upper":  df["high"].rolling(period).max(),
+        "lower":  df["low"].rolling(period).min(),
+        "middle": (df["high"].rolling(period).max() + df["low"].rolling(period).min()) / 2,
+    }
+
+
+def pivot_points(df: pd.DataFrame) -> dict:
+    """
+    Classic Pivot Points based on the previous bar's H/L/C.
+    Returns: pp, r1, r2, r3, s1, s2, s3
+    """
+    prev_h = df["high"].shift(1)
+    prev_l = df["low"].shift(1)
+    prev_c = df["close"].shift(1)
+    pp = (prev_h + prev_l + prev_c) / 3
+    return {
+        "pp": pp,
+        "r1": 2 * pp - prev_l,
+        "r2": pp + (prev_h - prev_l),
+        "r3": prev_h + 2 * (pp - prev_l),
+        "s1": 2 * pp - prev_h,
+        "s2": pp - (prev_h - prev_l),
+        "s3": prev_l - 2 * (prev_h - pp),
+    }
