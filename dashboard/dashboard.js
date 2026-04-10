@@ -467,13 +467,13 @@ async function refreshStatus() {
       ? '<div class="spin" style="color:#fff"></div> Syncing...'
       : '<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Sync Data';
 
-    loadSnapshot();
+    if (getToken()) loadSnapshot();
   } catch(e) {}
 }
 
 async function loadSnapshot() {
   try {
-    const rows = await j(`${API}/api/latest_snapshot`);
+    const rows = await jAuth(`${API}/api/latest_snapshot`);
     const tb = document.getElementById('snap-body');
     if (!rows.length) return;
     tb.innerHTML = rows.map(r => `
@@ -518,7 +518,7 @@ async function runScan() {
   cnt.textContent = '...';
 
   try {
-    const sigs = await j(`${API}/api/signals?strategy=${strat}`);
+    const sigs = await jAuth(`${API}/api/signals?strategy=${strat}`);
     cnt.textContent = sigs.length + ' signals';
 
     if (!sigs.length) {
@@ -775,13 +775,13 @@ function showFeedStopped() {
 
 async function refreshLive() {
   try {
-    const status = await j(`${API}/api/live/status`);
+    const status = await jAuth(`${API}/api/live/status`);
     if (status.feed && status.feed.running) {
       showFeedRunning(status.feed.mode);
     } else {
       showFeedStopped();
     }
-    const prices = await j(`${API}/api/ltp`);
+    const prices = await jAuth(`${API}/api/ltp`);
     renderPrices(prices);
   } catch(e) {}
 }
@@ -810,7 +810,7 @@ function renderPrices(prices) {
 
 async function loadWatchlist() {
   try {
-    const d = await j(`${API}/api/watchlist`);
+    const d = await jAuth(`${API}/api/watchlist`);
     renderChips(d.symbols || []);
   } catch(e) {}
 }
@@ -856,7 +856,7 @@ let mlTrainingPoller = null;
 
 async function checkMLStatus() {
   try {
-    const d = await j(`${API}/api/ml/train/status`);
+    const d = await jAuth(`${API}/api/ml/train/status`);
     if (d.is_trained) {
       const chip = document.getElementById('ml-status-chip');
       chip.className = 'chip chip-green';
@@ -877,7 +877,7 @@ async function checkMLStatus() {
 
 async function loadMLDataValidation() {
   try {
-    const d = await j(`${API}/api/ml/data-validation`);
+    const d = await jAuth(`${API}/api/ml/data-validation`);
     const db  = d.db_coverage  || {};
     const mm  = d.model_meta   || {};
     const sym = d.per_symbol   || [];
@@ -977,7 +977,7 @@ async function trainModel() {
     // Poll until done
     mlTrainingPoller = setInterval(async () => {
       try {
-        const st = await j(`${API}/api/ml/train/status`);
+        const st = await jAuth(`${API}/api/ml/train/status`);
         if (!st.is_training) {
           clearInterval(mlTrainingPoller);
           btn.disabled = false;
@@ -1000,7 +1000,7 @@ async function trainModel() {
 
 async function loadRegime() {
   try {
-    const r = await j(`${API}/api/ml/regime`);
+    const r = await jAuth(`${API}/api/ml/regime`);
     document.getElementById('ml-regime-card').style.display = 'block';
 
     const colours = { Bull: 'var(--green)', Neutral: 'var(--live)', Bear: 'var(--red)' };
@@ -1030,7 +1030,7 @@ async function loadRegime() {
 
 async function loadMLAnalytics() {
   try {
-    const d = await j(`${API}/api/ml/reliability`);
+    const d = await jAuth(`${API}/api/ml/reliability`);
     document.getElementById('ml-analytics-card').style.display = 'block';
 
     if (d.regressor_mae_pct != null)
@@ -1072,7 +1072,7 @@ async function runPredictions() {
     '<div class="empty"><div class="spin" style="color:#534AB7;margin:20px auto;"></div><div class="empty-sub" style="margin-top:8px;">Scoring all 99 symbols…</div></div>';
 
   try {
-    const d = await j(`${API}/api/ml/predict`);
+    const d = await jAuth(`${API}/api/ml/predict`);
     mlAllPredictions = d.results || [];
     mlFilter('all');
     const buyCount  = mlAllPredictions.filter(p => p.signal === 'BUY').length;
@@ -1153,7 +1153,7 @@ function mlFilter(type) {
 
 async function loadFeedbackStatus() {
   try {
-    const d = await j(`${API}/api/ml/trade-feedback/status`);
+    const d = await jAuth(`${API}/api/ml/trade-feedback/status`);
 
     // Trade counts
     const ts = d.trade_stats || {};
@@ -1244,7 +1244,7 @@ async function runFeedbackPredict() {
   }
 
   try {
-    const d = await j(`${API}/api/ml/trade-feedback/predict`, {
+    const d = await jAuth(`${API}/api/ml/trade-feedback/predict`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1329,7 +1329,7 @@ async function startYFinance() {
 
 async function pollYFinance() {
   try {
-    const d = await j(`${API}/api/yfinance/status`);
+    const d = await jAuth(`${API}/api/yfinance/status`);
     set('yf-cur-sym', d.current_symbol || '…');
     set('yf-pct', (d.pct || 0) + '%');
     set('yf-proc', d.processed || 0);
@@ -1353,7 +1353,7 @@ async function pollYFinance() {
 
 async function loadDbSources() {
   try {
-    const rows = await j(`${API}/api/db/sources`);
+    const rows = await jAuth(`${API}/api/db/sources`);
     if (!rows || rows.error || !rows.length) return;
 
     const sourceColours = { FYERS: 'var(--data)', YFINANCE: 'var(--live)' };
@@ -1428,7 +1428,7 @@ async function refreshScheduler() {
 
 async function loadExecuteRegime() {
   try {
-    const d = await j(`${API}/api/ml/regime`);
+    const d = await jAuth(`${API}/api/ml/regime`);
     const regime = d.regime || 'Unknown';
     const colors = { Bull:'var(--green)', Neutral:'var(--live)', Bear:'var(--red)' };
     const dot = document.getElementById('exec-regime-dot');
@@ -1574,7 +1574,7 @@ async function runExecute() {
   const periodParam = _execTrendPeriod !== 'any' ? `?trend_period=${_execTrendPeriod}` : '';
   let _regime = 'Neutral';
   try {
-    const d = await j(`${API}/api/combined/signals${periodParam}`);
+    const d = await jAuth(`${API}/api/combined/signals${periodParam}`);
 
     // Stats
     set('exec-stat-hits',      d.total_strategy_signals || 0);
@@ -1857,7 +1857,7 @@ function _scrIndex() {
 // Populate both index dropdowns from API
 async function loadIndexOptions() {
   try {
-    const d = await j(`${API}/api/indices`);
+    const d = await jAuth(`${API}/api/indices`);
     const indices = d.indices || [];
 
     // Group by category for <optgroup>
@@ -1902,7 +1902,7 @@ async function loadSectors() {
   const body = document.getElementById('scr-sector-body');
   body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Calculating sector performance…</div></div>';
   try {
-    const d = await j(`${API}/api/sector/heatmap`);
+    const d = await jAuth(`${API}/api/sector/heatmap`);
     const sectors = d.sectors || [];
     set('scr-total', sectors.length);
     if (!sectors.length) { body.innerHTML = '<div class="empty"><div class="empty-title">No data — run a backfill first</div></div>'; return; }
@@ -1914,6 +1914,22 @@ async function loadSectors() {
       const r3m  = s.avg_3m  != null ? _retSpan(s.avg_3m)  : '—';
       const barColor = (s.avg_1m || 0) >= 0 ? 'var(--green)' : 'var(--red)';
       const barWidth = Math.min(Math.abs(s.avg_1m || 0) * 5, 100);
+
+      const stockRows = (s.stocks || []).map(st => `
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:6px 0;border-top:0.5px solid rgba(0,0,0,0.06);">
+          <div>
+            <span style="font-size:13px;font-weight:700;color:var(--txt);">${st.symbol}</span>
+            <span style="font-size:11px;color:var(--txt3);margin-left:6px;">₹${st.last_price != null ? st.last_price.toLocaleString('en-IN') : '—'}</span>
+          </div>
+          <div style="display:flex;gap:10px;font-size:11px;font-weight:600;">
+            <span style="color:var(--txt3);">1D&nbsp;${_retSpan(st.r1d)}</span>
+            <span style="color:var(--txt3);">1W&nbsp;${_retSpan(st.r5d)}</span>
+            <span style="color:var(--txt3);">1M&nbsp;${_retSpan(st.r20d)}</span>
+            <span style="color:var(--txt3);">3M&nbsp;${_retSpan(st.r60d)}</span>
+          </div>
+        </div>`).join('');
+
       return `
         <div class="sector-tile">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -1926,16 +1942,16 @@ async function loadSectors() {
               <div style="font-size:9px;color:var(--txt3);">1-Month</div>
             </div>
           </div>
-          <div style="background:var(--s2);border-radius:4px;height:4px;margin-bottom:8px;">
+          <div style="background:var(--s2);border-radius:4px;height:4px;margin-bottom:10px;">
             <div style="height:4px;border-radius:4px;background:${barColor};width:${barWidth}%;"></div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center;">
-            <div><div style="font-size:9px;color:var(--txt3);">1D</div><div style="font-size:12px;font-weight:700;">${r1d}</div></div>
-            <div><div style="font-size:9px;color:var(--txt3);">1W</div><div style="font-size:12px;font-weight:700;">${r1w}</div></div>
-            <div><div style="font-size:9px;color:var(--txt3);">1M</div><div style="font-size:12px;font-weight:700;">${r1m}</div></div>
-            <div><div style="font-size:9px;color:var(--txt3);">3M</div><div style="font-size:12px;font-weight:700;">${r3m}</div></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center;margin-bottom:${stockRows ? '10px' : '0'};">
+            <div><div style="font-size:9px;color:var(--txt3);">1D Avg</div><div style="font-size:12px;font-weight:700;">${r1d}</div></div>
+            <div><div style="font-size:9px;color:var(--txt3);">1W Avg</div><div style="font-size:12px;font-weight:700;">${r1w}</div></div>
+            <div><div style="font-size:9px;color:var(--txt3);">1M Avg</div><div style="font-size:12px;font-weight:700;">${r1m}</div></div>
+            <div><div style="font-size:9px;color:var(--txt3);">3M Avg</div><div style="font-size:12px;font-weight:700;">${r3m}</div></div>
           </div>
-          ${s.top_stock ? `<div style="margin-top:8px;font-size:11px;color:var(--txt3);">Top: <b style="color:var(--green);">${s.top_stock}</b> ${_retSpan(s.top_stock_ret)}</div>` : ''}
+          ${stockRows}
         </div>`;
     }).join('');
   } catch(e) {
@@ -2289,7 +2305,7 @@ function _sendBrowserNotification(count, symbols, regime) {
 
 async function _pollExecute() {
   try {
-    const d = await j(`${API}/api/execute/poll`);
+    const d = await jAuth(`${API}/api/execute/poll`);
     const count = d.count || 0;
     _updateExecuteBadge(count);
 
@@ -2607,12 +2623,13 @@ async function adminDeleteUser(userId, username) {
 let _homePicksCache = null;
 
 async function loadHome() {
-  // Fire all 4 requests in parallel — don't wait for each sequentially
+  const hasToken = !!getToken();
+  // Fire requests in parallel — protected endpoints only if logged in
   const [statusRes, regimeRes, mlRes, fbRes] = await Promise.allSettled([
     j(`${API}/api/status`),
-    j(`${API}/api/ml/regime`),
-    j(`${API}/api/ml/train/status`),
-    j(`${API}/api/ml/trade-feedback/status`),
+    hasToken ? jAuth(`${API}/api/ml/regime`)               : Promise.resolve({}),
+    hasToken ? jAuth(`${API}/api/ml/train/status`)         : Promise.resolve({}),
+    hasToken ? jAuth(`${API}/api/ml/trade-feedback/status`): Promise.resolve({}),
   ]);
 
   // 1. Status / health data
