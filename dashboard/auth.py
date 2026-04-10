@@ -37,6 +37,14 @@ from config.settings import (
 ALGORITHM = "HS256"
 _bearer = HTTPBearer(auto_error=True)
 
+# ── Revocation check cache ──────────────────────────────────────────────
+# Avoids a DB roundtrip on every authenticated request.
+# Key: jti → (is_revoked: bool, checked_at: float)
+# TTL: 30 seconds. Revoked tokens are cached permanently (they won't un-revoke).
+import time as _time
+_revocation_cache: dict[str, tuple[bool, float]] = {}
+_REVOCATION_TTL = 30.0  # seconds
+
 
 # ── Password helpers ────────────────────────────────────────────────────
 
@@ -65,9 +73,22 @@ def create_access_token(username: str, role: str = "user") -> str:
 
 
 def _is_token_revoked(jti: str) -> bool:
-    """Check if a token JTI has been revoked (logged out)."""
+    """Check if a token JTI has been revoked (logged out).
+
+    Uses a 30-second in-memory cache to avoid a DB roundtrip on every
+    authenticated request. Revoked tokens are cached permanently.
+    """
     if not jti:
         return False
+
+    now = _time.monotonic()
+    cached = _revocation_cache.get(jti)
+    if cached is not None:
+        is_revoked, checked_at = cached
+        # Revoked = permanent; not-revoked = re-check after TTL
+        if is_revoked or (now - checked_at < _REVOCATION_TTL):
+            return is_revoked
+
     try:
         from db.connection import get_conn
         conn = get_conn()
@@ -76,14 +97,13 @@ def _is_token_revoked(jti: str) -> bool:
                 "SELECT 1 FROM revoked_tokens WHERE jti=%s AND expires_at > NOW()",
                 (jti,)
             )
-            return cur.fetchone() is not None
+            is_revoked = cur.fetchone() is not None
+        conn.close()
     except Exception:
         return False
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+
+    _revocation_cache[jti] = (is_revoked, now)
+    return is_revoked
 
 
 def revoke_token(token: str) -> None:
@@ -107,6 +127,8 @@ def revoke_token(token: str) -> None:
             cur.execute("DELETE FROM revoked_tokens WHERE expires_at <= NOW()")
         conn.commit()
         conn.close()
+        # Immediately mark as revoked in local cache so this worker doesn't re-query
+        _revocation_cache[jti] = (True, _time.monotonic())
     except Exception:
         pass
 

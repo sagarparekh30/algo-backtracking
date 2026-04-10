@@ -110,24 +110,36 @@ class StrategyManager:
 
     # ── Public API ─────────────────────────────────────────────────────
 
+    # ── how many calendar days of history each scan needs ────────────────
+    _LOOKBACK_DAYS = 730   # ~505 trading days — enough for EMA200 + any indicator
+
     def get_signals(self, strategy_id: str = "golden_rsi") -> list:
-        """Scan all symbols using the specified strategy."""
+        """Scan all symbols using the specified strategy.
+
+        Uses a single DB query (all symbols, last 2 years) then groups
+        in memory — avoids 100+ round-trips that caused the slowness.
+        """
         signals = []
         strategy_fn = self._get_strategy_fn(strategy_id)
         if strategy_fn is None:
             logger.warning(f"Unknown strategy: {strategy_id}")
             return signals
         try:
-            engine  = get_engine()
-            symbols = pd.read_sql(
-                f"SELECT DISTINCT symbol FROM {self.table_name}", engine
-            )["symbol"].tolist()
-            for symbol in symbols:
+            engine = get_engine()
+            df_all = pd.read_sql(
+                f"""
+                SELECT symbol, trade_date, open, high, low, close, volume
+                FROM {self.table_name}
+                WHERE trade_date >= CURRENT_DATE - INTERVAL '{self._LOOKBACK_DAYS} days'
+                ORDER BY symbol, trade_date ASC
+                """,
+                engine,
+            )
+            if df_all.empty:
+                return signals
+            for symbol, df in df_all.groupby("symbol", sort=False):
                 try:
-                    df = pd.read_sql(
-                        f"SELECT * FROM {self.table_name} WHERE symbol=%(sym)s ORDER BY trade_date ASC",
-                        engine, params={"sym": symbol},
-                    )
+                    df = df.reset_index(drop=True)
                     sig = strategy_fn(df, symbol)
                     if sig:
                         signals.append(sig)
@@ -964,9 +976,10 @@ class StrategyManager:
         df = self._compute_common(df)
         st = supertrend(df)
         a  = adx(df)
-        df["st_trend"] = st["trend"]
+        df["st_trend"]  = st["trend"]
         df["adx14"]    = a["adx"]
         df["plus_di"]  = a["plus_di"]
+        df["minus_di"] = a["minus_di"]
         lt = df.iloc[-1]
         if (lt["st_trend"] == 1
                 and pd.notna(lt["adx14"]) and lt["adx14"] > 25

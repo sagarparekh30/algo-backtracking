@@ -31,4 +31,4 @@ ENV PYTHONUNBUFFERED=1 \
 EXPOSE 8000
 
 # ── Entrypoint: run migrations then start the API server ───────
-CMD ["sh", "-c", "python db/migrate.py && uvicorn dashboard.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "python db/migrate.py && uvicorn dashboard.main:app --host 0.0.0.0 --port 8000 --workers 2"]

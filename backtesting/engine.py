@@ -22,11 +22,24 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # noqa: F401
 
+from sqlalchemy import text as _sa_text
 from config.settings import TABLE_NAME, INITIAL_CAPITAL, MAX_HOLD_DAYS
 from db.connection import get_engine
 from risk.manager import RiskManager
 
 logger = logging.getLogger(__name__)
+
+
+def _native(v):
+    """Convert numpy scalars to Python native types for DB insertion."""
+    if isinstance(v, (np.floating,)):
+        f = float(v)
+        return None if (math.isnan(f) or math.isinf(f)) else f
+    if isinstance(v, (np.integer,)):
+        return int(v)
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return None
+    return v
 
 # Minimum history required before generating signals
 MIN_HISTORY = 200
@@ -193,7 +206,7 @@ class BacktestEngine:
         with engine.begin() as conn:
             # 1. Insert run summary
             row = conn.execute(
-                """
+                _sa_text("""
                 INSERT INTO backtest_runs (
                     strategy, symbol, start_date, end_date,
                     capital, risk_pct,
@@ -204,39 +217,39 @@ class BacktestEngine:
                     best_trade, worst_trade, avg_hold_days,
                     run_duration_ms
                 ) VALUES (
-                    %(strategy)s, %(symbol)s, %(start_date)s, %(end_date)s,
-                    %(capital)s, %(risk_pct)s,
-                    %(total_trades)s, %(win_count)s, %(loss_count)s, %(win_rate)s,
-                    %(total_pnl)s, %(total_pnl_pct)s, %(avg_pnl_trade)s,
-                    %(max_drawdown)s, %(max_drawdown_pct)s,
-                    %(sharpe_ratio)s, %(profit_factor)s,
-                    %(best_trade)s, %(worst_trade)s, %(avg_hold_days)s,
-                    %(run_duration_ms)s
+                    :strategy, :symbol, :start_date, :end_date,
+                    :capital, :risk_pct,
+                    :total_trades, :win_count, :loss_count, :win_rate,
+                    :total_pnl, :total_pnl_pct, :avg_pnl_trade,
+                    :max_drawdown, :max_drawdown_pct,
+                    :sharpe_ratio, :profit_factor,
+                    :best_trade, :worst_trade, :avg_hold_days,
+                    :run_duration_ms
                 )
                 RETURNING id
-                """,
+                """),
                 {
                     "strategy":        strategy_id,
                     "symbol":          symbol,
                     "start_date":      start_date,
                     "end_date":        end_date,
-                    "capital":         self.initial_capital,
-                    "risk_pct":        self.risk_manager.risk_pct,
-                    "total_trades":    metrics.get("total_trades", 0),
-                    "win_count":       metrics.get("win_count", 0),
-                    "loss_count":      metrics.get("loss_count", 0),
-                    "win_rate":        metrics.get("win_rate"),
-                    "total_pnl":       metrics.get("total_pnl"),
-                    "total_pnl_pct":   metrics.get("total_pnl_pct"),
-                    "avg_pnl_trade":   metrics.get("avg_pnl_per_trade"),
-                    "max_drawdown":    metrics.get("max_drawdown"),
-                    "max_drawdown_pct":metrics.get("max_drawdown_pct"),
-                    "sharpe_ratio":    metrics.get("sharpe_ratio"),
-                    "profit_factor":   metrics.get("profit_factor"),
-                    "best_trade":      metrics.get("best_trade"),
-                    "worst_trade":     metrics.get("worst_trade"),
-                    "avg_hold_days":   metrics.get("avg_hold_days"),
-                    "run_duration_ms": elapsed_ms,
+                    "capital":         _native(self.initial_capital),
+                    "risk_pct":        _native(self.risk_manager.risk_pct),
+                    "total_trades":    _native(metrics.get("total_trades", 0)),
+                    "win_count":       _native(metrics.get("win_count", 0)),
+                    "loss_count":      _native(metrics.get("loss_count", 0)),
+                    "win_rate":        _native(metrics.get("win_rate")),
+                    "total_pnl":       _native(metrics.get("total_pnl")),
+                    "total_pnl_pct":   _native(metrics.get("total_pnl_pct")),
+                    "avg_pnl_trade":   _native(metrics.get("avg_pnl_per_trade")),
+                    "max_drawdown":    _native(metrics.get("max_drawdown")),
+                    "max_drawdown_pct":_native(metrics.get("max_drawdown_pct")),
+                    "sharpe_ratio":    _native(metrics.get("sharpe_ratio")),
+                    "profit_factor":   _native(metrics.get("profit_factor")),
+                    "best_trade":      _native(metrics.get("best_trade")),
+                    "worst_trade":     _native(metrics.get("worst_trade")),
+                    "avg_hold_days":   _native(metrics.get("avg_hold_days")),
+                    "run_duration_ms": _native(elapsed_ms),
                 },
             )
             run_id = row.fetchone()[0]
@@ -244,60 +257,60 @@ class BacktestEngine:
             # 2. Insert individual trades
             if trades:
                 conn.execute(
-                    """
+                    _sa_text("""
                     INSERT INTO backtest_trades (
                         run_id, symbol, entry_date, exit_date,
                         entry_price, exit_price, stop_loss, target,
                         shares, pnl, pnl_pct, exit_reason, hold_days
                     ) VALUES (
-                        %(run_id)s, %(symbol)s, %(entry_date)s, %(exit_date)s,
-                        %(entry_price)s, %(exit_price)s, %(stop_loss)s, %(target)s,
-                        %(shares)s, %(pnl)s, %(pnl_pct)s, %(exit_reason)s, %(hold_days)s
+                        :run_id, :symbol, :entry_date, :exit_date,
+                        :entry_price, :exit_price, :stop_loss, :target,
+                        :shares, :pnl, :pnl_pct, :exit_reason, :hold_days
                     )
-                    """,
-                    [{"run_id": run_id, **t} for t in trades],
+                    """),
+                    [{k: _native(v) for k, v in {"run_id": run_id, **t}.items()} for t in trades],
                 )
 
             # 3. Insert equity curve
             if equity_curve:
                 conn.execute(
-                    """
+                    _sa_text("""
                     INSERT INTO backtest_equity_curve (run_id, curve_date, equity)
-                    VALUES (%(run_id)s, %(date)s, %(equity)s)
+                    VALUES (:run_id, :date, :equity)
                     ON CONFLICT (run_id, curve_date) DO UPDATE SET equity = EXCLUDED.equity
-                    """,
-                    [{"run_id": run_id, "date": p["date"], "equity": p["equity"]}
+                    """),
+                    [{"run_id": run_id, "date": p["date"], "equity": _native(p["equity"])}
                      for p in equity_curve],
                 )
 
             # 4. Insert per-symbol summary
             if per_symbol:
                 conn.execute(
-                    """
+                    _sa_text("""
                     INSERT INTO backtest_per_symbol (
                         run_id, symbol, total_trades, win_count, loss_count,
                         win_rate, total_pnl, total_pnl_pct,
                         sharpe_ratio, profit_factor, max_drawdown
                     ) VALUES (
-                        %(run_id)s, %(symbol)s, %(total_trades)s, %(win_count)s, %(loss_count)s,
-                        %(win_rate)s, %(total_pnl)s, %(total_pnl_pct)s,
-                        %(sharpe_ratio)s, %(profit_factor)s, %(max_drawdown)s
+                        :run_id, :symbol, :total_trades, :win_count, :loss_count,
+                        :win_rate, :total_pnl, :total_pnl_pct,
+                        :sharpe_ratio, :profit_factor, :max_drawdown
                     )
                     ON CONFLICT (run_id, symbol) DO NOTHING
-                    """,
+                    """),
                     [
                         {
                             "run_id":       run_id,
                             "symbol":       sym,
-                            "total_trades": m.get("total_trades"),
-                            "win_count":    m.get("win_count"),
-                            "loss_count":   m.get("loss_count"),
-                            "win_rate":     m.get("win_rate"),
-                            "total_pnl":    m.get("total_pnl"),
-                            "total_pnl_pct":m.get("total_pnl_pct"),
-                            "sharpe_ratio": m.get("sharpe_ratio"),
-                            "profit_factor":m.get("profit_factor"),
-                            "max_drawdown": m.get("max_drawdown"),
+                            "total_trades": _native(m.get("total_trades")),
+                            "win_count":    _native(m.get("win_count")),
+                            "loss_count":   _native(m.get("loss_count")),
+                            "win_rate":     _native(m.get("win_rate")),
+                            "total_pnl":    _native(m.get("total_pnl")),
+                            "total_pnl_pct":_native(m.get("total_pnl_pct")),
+                            "sharpe_ratio": _native(m.get("sharpe_ratio")),
+                            "profit_factor":_native(m.get("profit_factor")),
+                            "max_drawdown": _native(m.get("max_drawdown")),
                         }
                         for sym, m in per_symbol.items()
                     ],

@@ -6,6 +6,38 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+_CANDLE_LOOKBACK_DAYS = 730   # ~505 trading days — enough for EMA200 + any indicator
+
+
+def _bulk_fetch_candles(engine, symbols: list | None = None) -> dict:
+    """
+    Fetch last _CANDLE_LOOKBACK_DAYS of OHLCV for all (or specified) symbols
+    in ONE query, return dict {symbol: DataFrame}.
+
+    Replaces the pattern of 100 individual pd.read_sql calls in loops.
+    """
+    sym_filter = ""
+    params: dict = {}
+    if symbols:
+        sym_filter = "AND symbol = ANY(%(syms)s)"
+        params["syms"] = symbols
+
+    df_all = pd.read_sql(
+        f"""
+        SELECT symbol, trade_date, open, high, low, close, volume
+        FROM {TABLE_NAME}
+        WHERE trade_date >= CURRENT_DATE - INTERVAL '{_CANDLE_LOOKBACK_DAYS} days'
+        {sym_filter}
+        ORDER BY symbol, trade_date ASC
+        """,
+        engine,
+        params=params or None,
+    )
+    if df_all.empty:
+        return {}
+    return {sym: grp.reset_index(drop=True) for sym, grp in df_all.groupby("symbol", sort=False)}
+
+
 def _sanitize(obj):
     """Recursively replace NaN/Inf floats with None so JSON serialization never fails."""
     if isinstance(obj, dict):
@@ -30,6 +62,7 @@ from typing import Optional, Dict
 from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # Import existing settings
@@ -43,6 +76,10 @@ from strategies.swing_executor import StrategyManager, STRATEGY_DESCRIPTIONS
 from dashboard.auth import require_admin, require_user
 
 app = FastAPI(title="Trading HQ Dashboard")
+
+# Serve dashboard static assets (dashboard.js, etc.)
+_dashboard_dir = os.path.dirname(os.path.abspath(__file__))
+app.mount("/static", StaticFiles(directory=_dashboard_dir), name="static")
 
 # ── Shared ML predictor singleton (model stays in memory) ────────────────────
 # Loaded once on first use; reloaded after training via reload_ml_predictor()
@@ -75,6 +112,69 @@ async def startup_event():
     # Auto-bootstrap: fetch 30-year history + train model if DB is empty
     from scheduler.bootstrap import run_bootstrap_if_needed
     run_bootstrap_if_needed()
+    # Pre-warm slow caches so first user request is fast
+    import threading
+    threading.Thread(target=_prewarm_caches, name="cache-prewarm", daemon=True).start()
+
+
+def _prewarm_caches():
+    """Pre-warm in-process caches that are expensive to compute cold."""
+    import time as _t
+    _t.sleep(2)   # wait for DB pool to settle
+    try:
+        get_db_stats()
+    except Exception:
+        pass
+    try:
+        from db.connection import get_conn
+        global _snapshot_cache, _snapshot_cache_ts
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT symbol, trade_date, open, high, low, close, volume
+                FROM (
+                    SELECT DISTINCT ON (symbol)
+                        symbol, trade_date, open, high, low, close, volume
+                    FROM {TABLE_NAME}
+                    ORDER BY symbol, trade_date DESC
+                ) latest
+                ORDER BY trade_date DESC
+                LIMIT 10
+            """)
+            cols = [d[0] for d in cur.description]
+            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        conn.close()
+        _snapshot_cache = rows
+        _snapshot_cache_ts = _time.monotonic()
+    except Exception:
+        pass
+    try:
+        global _db_sources_cache, _db_sources_cache_ts
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT source, COUNT(*) as rows, COUNT(DISTINCT symbol) as symbols, "
+                f"MIN(trade_date) as from_date, MAX(trade_date) as to_date "
+                f"FROM {TABLE_NAME} GROUP BY source ORDER BY rows DESC"
+            )
+            rows = cur.fetchall()
+        conn.close()
+        _db_sources_cache = [
+            {"source": r[0], "rows": r[1], "symbols": r[2],
+             "from_date": str(r[3]) if r[3] else None,
+             "to_date":   str(r[4]) if r[4] else None}
+            for r in rows
+        ]
+        _db_sources_cache_ts = _time.monotonic()
+    except Exception:
+        pass
+    try:
+        from ml.regime import compute_regime
+        global _regime_cache, _regime_cache_ts
+        _regime_cache = compute_regime()
+        _regime_cache_ts = _time.monotonic()
+    except Exception:
+        pass
 
 
 def _run_db_migrations():
@@ -223,13 +323,35 @@ class SummaryResponse(BaseModel):
 # Helpers
 # -------------------------------------------------------
 
+import time as _time
+
+_db_stats_cache_ts: float = 0.0
+_DB_STATS_TTL = 60.0   # re-query DB at most once per 60 s
+
+# ── Per-endpoint result caches ───────────────────────────────────────────────
+_snapshot_cache: list = []
+_snapshot_cache_ts: float = 0.0
+_SNAPSHOT_TTL = 60.0        # latest_snapshot changes once per day at most
+
+_db_sources_cache: list = []
+_db_sources_cache_ts: float = 0.0
+_DB_SOURCES_TTL = 300.0     # db/sources full scan — cache 5 min
+
+_predict_all_cache: dict = {}
+_predict_all_cache_ts: float = 0.0
+_PREDICT_ALL_TTL = 120.0    # ml/predict/all — cache 2 min
+
 def get_db_stats():
-    """Fetch database health metrics from PostgreSQL."""
+    """Fetch database health metrics — cached for 60 s to avoid COUNT(*) on every request."""
+    global _db_stats_cache_ts
+    now = _time.monotonic()
+    if now - _db_stats_cache_ts < _DB_STATS_TTL:
+        return   # serve from cached state
     try:
         conn = get_conn()
         cursor = conn.cursor()
 
-        # Table size
+        # Table size (fast — metadata only)
         cursor.execute(
             "SELECT pg_total_relation_size(%s) / 1048576.0",
             (TABLE_NAME,),
@@ -237,22 +359,52 @@ def get_db_stats():
         row = cursor.fetchone()
         state.db_size_mb = round(float(row[0] or 0), 2)
 
+        # Use pg_class reltuples for fast approximate row count
+        # Fall back to exact COUNT only when table is empty / reltuples is 0
         cursor.execute(
-            f"SELECT COUNT(*), COUNT(DISTINCT symbol), "
-            f"MIN(trade_date), MAX(trade_date) FROM {TABLE_NAME}"
+            "SELECT reltuples::bigint FROM pg_class WHERE relname = %s",
+            (TABLE_NAME,),
         )
-        rows, syms, d1, d2 = cursor.fetchone()
-        state.total_db_rows  = rows or 0
-        state.unique_symbols = syms or 0
-        state.min_date = str(d1) if d1 else "N/A"
-        state.max_date = str(d2) if d2 else "N/A"
+        approx = cursor.fetchone()
+        approx_rows = int(approx[0]) if approx and approx[0] and approx[0] > 0 else 0
+
+        if approx_rows > 0:
+            state.total_db_rows = approx_rows
+            # Symbols / date range from a much cheaper recent-sample query
+            cursor.execute(
+                f"SELECT COUNT(DISTINCT symbol), MIN(trade_date), MAX(trade_date) FROM {TABLE_NAME}"
+            )
+            syms, d1, d2 = cursor.fetchone()
+            state.unique_symbols = syms or 0
+            state.min_date = str(d1) if d1 else "N/A"
+            state.max_date = str(d2) if d2 else "N/A"
+        else:
+            # Table just created — full scan is cheap
+            cursor.execute(
+                f"SELECT COUNT(*), COUNT(DISTINCT symbol), MIN(trade_date), MAX(trade_date) FROM {TABLE_NAME}"
+            )
+            rows, syms, d1, d2 = cursor.fetchone()
+            state.total_db_rows  = rows or 0
+            state.unique_symbols = syms or 0
+            state.min_date = str(d1) if d1 else "N/A"
+            state.max_date = str(d2) if d2 else "N/A"
+
         conn.close()
+        _db_stats_cache_ts = now   # update cache timestamp only on success
     except Exception as e:
         print(f"DB Stat Error: {e}")
 
 
+_log_cache_ts: float = 0.0
+_LOG_TTL = 5.0   # re-read log at most every 5 s
+
 def parse_log_for_summary():
-    """Parses the log file to update the session state."""
+    """Parses the log file to update the session state — cached for 5 s."""
+    global _log_cache_ts
+    now = _time.monotonic()
+    if now - _log_cache_ts < _LOG_TTL:
+        return
+    _log_cache_ts = now
     if not os.path.exists(LOG_FILE):
         return
 
@@ -328,29 +480,38 @@ async def get_ui_config():
 
 
 @app.get("/api/latest_snapshot")
-async def get_latest_snapshot():
+async def get_latest_snapshot(_: dict = Depends(require_user)):
+    global _snapshot_cache, _snapshot_cache_ts
+    now = _time.monotonic()
+    if _snapshot_cache and now - _snapshot_cache_ts < _SNAPSHOT_TTL:
+        return _snapshot_cache
     try:
-        import pandas as pd
-        engine = get_engine()
-        df = pd.read_sql(f"""
-            SELECT symbol, trade_date, open, high, low, close, volume
-            FROM (
-                SELECT DISTINCT ON (symbol)
-                    symbol, trade_date, open, high, low, close, volume
-                FROM {TABLE_NAME}
-                ORDER BY symbol, trade_date DESC
-            ) latest
-            ORDER BY trade_date DESC
-            LIMIT 10
-        """, engine)
-        return df.to_dict(orient="records")
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT symbol, trade_date, open, high, low, close, volume
+                FROM (
+                    SELECT DISTINCT ON (symbol)
+                        symbol, trade_date, open, high, low, close, volume
+                    FROM {TABLE_NAME}
+                    ORDER BY symbol, trade_date DESC
+                ) latest
+                ORDER BY trade_date DESC
+                LIMIT 10
+            """)
+            cols = [d[0] for d in cur.description]
+            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        conn.close()
+        _snapshot_cache = rows
+        _snapshot_cache_ts = now
+        return rows
     except Exception as e:
         print(f"Snapshot Error: {e}")
-        return []
+        return _snapshot_cache or []
 
 
 @app.get("/api/signals")
-async def get_signals(strategy: str = "golden_rsi"):
+async def get_signals(strategy: str = "golden_rsi", _: dict = Depends(require_user)):
     """Returns swing trading signals using the selected strategy."""
     try:
         manager = StrategyManager()
@@ -555,7 +716,7 @@ async def list_strategies():
 
 
 @app.get("/api/signals/all")
-async def get_all_signals():
+async def get_all_signals(_: dict = Depends(require_user)):
     """Run all strategies and return combined results grouped by strategy."""
     try:
         manager = StrategyManager()
@@ -635,16 +796,15 @@ async def combined_signals(trend_period: str = "any"):
     engine = get_engine()
 
     # ── Step 4: Score each symbol with the ML model ──────────────────────
+    # Bulk-fetch all signal symbols in ONE query instead of N round-trips
+    candle_map = _bulk_fetch_candles(engine, symbols=list(symbol_map.keys()))
+
     period_days = PERIOD_DAYS.get(trend_period)   # None means no filter
     results = []
     for sym, info in symbol_map.items():
         try:
-            df = pd.read_sql(
-                f"SELECT trade_date, open, high, low, close, volume "
-                f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
-                engine, params={"sym": sym},
-            )
-            if df.empty or len(df) < 260:
+            df = candle_map.get(sym)
+            if df is None or df.empty or len(df) < 260:
                 continue
 
             ml = predictor.predict_symbol(df, sym, regime=regime)
@@ -837,15 +997,12 @@ async def _refresh_execute_cache():
             return
 
         engine  = get_engine()
+        candle_map = _bulk_fetch_candles(engine, symbols=list(symbol_map.keys()))
         results = []
         for sym, info in symbol_map.items():
             try:
-                df = pd.read_sql(
-                    f"SELECT trade_date, open, high, low, close, volume "
-                    f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
-                    engine, params={"sym": sym},
-                )
-                if df.empty or len(df) < 260:
+                df = candle_map.get(sym)
+                if df is None or df.empty or len(df) < 260:
                     continue
                 ml = predictor.predict_symbol(df, sym, regime=regime)
                 if "error" in ml or ml.get("buy_probability", 0) < buy_thresh:
@@ -1122,7 +1279,7 @@ async def ml_train(
 
 
 @app.get("/api/ml/train/status")
-async def ml_train_status():
+async def ml_train_status(_: dict = Depends(require_user)):
     """Return ML training status and last result."""
     predictor = get_ml_predictor()
     return {
@@ -1161,7 +1318,7 @@ def _overlay_live_prices(results: list) -> list:
 
 
 @app.get("/api/ml/predict")
-async def ml_predict_all():
+async def ml_predict_all(_: dict = Depends(require_user)):
     """
     Run multi-horizon ML predictions for all symbols.
 
@@ -1172,7 +1329,12 @@ async def ml_predict_all():
       expected_return_pct          — 5-day regressor output
 
     Prices are overlaid with live feed LTP where the feed is running.
+    Cached for 2 minutes — predictions don't change tick-by-tick.
     """
+    global _predict_all_cache, _predict_all_cache_ts
+    now = _time.monotonic()
+    if _predict_all_cache and now - _predict_all_cache_ts < _PREDICT_ALL_TTL:
+        return _predict_all_cache
     try:
         from ml.regime import compute_regime
 
@@ -1186,7 +1348,7 @@ async def ml_predict_all():
         results     = _overlay_live_prices(results)
 
         live_count = sum(1 for r in results if r.get("price_source") == "live")
-        return {
+        payload = {
             "results":    results,
             "count":      len(results),
             "regime":     regime_data,
@@ -1197,13 +1359,16 @@ async def ml_predict_all():
                 "10d": predictor.clf_10d is not None,
             },
         }
+        _predict_all_cache = payload
+        _predict_all_cache_ts = now
+        return payload
     except Exception as e:
         print(f"ML Predict Error: {e}")
         return {"error": str(e), "results": []}
 
 
 @app.get("/api/ml/stability")
-async def ml_stability_snapshot():
+async def ml_stability_snapshot(_: dict = Depends(require_user)):
     """
     Return the current stability score for every symbol that has been
     predicted at least twice since server start.
@@ -1225,7 +1390,7 @@ async def ml_stability_snapshot():
 
 
 @app.get("/api/ml/stability/{symbol}")
-async def ml_stability_symbol(symbol: str):
+async def ml_stability_symbol(symbol: str, _: dict = Depends(require_user)):
     """Return the stability score for a single symbol."""
     from ml.prediction_history import get_prediction_history
     result = get_prediction_history().stability(symbol.upper())
@@ -1234,7 +1399,7 @@ async def ml_stability_symbol(symbol: str):
 
 
 @app.get("/api/ml/predict/{symbol}")
-async def ml_predict_symbol(symbol: str):
+async def ml_predict_symbol(symbol: str, _: dict = Depends(require_user)):
     """
     Run multi-horizon ML prediction for a single symbol.
 
@@ -1390,22 +1555,33 @@ async def ml_data_validation():
         conn.close()
 
 
+_regime_cache: dict = {}
+_regime_cache_ts: float = 0.0
+_REGIME_TTL = 300.0   # recompute regime at most every 5 minutes
+
 @app.get("/api/ml/regime")
-async def ml_regime():
+async def ml_regime(_: dict = Depends(require_user)):
     """
     Compute current market regime from DB breadth data.
     Returns: regime (Bull/Neutral/Bear), breadth_pct, avg_atr_pct, volatility_label.
+    Cached for 5 minutes — regime doesn't change tick-by-tick.
     """
+    global _regime_cache, _regime_cache_ts
+    now = _time.monotonic()
+    if _regime_cache and now - _regime_cache_ts < _REGIME_TTL:
+        return _regime_cache
     try:
         from ml.regime import compute_regime
-        return compute_regime()
+        _regime_cache = compute_regime()
+        _regime_cache_ts = now
+        return _regime_cache
     except Exception as e:
         print(f"Regime Error: {e}")
         return {"error": str(e)}
 
 
 @app.get("/api/ml/reliability")
-async def ml_reliability():
+async def ml_reliability(_: dict = Depends(require_user)):
     """
     Return calibration reliability buckets from the last training run.
     Shows: when model predicted X%, actual hit rate was Y%.
@@ -1475,7 +1651,7 @@ async def feedback_retrain(
 
 
 @app.get("/api/ml/trade-feedback/status")
-async def feedback_status():
+async def feedback_status(_: dict = Depends(require_user)):
     """Return trade feedback model status, metrics, and trade counts."""
     model = get_feedback_model()
     stats = model.get_trade_stats()
@@ -1708,7 +1884,7 @@ async def start_yfinance_backfill(
 
 
 @app.get("/api/yfinance/status")
-async def yfinance_status():
+async def yfinance_status(_: dict = Depends(require_user)):
     """Return Yahoo Finance backfill progress."""
     pct = round(yf_state.processed / yf_state.total * 100, 1) if yf_state.total > 0 else 0
     return {
@@ -1724,25 +1900,33 @@ async def yfinance_status():
 
 
 @app.get("/api/db/sources")
-async def db_sources():
-    """Return row counts grouped by data source."""
+async def db_sources(_: dict = Depends(require_user)):
+    """Return row counts grouped by data source. Cached 5 min (full table scan)."""
+    global _db_sources_cache, _db_sources_cache_ts
+    now = _time.monotonic()
+    if _db_sources_cache and now - _db_sources_cache_ts < _DB_SOURCES_TTL:
+        return _db_sources_cache
     try:
         conn = get_conn()
-        cursor = conn.cursor()
-        cursor.execute(
-            f"SELECT source, COUNT(*) as rows, COUNT(DISTINCT symbol) as symbols, "
-            f"MIN(trade_date) as from_date, MAX(trade_date) as to_date "
-            f"FROM {TABLE_NAME} GROUP BY source ORDER BY rows DESC"
-        )
-        rows = cursor.fetchall()
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT source, COUNT(*) as rows, COUNT(DISTINCT symbol) as symbols, "
+                f"MIN(trade_date) as from_date, MAX(trade_date) as to_date "
+                f"FROM {TABLE_NAME} GROUP BY source ORDER BY rows DESC"
+            )
+            rows = cur.fetchall()
         conn.close()
-        return [
+        result = [
             {"source": r[0], "rows": r[1], "symbols": r[2],
-             "from_date": r[3], "to_date": r[4]}
+             "from_date": str(r[3]) if r[3] else None,
+             "to_date":   str(r[4]) if r[4] else None}
             for r in rows
         ]
+        _db_sources_cache = result
+        _db_sources_cache_ts = now
+        return result
     except Exception as e:
-        return {"error": str(e)}
+        return _db_sources_cache or {"error": str(e)}
 
 
 # -------------------------------------------------------
@@ -1867,7 +2051,7 @@ async def index_symbols(index_name: str):
 # -------------------------------------------------------
 
 @app.get("/api/screener/rs")
-async def screener_rs(index: str = None):
+async def screener_rs(_r: dict = Depends(require_user), index: str = None):
     """Relative Strength scan — stocks ranked by RS vs universe.
     Optional ?index=NIFTY+50 to scope to a specific index.
     """
@@ -1880,7 +2064,7 @@ async def screener_rs(index: str = None):
 
 
 @app.get("/api/screener/52w")
-async def screener_52w(index: str = None):
+async def screener_52w(_r: dict = Depends(require_user), index: str = None):
     """52-week high scan — stocks near breakout levels."""
     from strategies.screener import fiftytwo_week_scan
     symbols = None
@@ -1891,7 +2075,8 @@ async def screener_52w(index: str = None):
 
 
 @app.get("/api/screener/volume")
-async def screener_volume(min_multiplier: float = 2.0, index: str = None):
+@app.get("/api/screener/volume-surge")   # alias for backwards compatibility
+async def screener_volume(_r: dict = Depends(require_user), min_multiplier: float = 2.0, index: str = None):
     """Volume spike scan — unusual volume vs 20-day average."""
     from strategies.screener import volume_spike_scan
     symbols = None
@@ -1902,7 +2087,7 @@ async def screener_volume(min_multiplier: float = 2.0, index: str = None):
 
 
 @app.get("/api/sector/heatmap")
-async def sector_heatmap():
+async def sector_heatmap(_: dict = Depends(require_user)):
     """Sector performance heatmap — 1D/1W/1M/3M returns by sector."""
     from strategies.screener import sector_heatmap as _heatmap
     return {"sectors": _heatmap()}
@@ -2036,7 +2221,7 @@ def _build_trade_snapshot(symbol: str, strategy_tags: str,
 @app.post("/api/journal/trade")
 async def journal_log_trade(
     body: TradeLogRequest,
-    _: str = Depends(require_admin),
+    _: dict = Depends(require_user),
 ):
     """Log a trade to the journal (paper or live)."""
     import json as _json
@@ -2081,7 +2266,7 @@ async def journal_log_trade(
 
 
 @app.get("/api/journal/trades")
-async def journal_list_trades(status: str = None, limit: int = 200):
+async def journal_list_trades(status: str = None, limit: int = 200, _: dict = Depends(require_user)):
     """List trades — optionally filtered by status (open/win/loss/stopped/cancelled)."""
     conn = get_conn()
     try:
@@ -2118,7 +2303,7 @@ async def journal_list_trades(status: str = None, limit: int = 200):
 
 
 @app.get("/api/journal/stats")
-async def journal_stats():
+async def journal_stats(_: dict = Depends(require_user)):
     """Return aggregate stats: win rate, avg R:R, total P&L, streaks."""
     conn = get_conn()
     try:
@@ -2346,17 +2531,14 @@ async def portfolio_build(
         return {"error": "ML model not trained — POST /api/ml/train first"}
 
     engine = get_engine()
+    candle_map = _bulk_fetch_candles(engine, symbols=list(symbol_map.keys()))
     period_days = PERIOD_DAYS.get(body.trend_period)
     candidates = []
 
     for sym, info in symbol_map.items():
         try:
-            df = pd.read_sql(
-                f"SELECT trade_date, open, high, low, close, volume "
-                f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
-                engine, params={"sym": sym},
-            )
-            if df.empty or len(df) < 260:
+            df = candle_map.get(sym)
+            if df is None or df.empty or len(df) < 260:
                 continue
 
             ml = predictor.predict_symbol(df, sym, regime=regime)
