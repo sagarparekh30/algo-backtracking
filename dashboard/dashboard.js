@@ -233,8 +233,7 @@ function _applyRoleUI(role, planType, planExpiry) {
   const planChip = document.getElementById('plan-info-chip');
   if (planChip) {
     if (isAdmin) {
-      planChip.textContent = 'Admin';
-      planChip.style.cssText = 'font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:var(--data-d);color:var(--data);display:inline-block;';
+      planChip.style.display = 'none';
     } else if (planType && planExpiry) {
       const expDate  = new Date(planExpiry);
       const daysLeft = Math.ceil((expDate - new Date()) / 864e5);
@@ -1841,6 +1840,12 @@ function scrGo(id, el) {
   // Show/hide index selector bar (not relevant for sector heatmap)
   const bar = document.getElementById('scr-index-bar');
   if (bar) bar.style.display = (id === 'sector') ? 'none' : 'flex';
+
+  // Auto-load data when switching to screener tabs
+  if (id === 'rs')       loadRS();
+  else if (id === '52w') load52W();
+  else if (id === 'volume') loadVolume();
+  else if (id === 'earnings') loadEarnings();
 }
 
 function scrRefreshCurrent() {
@@ -1898,6 +1903,15 @@ async function loadIndexOptions() {
 }
 
 // ── Sector Heatmap ──────────────────────────────────────
+async function refreshSectors(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Loading…'; }
+  try {
+    await loadSectors();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+  }
+}
+
 async function loadSectors() {
   const body = document.getElementById('scr-sector-body');
   body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Calculating sector performance…</div></div>';
@@ -1972,7 +1986,7 @@ async function loadRS() {
   body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Calculating RS scores…</div></div>';
   try {
     const url = idx ? `${API}/api/screener/rs?index=${encodeURIComponent(idx)}` : `${API}/api/screener/rs`;
-    const d = await j(url);
+    const d = await jAuth(url);
     const rows = (d.results || []).slice(0, 50);
     const gradeColors = { 'A+':'#3B6D11', 'A':'#3B6D11', 'B':'#534AB7', 'C':'#854F0B', 'D':'#A32D2D', '—':'#a0a0a0' };
     body.innerHTML = rows.map((r, i) => `
@@ -2001,7 +2015,7 @@ async function load52W() {
   body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Scanning 52-week highs…</div></div>';
   try {
     const url = idx ? `${API}/api/screener/52w?index=${encodeURIComponent(idx)}` : `${API}/api/screener/52w`;
-    const d = await j(url);
+    const d = await jAuth(url);
     const rows = (d.results || []).slice(0, 50);
     body.innerHTML = rows.map(r => {
       const breakoutBadge = r.is_breakout
@@ -2036,7 +2050,7 @@ async function loadVolume() {
   body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Scanning volume spikes…</div></div>';
   try {
     const url = idx ? `${API}/api/screener/volume?index=${encodeURIComponent(idx)}` : `${API}/api/screener/volume`;
-    const d = await j(url);
+    const d = await jAuth(url);
     const rows = d.results || [];
     const sigColors = { 'Accumulation':'var(--green)', 'Distribution':'var(--red)', 'Neutral':'var(--txt3)' };
     body.innerHTML = rows.map(r => `
@@ -2065,7 +2079,7 @@ async function loadEarnings() {
   body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Fetching from Yahoo Finance…</div><div class="empty-sub">Takes ~30–60 seconds</div></div>';
   try {
     const url = idx ? `${API}/api/earnings?index=${encodeURIComponent(idx)}` : `${API}/api/earnings`;
-    const d = await j(url);
+    const d = await jAuth(url);
     const rows = d.results || [];
     if (!rows.length) {
       body.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">No earnings in next 21 days</div><div class="empty-sub">Safe to hold positions</div></div>';

@@ -2427,7 +2427,7 @@
         <div class="card">
           <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Sector Performance</span>
-            <button onclick="loadSectors()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Refresh</button>
+            <button id="sector-refresh-btn" onclick="refreshSectors(this)" style="font-size:11px;padding:5px 14px;background:var(--accent);border:none;border-radius:6px;color:#fff;cursor:pointer;font-weight:600;letter-spacing:.3px;">↻ Refresh</button>
           </div>
           <div class="divider"></div>
           <div id="scr-sector-body" style="padding:12px 16px;">
@@ -2439,13 +2439,12 @@
       <!-- ── Relative Strength ── -->
       <div id="scr-rs" class="scr-panel" style="display:none;">
         <div class="card">
-          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="padding:13px 16px 10px;">
             <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Relative Strength Leaders</span>
-            <button onclick="loadRS()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Refresh</button>
           </div>
           <div class="divider"></div>
           <div id="scr-rs-body" style="padding:8px 0;">
-            <div class="empty"><div class="empty-icon">📊</div><div class="empty-title">Click Refresh to scan</div></div>
+            <div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Loading…</div></div>
           </div>
         </div>
       </div>
@@ -2453,13 +2452,12 @@
       <!-- ── 52W High ── -->
       <div id="scr-52w" class="scr-panel" style="display:none;">
         <div class="card">
-          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="padding:13px 16px 10px;">
             <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">52-Week High Breakouts</span>
-            <button onclick="load52W()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Refresh</button>
           </div>
           <div class="divider"></div>
           <div id="scr-52w-body" style="padding:8px 0;">
-            <div class="empty"><div class="empty-icon">🚀</div><div class="empty-title">Click Refresh to scan</div></div>
+            <div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Loading…</div></div>
           </div>
         </div>
       </div>
@@ -2467,13 +2465,12 @@
       <!-- ── Volume Spikes ── -->
       <div id="scr-volume" class="scr-panel" style="display:none;">
         <div class="card">
-          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="padding:13px 16px 10px;">
             <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Volume Spikes (2x+ avg)</span>
-            <button onclick="loadVolume()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Refresh</button>
           </div>
           <div class="divider"></div>
           <div id="scr-volume-body" style="padding:8px 0;">
-            <div class="empty"><div class="empty-icon">📈</div><div class="empty-title">Click Refresh to scan</div></div>
+            <div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Loading…</div></div>
           </div>
         </div>
       </div>
@@ -2561,14 +2558,13 @@
       <!-- ── Earnings Risk ── -->
       <div id="scr-earnings" class="scr-panel" style="display:none;">
         <div class="card">
-          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="padding:13px 16px 10px;">
             <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Upcoming Earnings (21 days)</span>
-            <button onclick="loadEarnings()" style="font-size:11px;padding:4px 10px;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--txt3);cursor:pointer;">Fetch</button>
           </div>
           <div style="padding:8px 16px 0;font-size:11px;color:var(--txt3);">⚠️ Avoid holding swing trades through earnings — gap risk can wipe out a setup.</div>
           <div class="divider" style="margin-top:10px;"></div>
           <div id="scr-earnings-body" style="padding:8px 0;">
-            <div class="empty"><div class="empty-icon">📅</div><div class="empty-title">Click Fetch to load earnings dates</div><div class="empty-sub">Takes ~30 seconds — fetches from Yahoo Finance</div></div>
+            <div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Loading earnings dates…</div><div class="empty-sub">Takes ~30 seconds — fetches from Yahoo Finance</div></div>
           </div>
         </div>
       </div>
