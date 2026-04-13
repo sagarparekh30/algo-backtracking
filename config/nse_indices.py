@@ -51,7 +51,7 @@ NIFTY_200 = NIFTY_100 + [
     "ASTRAL", "AUROPHARMA", "BALKRISIND", "BANDHANBNK", "BATAINDIA",
     "BERGEPAINT", "BIOCON", "COLPAL", "CROMPTON", "CUMMINSIND",
     "DABUR", "DEEPAKNTR", "EMAMILTD", "FEDERALBNK", "FLUOROCHEM",
-    "FORTIS", "GLENMARK", "GMRAIRPORT", "GODREJPROP", "GRAINLTD",
+    "FORTIS", "GLENMARK", "GMRAIRPORT", "GODREJPROP",
     "HFCL", "IDFCFIRSTB", "INDIAMART", "INDUSTOWER", "JKCEMENT",
     "JUBLFOOD", "KAJARIACER", "LALPATHLAB", "LICHSGFIN", "LUPIN",
     "MARICO", "METROPOLIS", "MFSL", "MGL", "MUTHOOTFIN",
@@ -176,6 +176,51 @@ NIFTY_CONSUMPTION = [
     "MCDOWELL-N", "RADICO", "INDHOTEL", "BERGEPAINT", "CROMPTON",
 ]
 
+# ── NIFTY 500 Extra — stocks not already in NIFTY_200/MIDCAP_100/SMALLCAP_100 ──
+_NIFTY_500_EXTRA = [
+    # IT & Technology
+    "KPITTECH", "CYIENT", "TANLA", "MASTEK", "STLTECH",
+    "LATENTVIEW", "AFFLE", "NAZARA", "ZENSARTECH", "INTELLECT",
+    "CARTRADE", "ROUTE",
+    # Pharma & Healthcare
+    "ALKEM", "ABBOTINDIA", "AJANTPHARM", "APLLTD", "ERIS",
+    "SYNGENE", "GRANULES", "JBCHEPHARM", "SUVENPHAR", "SEQUENT",
+    # Banking & Finance
+    "RBLBANK", "YESBANK", "CUB", "UJJIVANSFB", "UTIAMC",
+    "IIFL", "CREDITACC",
+    # Auto & Engineering
+    "MRF", "FORCEMOT", "SCHAEFFLER", "GREAVESCOT", "RATNAMANI",
+    "CRAFTSMAN", "KAYNES", "LAXMIMACH", "HONAUT", "POWERINDIA",
+    # Consumer & Retail
+    "SHOPERSTOP", "WESTLIFE", "DEVYANI", "SAPPHIRE", "RELAXO",
+    "VAIBHAVGBL", "VENKEYS", "INDIGOPNTS",
+    # Metals, Chemicals & Materials
+    "HINDCOPPER", "MIDHANI", "WELSPUNIND", "FINEORG",
+    "NOCIL", "CARBORUNIV", "NAVINFLUOR", "DALBHARAT",
+    # Real Estate
+    "PRESTIGE", "BRIGADE", "SOBHA", "SUNTECK", "KOLTEPATIL",
+    "GODREJIND",
+    # Energy & Oil
+    "MRPL", "CHENNPETRO", "RPPOWER", "SJVN", "GESHIP",
+    # Logistics & Transport
+    "VRL", "REDINGTON", "IRCTC", "RAILTEL", "RVNL", "IRCON",
+    # Media & Entertainment
+    "TVTODAY",
+    # Industrials & Miscellaneous
+    "CASTROLIND", "COCHINSHIP", "ENGINERSIN", "ETHOSLTD",
+    "JKPAPER", "KPRMILL", "MANINFRA", "POLYMED",
+    "PRINCEPIPE", "RAYMOND", "RITES", "TINPLATE",
+    "TATAINVEST", "TATATECH", "TVSSCS", "UGROCAP",
+    "JUBLINGREA", "CONCORD", "HIRECT",
+    # PSU & Defence
+    "BEML", "MIDHANI", "COCHINSHIP",
+]
+
+# NIFTY 500 = union of all broad-market lists + extra, deduped, ordered
+NIFTY_500 = list(dict.fromkeys(
+    NIFTY_200 + NIFTY_MIDCAP_100 + NIFTY_SMALLCAP_100 + _NIFTY_500_EXTRA
+))
+
 # ── Master registry ──────────────────────────────────────────────────────
 
 INDEX_REGISTRY = {
@@ -183,6 +228,7 @@ INDEX_REGISTRY = {
     "NIFTY 50":              {"symbols": NIFTY_50,                  "category": "Broad Market", "description": "Top 50 large-cap stocks"},
     "NIFTY 100":             {"symbols": NIFTY_100,                 "category": "Broad Market", "description": "Top 100 large-cap stocks"},
     "NIFTY 200":             {"symbols": NIFTY_200,                 "category": "Broad Market", "description": "Top 200 large & mid-cap stocks"},
+    "NIFTY 500":             {"symbols": NIFTY_500,                 "category": "Broad Market", "description": "Top 500 large, mid & small-cap stocks"},
     "NIFTY Midcap 100":      {"symbols": NIFTY_MIDCAP_100,          "category": "Broad Market", "description": "Top 100 mid-cap stocks"},
     "NIFTY Smallcap 100":    {"symbols": NIFTY_SMALLCAP_100,        "category": "Broad Market", "description": "Top 100 small-cap stocks"},
     # Sector

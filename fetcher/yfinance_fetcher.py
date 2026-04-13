@@ -26,6 +26,10 @@ from datetime import datetime, timezone
 import yfinance as yf
 import pandas as pd
 
+# Silence yfinance's verbose HTTP 404/error output that pollutes Docker logs
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # noqa: F401
 

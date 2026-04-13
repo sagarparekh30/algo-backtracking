@@ -199,7 +199,7 @@ function _showAdminBadge(username) {
 }
 
 // Tabs restricted to admin only
-const ADMIN_ONLY_TABS = ['execute', 'ml', 'data', 'portfolio', 'admin'];
+const ADMIN_ONLY_TABS = ['execute', 'ml', 'data', 'admin'];
 
 function _applyRoleUI(role, planType, planExpiry) {
   const isAdmin = role === 'admin';
@@ -372,9 +372,7 @@ function go(id, el) {
   if (id === 'home')      { loadHome(); }
   if (id === 'live')      { loadWatchlist(); refreshLive(); }
   if (id === 'execute')   { loadExecuteRegime(); _updateExecuteBadge(0); _execPrevCount = 0; }
-  if (id === 'journal')   { loadJournal(); }
   if (id === 'screener')  { scrGo('sector', document.querySelector('.scr-tab-btn[data-scr="sector"]')); loadSectors(); }
-  if (id === 'portfolio') { /* user clicks Build Portfolio button */ }
   if (id === 'admin')     { loadAdminStats(); loadAdminUsers(); }
   if (id === 'ml')        { checkMLStatus(); loadFeedbackStatus(); }
 }
@@ -1799,10 +1797,6 @@ async function runExecute() {
             ${expRet}
           </div>
           <div style="padding:10px 16px 14px;border-top:0.5px solid var(--border);display:flex;align-items:center;gap:8px;">
-            <button onclick='logTrade(${JSON.stringify({symbol:r.symbol,entry_price:r.entry||r.price,stop_loss:r.stop_loss,target:r.target||r.price_target,strategy_tags:(r.strategies||[]).join(","),buy_probability:r.buy_probability,expected_return_pct:r.expected_return_pct})},this)'
-              style="flex:1;padding:9px;font-size:12px;font-weight:500;background:#534AB7;color:#fff;border:none;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
-              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>Log as paper trade
-            </button>
             <button onclick="openChart('${r.symbol}')"
               style="padding:9px 14px;font-size:12px;font-weight:500;background:#f5f5f4;color:#444;border:0.5px solid #ddd;border-radius:9px;cursor:pointer;">
               Chart ↗
@@ -2105,166 +2099,6 @@ async function loadEarnings() {
   } catch(e) {
     body.innerHTML = `<div class="empty"><div class="empty-title">Error: ${e.message}</div></div>`;
   }
-}
-
-// ══════════════════════════════════════════════════════
-// TRADE JOURNAL
-// ══════════════════════════════════════════════════════
-
-async function logTrade(trade, btn) {
-  const origText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '…';
-  try {
-    await jAuth(`${API}/api/journal/trade`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(trade),
-    });
-    btn.textContent = '✓ Logged';
-    btn.style.background = 'rgba(16,185,129,.25)';
-    setTimeout(() => { btn.disabled = false; btn.textContent = origText; btn.style.background = ''; }, 2500);
-  } catch(e) {
-    btn.disabled = false;
-    btn.textContent = origText;
-    alert('Log failed: ' + e.message);
-  }
-}
-
-async function loadJournal() {
-  try {
-    const [tradesRes, statsRes] = await Promise.all([
-      j(`${API}/api/journal/trades`),
-      j(`${API}/api/journal/stats`),
-    ]);
-    _renderJournalStats(statsRes);
-    _renderJournalTrades(tradesRes.trades || []);
-  } catch(e) {
-    console.error('Journal load error', e);
-  }
-}
-
-function _renderJournalStats(s) {
-  const wr = s.win_rate != null ? s.win_rate + '%' : '—';
-  set('jnl-winrate-hdr', wr);
-  set('jnl-winrate-sub', wr + ' win rate');
-  set('jnl-open',     s.open_trades ?? '—');
-  set('jnl-wins',     s.wins ?? '—');
-  set('jnl-losses',   (s.losses || 0) + (s.stopped || 0));
-  const avg = s.avg_return_pct;
-  const avgEl = document.getElementById('jnl-avg-ret');
-  if (avgEl) {
-    avgEl.textContent = avg != null ? (avg >= 0 ? '+' : '') + avg + '%' : '—';
-    avgEl.style.color = avg > 0 ? 'var(--green)' : avg < 0 ? 'var(--red)' : '';
-  }
-}
-
-function _renderJournalTrades(trades) {
-  const open   = trades.filter(t => t.status === 'open');
-  const closed = trades.filter(t => t.status !== 'open');
-
-  set('jnl-open-count',   open.length + ' trade' + (open.length !== 1 ? 's' : ''));
-  set('jnl-closed-count', closed.length + ' trade' + (closed.length !== 1 ? 's' : ''));
-
-  const openEl   = document.getElementById('jnl-open-body');
-  const closedEl = document.getElementById('jnl-closed-body');
-
-  openEl.innerHTML   = open.length   ? open.map(_jnlOpenCard).join('')   : '<div class="empty" style="padding:24px 0;"><div class="empty-icon">📋</div><div class="empty-title">No open trades</div><div class="empty-sub">Log a trade from the Execute tab</div></div>';
-  closedEl.innerHTML = closed.length ? closed.map(_jnlClosedRow).join('') : '<div class="empty" style="padding:24px 0;"><div class="empty-icon">🏁</div><div class="empty-title">No closed trades yet</div></div>';
-}
-
-function _jnlOpenCard(t) {
-  const entry   = '₹' + Number(t.entry_price).toLocaleString('en-IN', {maximumFractionDigits:2});
-  const sl      = t.stop_loss ? '₹' + Number(t.stop_loss).toLocaleString('en-IN', {maximumFractionDigits:2}) : '—';
-  const tgt     = t.target    ? '₹' + Number(t.target).toLocaleString('en-IN', {maximumFractionDigits:2})    : '—';
-  const typeBadge = t.trade_type === 'live'
-    ? `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(99,102,241,.2);color:#534AB7;">LIVE</span>`
-    : `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(16,185,129,.15);color:var(--green);">PAPER</span>`;
-  const prob = t.buy_probability ? Math.round(t.buy_probability * 100) + '% AI' : '';
-  return `
-    <div style="padding:14px 16px;border-bottom:1px solid var(--border);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:16px;font-weight:800;color:var(--txt);">${t.symbol}</span>
-          ${typeBadge}
-          ${prob ? `<span style="font-size:10px;color:var(--txt3);">${prob}</span>` : ''}
-        </div>
-        <span style="font-size:11px;color:var(--txt3);">${t.entry_date}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
-        <div><div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">ENTRY</div><div style="font-size:13px;font-weight:700;">${entry}</div></div>
-        <div><div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">STOP LOSS</div><div style="font-size:13px;font-weight:700;color:var(--red);">${sl}</div></div>
-        <div><div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">TARGET</div><div style="font-size:13px;font-weight:700;color:var(--green);">${tgt}</div></div>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <input type="number" id="exit-${t.id}" placeholder="Exit price" step="0.01"
-          style="flex:1;background:var(--s3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:13px;">
-        <button onclick="closeTrade(${t.id})"
-          style="padding:8px 14px;font-size:12px;font-weight:700;background:#FCEBEB;color:#A32D2D;border:0.5px solid rgba(163,45,45,.3);border-radius:8px;cursor:pointer;">
-          Close
-        </button>
-        <button onclick="deleteTrade(${t.id})"
-          style="padding:8px 10px;font-size:12px;background:var(--s3);color:var(--txt3);border:1px solid var(--border);border-radius:8px;cursor:pointer;">
-          ✕
-        </button>
-      </div>
-    </div>`;
-}
-
-function _jnlClosedRow(t) {
-  const ret = t.actual_return_pct;
-  const retStr = ret != null ? (ret >= 0 ? '+' : '') + ret + '%' : '—';
-  const retColor = ret > 0 ? 'var(--green)' : ret < 0 ? 'var(--red)' : 'var(--txt3)';
-  const statusColors = {
-    win:     'background:rgba(16,185,129,.15);color:var(--green);',
-    loss:    'background:#FCEBEB;color:#A32D2D;',
-    stopped: 'background:rgba(245,158,11,.12);color:var(--live);',
-    cancelled: 'background:var(--s3);color:var(--txt3);',
-  };
-  const badge = `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;${statusColors[t.status]||''}">${t.status.toUpperCase()}</span>`;
-  return `
-    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-      <div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
-          <span style="font-size:14px;font-weight:800;">${t.symbol}</span>${badge}
-        </div>
-        <div style="font-size:11px;color:var(--txt3);">${t.entry_date} → ${t.exit_date||'—'} · ₹${Number(t.entry_price).toLocaleString('en-IN',{maximumFractionDigits:0})} → ${t.exit_price ? '₹'+Number(t.exit_price).toLocaleString('en-IN',{maximumFractionDigits:0}) : '—'}</div>
-      </div>
-      <div style="text-align:right;">
-        <div style="font-size:16px;font-weight:800;color:${retColor};">${retStr}</div>
-        ${t.pnl != null ? `<div style="font-size:10px;color:var(--txt3);">₹${Number(t.pnl).toLocaleString('en-IN',{maximumFractionDigits:0})}</div>` : ''}
-      </div>
-    </div>`;
-}
-
-async function closeTrade(id) {
-  const input = document.getElementById('exit-' + id);
-  const price = parseFloat(input.value);
-  if (!price || price <= 0) { alert('Enter a valid exit price'); return; }
-  try {
-    const r = await jAuth(`${API}/api/journal/trade/${id}/close`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exit_price: price }),
-    });
-    await loadJournal();
-  } catch(e) { alert('Close failed: ' + e.message); }
-}
-
-async function deleteTrade(id) {
-  if (!confirm('Delete this trade?')) return;
-  try {
-    await jAuth(`${API}/api/journal/trade/${id}`, { method: 'DELETE' });
-    await loadJournal();
-  } catch(e) { alert('Delete failed: ' + e.message); }
-}
-
-async function settleJournal() {
-  try {
-    const r = await jAuth(`${API}/api/journal/settle`, { method: 'POST' });
-    alert(`Settled ${r.settled} paper trade${r.settled !== 1 ? 's' : ''}.`);
-    await loadJournal();
-  } catch(e) { alert('Settle failed: ' + e.message); }
 }
 
 // ══════════════════════════════════════════════════════

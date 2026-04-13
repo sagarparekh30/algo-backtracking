@@ -1150,15 +1150,6 @@
             <div class="home-shortcut-sub">RS · 52W · Sectors</div>
           </div>
         </div>
-        <div class="home-shortcut" onclick="go('journal',document.querySelector('[data-tab=journal]'))">
-          <div class="home-shortcut-icon" style="background:#EAF3DE;">
-            <svg width="18" height="18" fill="none" stroke="var(--green)" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-          </div>
-          <div>
-            <div class="home-shortcut-label">Journal</div>
-            <div class="home-shortcut-sub">Track your trades</div>
-          </div>
-        </div>
       </div>
 
       <!-- System Health -->
@@ -2308,86 +2299,6 @@
     </div>
   </div>
 
-  <!-- ───────────── TAB: JOURNAL ───────────── -->
-  <div id="tab-journal" class="tab">
-    <div class="tab-banner" style="--banner-from:#0a1f12;--banner-to:#071a0e;">
-      <div>
-        <div class="tab-banner-title">Trade Journal</div>
-        <div class="tab-banner-sub">Paper &amp; live trade tracking</div>
-      </div>
-      <div style="text-align:right;">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;color:var(--green);" id="jnl-winrate-hdr">—</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px;">WIN RATE</div>
-      </div>
-    </div>
-
-    <div class="page">
-
-      <!-- Stats row -->
-      <div class="tiles" style="grid-template-columns:repeat(4,1fr);">
-        <div class="tile" style="--accent-color:var(--green)">
-          <div class="tile-label">Open</div>
-          <div class="tile-value accent" id="jnl-open">—</div>
-          <div class="tile-sub">Active trades</div>
-        </div>
-        <div class="tile" style="--accent-color:var(--green)">
-          <div class="tile-label">Wins</div>
-          <div class="tile-value" id="jnl-wins" style="color:var(--green)">—</div>
-          <div class="tile-sub" id="jnl-winrate-sub">—</div>
-        </div>
-        <div class="tile" style="--accent-color:var(--red)">
-          <div class="tile-label">Losses</div>
-          <div class="tile-value" id="jnl-losses" style="color:var(--red)">—</div>
-          <div class="tile-sub">incl. stopped</div>
-        </div>
-        <div class="tile" style="--accent-color:var(--live)">
-          <div class="tile-label">Avg Return</div>
-          <div class="tile-value" id="jnl-avg-ret">—</div>
-          <div class="tile-sub">closed trades</div>
-        </div>
-      </div>
-
-      <!-- Action buttons -->
-      <div style="display:flex;gap:10px;margin-bottom:4px;">
-        <button class="btn" onclick="loadJournal()" style="flex:1;font-size:13px;padding:11px;">Refresh</button>
-        <button class="btn" onclick="settleJournal()" style="flex:1;font-size:13px;padding:11px;background:#EAF3DE;color:var(--green);border-color:rgba(16,185,129,.25);">Auto-Settle Paper Trades</button>
-      </div>
-
-      <!-- Open trades -->
-      <div class="card">
-        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Open Trades</span>
-          <span id="jnl-open-count" style="font-size:11px;color:var(--txt3);">—</span>
-        </div>
-        <div class="divider"></div>
-        <div id="jnl-open-body" style="padding:8px 0;">
-          <div class="empty" style="padding:24px 0;">
-            <div class="empty-icon">📋</div>
-            <div class="empty-title">No open trades</div>
-            <div class="empty-sub">Log a trade from the Execute tab</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Closed trades -->
-      <div class="card">
-        <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Trade History</span>
-          <span id="jnl-closed-count" style="font-size:11px;color:var(--txt3);">—</span>
-        </div>
-        <div class="divider"></div>
-        <div id="jnl-closed-body" style="padding:8px 0;">
-          <div class="empty" style="padding:24px 0;">
-            <div class="empty-icon">🏁</div>
-            <div class="empty-title">No closed trades yet</div>
-            <div class="empty-sub">Closed trades appear here</div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
   <!-- ───────────── TAB: SCREENER ───────────── -->
   <div id="tab-screener" class="tab">
     <div class="tab-banner" style="--banner-from:#0f1a2e;--banner-to:#0a1020;">
@@ -2405,11 +2316,12 @@
 
       <!-- Sub-nav tabs -->
       <div style="display:flex;gap:6px;margin-bottom:4px;overflow-x:auto;padding-bottom:2px;">
-        <button class="scr-tab-btn active" data-scr="sector"   onclick="scrGo('sector',this)">Sector Map</button>
-        <button class="scr-tab-btn"        data-scr="rs"       onclick="scrGo('rs',this)">Rel. Strength</button>
-        <button class="scr-tab-btn"        data-scr="52w"      onclick="scrGo('52w',this)">52W Highs</button>
-        <button class="scr-tab-btn"        data-scr="volume"   onclick="scrGo('volume',this)">Volume Spikes</button>
-        <button class="scr-tab-btn"        data-scr="earnings" onclick="scrGo('earnings',this)">Earnings Risk</button>
+        <button class="scr-tab-btn active" data-scr="sector"      onclick="scrGo('sector',this)">Sector Map</button>
+        <button class="scr-tab-btn"        data-scr="undervalued" onclick="scrGo('undervalued',this);initUndervalued();">Undervalued</button>
+        <button class="scr-tab-btn"        data-scr="rs"          onclick="scrGo('rs',this)">Rel. Strength</button>
+        <button class="scr-tab-btn"        data-scr="52w"         onclick="scrGo('52w',this)">52W Highs</button>
+        <button class="scr-tab-btn"        data-scr="volume"      onclick="scrGo('volume',this)">Volume Spikes</button>
+        <button class="scr-tab-btn"        data-scr="earnings"    onclick="scrGo('earnings',this)">Earnings Risk</button>
         <button class="scr-tab-btn"        data-scr="priceaction" onclick="scrGo('priceaction',this)">Price Action</button>
       </div>
 
@@ -2434,6 +2346,85 @@
             <div class="empty"><div class="empty-icon">🗺️</div><div class="empty-title">Loading sectors…</div></div>
           </div>
         </div>
+      </div>
+
+      <!-- ── Undervalued Stocks ── -->
+      <div id="scr-undervalued" class="scr-panel" style="display:none;">
+
+        <!-- Controls card -->
+        <div class="card card-p" style="margin-bottom:10px;">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <!-- Index picker -->
+            <select id="uv-index-select" style="flex:1;min-width:120px;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--txt);font-size:12px;">
+              <option value="NIFTY 500">NIFTY 500</option>
+              <option value="NIFTY 200">NIFTY 200</option>
+              <option value="NIFTY 100">NIFTY 100</option>
+              <option value="NIFTY 50">NIFTY 50</option>
+              <option value="NIFTY Midcap 100">Midcap 100</option>
+              <option value="NIFTY Smallcap 100">Smallcap 100</option>
+            </select>
+            <!-- Min score filter -->
+            <select id="uv-score-filter" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--txt);font-size:12px;">
+              <option value="0">All Scores</option>
+              <option value="30">Score ≥ 30</option>
+              <option value="45" selected>Score ≥ 45</option>
+              <option value="60">Score ≥ 60</option>
+              <option value="75">Deep Value ≥ 75</option>
+            </select>
+            <!-- Refresh button -->
+            <button id="uv-refresh-btn" onclick="uvRefresh()" style="padding:7px 14px;background:var(--accent,#534AB7);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+              Scan
+            </button>
+          </div>
+          <!-- Sector filter pills (populated dynamically) -->
+          <div id="uv-sector-pills" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
+        </div>
+
+        <!-- Summary stats -->
+        <div id="uv-stats" style="display:none;margin-bottom:10px;">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+            <div class="card card-p" style="text-align:center;">
+              <div id="uv-stat-total" style="font-size:22px;font-weight:700;color:var(--txt);">—</div>
+              <div style="font-size:10px;color:var(--txt3);margin-top:2px;">SCANNED</div>
+            </div>
+            <div class="card card-p" style="text-align:center;background:var(--green-d);">
+              <div id="uv-stat-deep" style="font-size:22px;font-weight:700;color:var(--green);">—</div>
+              <div style="font-size:10px;color:var(--green);margin-top:2px;">DEEP VALUE</div>
+            </div>
+            <div class="card card-p" style="text-align:center;background:#eef3ff;">
+              <div id="uv-stat-good" style="font-size:22px;font-weight:700;color:#3a5bbf;">—</div>
+              <div style="font-size:10px;color:#3a5bbf;margin-top:2px;">GOOD VALUE</div>
+            </div>
+            <div class="card card-p" style="text-align:center;background:var(--s2);">
+              <div id="uv-cache-age" style="font-size:13px;font-weight:600;color:var(--txt2);">—</div>
+              <div style="font-size:10px;color:var(--txt3);margin-top:2px;">CACHE AGE</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress bar (shown during scan) -->
+        <div id="uv-progress-wrap" style="display:none;margin-bottom:10px;">
+          <div class="card card-p">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:12px;font-weight:600;color:var(--txt2);">Scanning fundamentals…</span>
+              <span id="uv-progress-label" style="font-size:12px;color:var(--txt3);">0 / 0</span>
+            </div>
+            <div style="background:var(--s3);border-radius:4px;height:6px;overflow:hidden;">
+              <div id="uv-progress-bar" style="height:100%;background:var(--accent,#534AB7);border-radius:4px;width:0%;transition:width .3s;"></div>
+            </div>
+            <div id="uv-progress-sym" style="font-size:10px;color:var(--txt3);margin-top:4px;font-family:'JetBrains Mono',monospace;">—</div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div id="uv-results-wrap">
+          <div class="empty" id="uv-empty">
+            <div class="empty-icon">🔍</div>
+            <div class="empty-title">No scan yet</div>
+            <div class="empty-sub">Tap "Scan" to find undervalued stocks across NIFTY 500 using fundamental + technical analysis.</div>
+          </div>
+        </div>
+
       </div>
 
       <!-- ── Relative Strength ── -->
@@ -2572,79 +2563,6 @@
     </div>
   </div>
 
-  <!-- ───────────── TAB: PORTFOLIO ───────────── -->
-  <div id="tab-portfolio" class="tab">
-    <div class="tab-banner" style="--banner-from:#0a2012;--banner-to:#061509;">
-      <div>
-        <div class="tab-banner-title">Portfolio Builder</div>
-        <div class="tab-banner-sub">Capital allocation · Risk sizing · Sector diversification</div>
-      </div>
-      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(16,185,129,.4)" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75"/></svg>
-    </div>
-    <div class="page">
-
-      <!-- Config card -->
-      <div class="card card-p" style="display:flex;flex-direction:column;gap:12px;border-top:2px solid #3B6D11;">
-        <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Configuration</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div>
-            <div style="font-size:11px;color:var(--txt3);margin-bottom:4px;">Capital (₹)</div>
-            <input id="pb-capital" type="number" value="100000" min="10000" step="10000"
-              style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:13px;font-weight:600;">
-          </div>
-          <div>
-            <div style="font-size:11px;color:var(--txt3);margin-bottom:4px;">Risk per trade %</div>
-            <input id="pb-risk" type="number" value="1.5" min="0.5" max="5" step="0.5"
-              style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:13px;font-weight:600;">
-          </div>
-          <div>
-            <div style="font-size:11px;color:var(--txt3);margin-bottom:4px;">Max positions</div>
-            <input id="pb-maxpos" type="number" value="8" min="1" max="20"
-              style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:13px;font-weight:600;">
-          </div>
-          <div>
-            <div style="font-size:11px;color:var(--txt3);margin-bottom:4px;">Max per sector</div>
-            <input id="pb-sector" type="number" value="2" min="1" max="5"
-              style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:13px;font-weight:600;">
-          </div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--txt3);margin-bottom:4px;">Trend Filter</div>
-          <select id="pb-trend" style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;">
-            <option value="any">Any (no trend filter)</option>
-            <option value="1m">1 Month uptrend</option>
-            <option value="3m" selected>3 Month uptrend</option>
-            <option value="6m">6 Month uptrend</option>
-            <option value="1y">1 Year uptrend</option>
-          </select>
-        </div>
-        <button onclick="buildPortfolio()" id="pb-btn"
-          style="background:linear-gradient(135deg,#3B6D11,#2d5a0e);color:#fff;padding:13px;border-radius:12px;font-weight:700;font-size:14px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"/></svg>
-          Build Portfolio
-        </button>
-      </div>
-
-      <!-- Summary strip -->
-      <div id="pb-summary" style="display:none;background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center;">
-          <div><div style="font-size:20px;font-weight:800;color:#3B6D11;" id="pb-s-deployed">—</div><div style="font-size:10px;color:var(--txt3);">Deployed</div></div>
-          <div><div style="font-size:20px;font-weight:800;color:var(--red);" id="pb-s-risk">—</div><div style="font-size:10px;color:var(--txt3);">Total at Risk</div></div>
-          <div><div style="font-size:20px;font-weight:800;color:var(--live);" id="pb-s-reward">—</div><div style="font-size:10px;color:var(--txt3);">Expected Reward</div></div>
-        </div>
-        <div style="margin-top:10px;font-size:11px;color:var(--txt3);text-align:center;" id="pb-s-detail"></div>
-      </div>
-
-      <!-- Positions table -->
-      <div class="card" id="pb-positions-card" style="display:none;">
-        <div style="padding:13px 16px 10px;font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Allocated Positions</div>
-        <div class="divider"></div>
-        <div id="pb-positions-body"></div>
-      </div>
-
-    </div>
-  </div>
-
   <!-- ───────────── TAB: ADMIN ───────────── -->
   <div id="tab-admin" class="tab">
     <div class="tab-banner" style="--banner-from:#1a0a2e;--banner-to:#12061f;">
@@ -2722,10 +2640,6 @@
     Setups
     <span id="execute-badge" style="display:none;position:absolute;top:4px;right:10px;background:#534AB7;color:#fff;font-size:9px;font-weight:500;border-radius:999px;min-width:15px;height:15px;line-height:15px;padding:0 3px;text-align:center;"></span>
   </button>
-  <button class="nav-btn" data-tab="journal" onclick="go('journal',this)">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0118 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-    Journal
-  </button>
   <button class="nav-btn" data-tab="screener" onclick="go('screener',this)">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
     Screener
@@ -2779,11 +2693,6 @@
         <svg width="22" height="22" fill="none" stroke="#854F0B" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
         <span style="font-size:11px;font-weight:500;color:#1a1a1a;">Live</span>
       </button>
-      <button id="more-portfolio-btn" onclick="closeMoreSheet();go('portfolio',document.querySelector('[data-tab=portfolio]'))"
-        style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f5f5f4;border:0.5px solid #e5e5e5;border-radius:12px;cursor:pointer;">
-        <svg width="22" height="22" fill="none" stroke="#3B6D11" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75"/></svg>
-        <span style="font-size:11px;font-weight:500;color:#1a1a1a;">Portfolio</span>
-      </button>
       <button id="nav-admin-btn" onclick="closeMoreSheet();go('admin',document.querySelector('[data-tab=admin]'))"
         style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f5f5f4;border:0.5px solid #e5e5e5;border-radius:12px;cursor:pointer;">
         <svg width="22" height="22" fill="none" stroke="#534AB7" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
@@ -2795,5 +2704,268 @@
 
 <!-- ══════════════════════════════════ JS -->
 <script src="/static/dashboard.js"></script>
+
+<!-- ── Undervalued Screener JS ── -->
+<script>
+(function () {
+  'use strict';
+
+  // ── State ─────────────────────────────────────────────────────────────
+  let _uvData        = null;   // last loaded results
+  let _uvSector      = null;   // active sector filter
+  let _uvPollTimer   = null;   // scan progress poll handle
+  let _uvInitDone    = false;  // has initUndervalued() been called?
+
+  // ── Grade config ──────────────────────────────────────────────────────
+  const GRADE_CFG = {
+    'Deep Value':     { bg: '#e6f4ea', color: '#1a7a3a', stars: '★★★★★' },
+    'Good Value':     { bg: '#eef3ff', color: '#2c52b8', stars: '★★★★'  },
+    'Moderate Value': { bg: '#fff8e1', color: '#8a6200', stars: '★★★'   },
+    'Fair Value':     { bg: '#f5f5f4', color: '#555',    stars: '★★'    },
+    'Avoid':          { bg: '#fdecea', color: '#b71c1c', stars: '★'     },
+  };
+
+  // ── Init (lazy — called when tab is first opened) ─────────────────────
+  window.initUndervalued = function () {
+    if (_uvInitDone) return;
+    _uvInitDone = true;
+    // Load cached results immediately if available
+    uvLoad(false);
+  };
+
+  // ── Load results (from cache) ─────────────────────────────────────────
+  async function uvLoad(showEmpty) {
+    const tok = (localStorage.getItem('apex_token') || '');
+    const minScore = +document.getElementById('uv-score-filter').value;
+    const index    = document.getElementById('uv-index-select').value;
+
+    try {
+      const r = await fetch(`/api/screener/undervalued?index=${encodeURIComponent(index)}&min_score=${minScore}`,
+        { headers: { Authorization: 'Bearer ' + tok } });
+      const data = await r.json();
+
+      _uvData = data.results || [];
+      uvRender(_uvData, data);
+
+      if (!_uvData.length && showEmpty !== false) {
+        document.getElementById('uv-results-wrap').innerHTML =
+          `<div class="empty"><div class="empty-icon">🔍</div>
+           <div class="empty-title">No results yet</div>
+           <div class="empty-sub">Tap "Scan" to screen ${index} for undervalued stocks.</div></div>`;
+      }
+    } catch (e) {
+      console.error('UV load error', e);
+    }
+  }
+
+  // ── Trigger scan ──────────────────────────────────────────────────────
+  window.uvRefresh = async function () {
+    const tok   = (localStorage.getItem('apex_token') || '');
+    const index = document.getElementById('uv-index-select').value;
+    const btn   = document.getElementById('uv-refresh-btn');
+
+    btn.disabled = true;
+    btn.textContent = 'Starting…';
+
+    try {
+      const r = await fetch(`/api/screener/undervalued/refresh?index=${encodeURIComponent(index)}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + tok },
+      });
+      const d = await r.json();
+
+      if (d.status === 'busy') {
+        btn.textContent = 'Running…';
+        uvStartPolling();
+        return;
+      }
+      if (d.status === 'started') {
+        uvStartPolling();
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Scan';
+    }
+  };
+
+  // ── Poll scan progress ────────────────────────────────────────────────
+  function uvStartPolling() {
+    document.getElementById('uv-progress-wrap').style.display = 'block';
+    document.getElementById('uv-empty') && (document.getElementById('uv-empty').style.display = 'none');
+
+    if (_uvPollTimer) clearInterval(_uvPollTimer);
+    _uvPollTimer = setInterval(uvPollStatus, 2000);
+  }
+
+  async function uvPollStatus() {
+    const tok = (localStorage.getItem('apex_token') || '');
+    try {
+      const r = await fetch('/api/screener/undervalued/status', {
+        headers: { Authorization: 'Bearer ' + tok },
+      });
+      const s = await r.json();
+
+      const pct   = s.total ? Math.round(s.processed / s.total * 100) : 0;
+      const label = `${s.processed} / ${s.total}`;
+
+      document.getElementById('uv-progress-bar').style.width = pct + '%';
+      document.getElementById('uv-progress-label').textContent = label;
+      document.getElementById('uv-progress-sym').textContent   = s.current_symbol || '—';
+
+      const btn = document.getElementById('uv-refresh-btn');
+      btn.textContent = `Scanning ${pct}%…`;
+
+      if (!s.is_running) {
+        clearInterval(_uvPollTimer);
+        _uvPollTimer = null;
+        document.getElementById('uv-progress-wrap').style.display = 'none';
+        btn.disabled    = false;
+        btn.textContent = 'Scan';
+        uvLoad(true);   // refresh UI with new results
+      }
+    } catch (e) {
+      console.error('UV poll error', e);
+    }
+  }
+
+  // ── Render results ────────────────────────────────────────────────────
+  function uvRender(results, meta) {
+    const statsEl = document.getElementById('uv-stats');
+    const wrapEl  = document.getElementById('uv-results-wrap');
+    if (!results || !results.length) return;
+
+    // Apply sector filter
+    let filtered = results;
+    if (_uvSector) {
+      filtered = results.filter(r => (r.sector || '').toLowerCase() === _uvSector.toLowerCase());
+    }
+
+    // Stats
+    const deepCount = results.filter(r => r.grade === 'Deep Value').length;
+    const goodCount = results.filter(r => r.grade === 'Good Value').length;
+    document.getElementById('uv-stat-total').textContent = meta.count || results.length;
+    document.getElementById('uv-stat-deep').textContent  = deepCount;
+    document.getElementById('uv-stat-good').textContent  = goodCount;
+
+    const cacheInfo = meta.cache_info || {};
+    if (cacheInfo.age_hours != null) {
+      const age = cacheInfo.age_hours < 1
+        ? Math.round(cacheInfo.age_hours * 60) + 'm ago'
+        : cacheInfo.age_hours.toFixed(1) + 'h ago';
+      document.getElementById('uv-cache-age').textContent = age;
+    }
+    statsEl.style.display = 'block';
+
+    // Sector pills
+    uvRenderSectorPills(results);
+
+    // Table / cards
+    if (!filtered.length) {
+      wrapEl.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div>
+        <div class="empty-title">No stocks match filters</div></div>`;
+      return;
+    }
+
+    let html = `<div style="margin-bottom:6px;font-size:11px;color:var(--txt3);">${filtered.length} stocks shown</div>`;
+
+    filtered.forEach(s => {
+      const cfg = GRADE_CFG[s.grade] || GRADE_CFG['Fair Value'];
+      const pct52 = s.pct_from_52w_high != null
+        ? `<span style="font-size:10px;color:${s.pct_from_52w_high < -20 ? 'var(--red)' : 'var(--txt3)'};">${s.pct_from_52w_high > 0 ? '+' : ''}${s.pct_from_52w_high}% 52W</span>`
+        : '';
+      const rsiTag = s.rsi != null
+        ? `<span style="font-size:10px;color:${s.rsi < 35 ? 'var(--green)' : s.rsi > 65 ? 'var(--red)' : 'var(--txt3)'};">RSI ${s.rsi}</span>`
+        : '';
+
+      // Score bar (out of 100 for display, cap at 100)
+      const scoreDisplay = Math.min(100, s.value_score);
+      const barColor = s.value_score >= 75 ? '#1a7a3a'
+                     : s.value_score >= 60 ? '#2c52b8'
+                     : s.value_score >= 45 ? '#8a6200'
+                     : '#888';
+
+      html += `
+      <div class="card" style="margin-bottom:8px;overflow:hidden;">
+        <!-- Header row -->
+        <div style="padding:10px 14px 6px;display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--txt);">${s.symbol}</div>
+            <div style="font-size:11px;color:var(--txt3);margin-top:1px;">${s.sector || '—'} ${s.industry ? '· ' + s.industry : ''}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:14px;font-weight:700;color:var(--txt);">${s.last_price != null ? '₹' + s.last_price.toLocaleString('en-IN') : '—'}</div>
+            <div style="margin-top:2px;display:flex;gap:4px;justify-content:flex-end;">${pct52}${rsiTag}</div>
+          </div>
+        </div>
+
+        <!-- Score bar -->
+        <div style="padding:0 14px 8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:11px;font-weight:700;color:${cfg.color};">${cfg.stars} ${s.grade}</span>
+            <span style="font-size:13px;font-weight:700;color:${cfg.color};">${s.value_score}</span>
+          </div>
+          <div style="background:var(--s3);border-radius:3px;height:4px;overflow:hidden;">
+            <div style="height:100%;background:${barColor};border-radius:3px;width:${scoreDisplay}%;"></div>
+          </div>
+        </div>
+
+        <!-- Metrics grid -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--border);">
+          ${uvMetricCell('P/E',    uvFmt(s.pe_ratio),    s.pe_vs_sector_pct != null ? (s.pe_vs_sector_pct < 0 ? s.pe_vs_sector_pct + '% vs sector' : '+' + s.pe_vs_sector_pct + '% vs sector') : null, s.pe_vs_sector_pct != null && s.pe_vs_sector_pct < 0)}
+          ${uvMetricCell('P/B',    uvFmt(s.pb_ratio),    null, s.pb_ratio != null && s.pb_ratio < 2)}
+          ${uvMetricCell('ROE',    s.roe != null ? s.roe + '%' : '—', null, s.roe != null && s.roe > 15)}
+          ${uvMetricCell('D/E',    uvFmt(s.debt_equity), null, s.debt_equity != null && s.debt_equity < 0.5)}
+          ${uvMetricCell('Yield',  s.dividend_yield ? s.dividend_yield + '%' : '—', null, s.dividend_yield > 2)}
+          ${uvMetricCell('Rev Gr', s.revenue_growth != null ? (s.revenue_growth > 0 ? '+' : '') + s.revenue_growth + '%' : '—', null, s.revenue_growth > 10)}
+        </div>
+      </div>`;
+    });
+
+    wrapEl.innerHTML = html;
+  }
+
+  function uvMetricCell(label, value, sub, highlight) {
+    return `<div style="padding:7px 10px;border-right:1px solid var(--border);${highlight ? 'background:rgba(16,120,60,.06);' : ''}">
+      <div style="font-size:10px;color:var(--txt3);">${label}</div>
+      <div style="font-size:13px;font-weight:600;color:${highlight ? 'var(--green)' : 'var(--txt)'};">${value}</div>
+      ${sub ? `<div style="font-size:9px;color:var(--green);margin-top:1px;">${sub}</div>` : ''}
+    </div>`;
+  }
+
+  function uvFmt(v) {
+    if (v == null) return '—';
+    return parseFloat(v).toFixed(1);
+  }
+
+  // ── Sector pills ──────────────────────────────────────────────────────
+  function uvRenderSectorPills(results) {
+    const sectors = {};
+    results.forEach(r => { if (r.sector) sectors[r.sector] = (sectors[r.sector] || 0) + 1; });
+    const sorted = Object.entries(sectors).sort((a, b) => b[1] - a[1]);
+
+    const container = document.getElementById('uv-sector-pills');
+    let html = `<button onclick="uvSetSector(null,this)" class="pill-btn${_uvSector ? '' : ' pill-active'}" style="font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:${_uvSector ? 'var(--s2)' : 'var(--accent,#534AB7)'};color:${_uvSector ? 'var(--txt)' : '#fff'};cursor:pointer;">All</button>`;
+    sorted.forEach(([s, cnt]) => {
+      const active = _uvSector === s;
+      html += `<button onclick="uvSetSector('${s.replace(/'/g,"\\'")}',this)" style="font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:${active ? 'var(--accent,#534AB7)' : 'var(--s2)'};color:${active ? '#fff' : 'var(--txt)'};cursor:pointer;">${s} <span style="opacity:.6;">${cnt}</span></button>`;
+    });
+    container.innerHTML = html;
+  }
+
+  window.uvSetSector = function (sector, el) {
+    _uvSector = sector;
+    if (_uvData) uvRender(_uvData, { count: _uvData.length, cache_info: {} });
+  };
+
+  // Re-apply filters when dropdowns change
+  document.addEventListener('DOMContentLoaded', () => {
+    const scoreEl = document.getElementById('uv-score-filter');
+    const indexEl = document.getElementById('uv-index-select');
+    if (scoreEl) scoreEl.addEventListener('change', () => { if (_uvInitDone) uvLoad(false); });
+    if (indexEl) indexEl.addEventListener('change', () => { if (_uvInitDone) uvLoad(false); });
+  });
+
+})();
+</script>
 </body>
 </html>

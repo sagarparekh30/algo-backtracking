@@ -278,6 +278,18 @@ class YFinanceState:
     total_new_candles = 0
 
 
+class ValueScanState:
+    is_running = False
+    processed = 0
+    total = 0
+    current_symbol = "Idle"
+    started_at: str = None
+    error: str = None
+
+
+value_scan_state = ValueScanState()
+
+
 class ExecuteCache:
     """Cached result of the last combined signals scan."""
     results: list = []
@@ -2105,366 +2117,132 @@ async def earnings_calendar(days_ahead: int = 21, index: str = None):
 
 
 # -------------------------------------------------------
-# Trade Journal
+# Undervalued Stock Screener
 # -------------------------------------------------------
 
-class TradeLogRequest(BaseModel):
-    symbol:               str
-    entry_price:          float
-    stop_loss:            float   = None
-    target:               float   = None
-    strategy_tags:        str     = ""
-    trade_type:           str     = "paper"   # paper | live
-    notes:                str     = ""
-    buy_probability:      float   = None
-    expected_return_pct:  float   = None
-    quantity:             int     = 0
+async def _run_value_scan(symbols: list):
+    """Background task: run the fundamental + technical value scan."""
+    value_scan_state.is_running = True
+    value_scan_state.error = None
+    value_scan_state.processed = 0
+    value_scan_state.total = len(symbols)
+    value_scan_state.started_at = datetime.now().isoformat()
 
+    def _progress(processed: int, total: int, symbol: str):
+        value_scan_state.processed = processed
+        value_scan_state.total = total
+        value_scan_state.current_symbol = symbol
 
-class TradeCloseRequest(BaseModel):
-    exit_price: float
-    notes:      str = ""
-
-
-def _build_trade_snapshot(symbol: str, strategy_tags: str,
-                           buy_probability: float, expected_return_pct: float) -> dict | None:
-    """
-    Compute and return a feature snapshot for storage at trade-log time.
-
-    Fetches the latest OHLCV bar from the DB, runs compute_features(), and
-    packages the 26 feature values alongside ML outputs, regime, and quality
-    score into a single JSON-serialisable dict.
-
-    Returns None on any failure — the trade is still logged without a snapshot.
-    """
     try:
-        import pandas as pd
-        import numpy as np
-        from datetime import datetime as _dt
-        from ml.features import compute_features, FEATURE_NAMES
-        from ml.regime import compute_regime
-        from ml.quality_score import compute_quality_score
-
-        engine = get_engine()
-        df = pd.read_sql(
-            f"SELECT trade_date, open, high, low, close, volume "
-            f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
-            engine, params={"sym": symbol},
-        )
-        if df.empty or len(df) < 210:   # need ≥200 bars for SMA-200
-            return None
-
-        feats = compute_features(df)
-        latest_row = feats.iloc[-1][FEATURE_NAMES]
-        if latest_row.isnull().any():
-            return None
-
-        feature_dict = {k: round(float(v), 6) for k, v in latest_row.items()}
-
-        # Signal-bar opening gap: (open[-1] / close[-2]) - 1
-        # Captures overnight sentiment at the exact bar the signal fired.
-        gap_pct = None
-        if len(df) >= 2:
-            try:
-                gap_pct = round(
-                    float(df["open"].iloc[-1]) / float(df["close"].iloc[-2]) - 1, 6
-                )
-            except Exception:
-                pass
-
-        # Regime
-        try:
-            regime_data = compute_regime()
-            regime = regime_data.get("regime", "Neutral")
-        except Exception:
-            regime = "Neutral"
-
-        # Volume ratio for quality score
-        vol_ratio = feature_dict.get("vol_ratio")
-
-        # 3-month trend from raw close
-        closes = df["close"].values
-        trend_3m = None
-        if len(closes) >= 64:
-            trend_3m = round((float(closes[-1]) / float(closes[-64]) - 1) * 100, 2)
-
-        # Strategy list
-        strategies = [s.strip() for s in strategy_tags.split(",") if s.strip()]
-        strategy_count = len(strategies) or 1
-
-        qs = compute_quality_score(
-            buy_probability=buy_probability or 0.0,
-            regime=regime,
-            trend_return_3m=trend_3m,
-            vol_ratio=vol_ratio,
-            strategy_count=strategy_count,
-        )
-
-        return {
-            "features":            feature_dict,
-            "ml_prob":             round(float(buy_probability or 0.0), 4),
-            "expected_return_pct": round(float(expected_return_pct or 0.0), 4),
-            "regime":              regime,
-            "quality_score":       qs["score"],
-            "score_breakdown":     qs["breakdown"],
-            "strategies":          strategies,
-            "strategy_count":      strategy_count,
-            "gap_pct":             gap_pct,
-            "captured_at":         _dt.utcnow().isoformat(),
-        }
-
+        from strategies.value_screener import undervalued_scan
+        undervalued_scan(symbols=symbols, force_refresh=True, progress_cb=_progress)
     except Exception as e:
-        logger.warning(f"_build_trade_snapshot failed for {symbol}: {e}")
-        return None
+        logger.error(f"Value scan error: {e}")
+        value_scan_state.error = str(e)
+    finally:
+        value_scan_state.is_running = False
+        value_scan_state.current_symbol = "Done"
 
 
-@app.post("/api/journal/trade")
-async def journal_log_trade(
-    body: TradeLogRequest,
-    _: dict = Depends(require_user),
+@app.get("/api/screener/undervalued")
+async def screener_undervalued(
+    _r: dict = Depends(require_user),
+    index: str = "NIFTY 500",
+    min_score: float = 0,
+    sector: str = None,
 ):
-    """Log a trade to the journal (paper or live)."""
-    import json as _json
+    """
+    Return undervalued stocks sorted by value score (highest first).
 
-    symbol = body.symbol.upper()
+    Serves from 24-hour cache. Trigger a refresh via POST /api/screener/undervalued/refresh.
 
-    # Compute feature snapshot synchronously — fast (~50ms) and keeps the
-    # INSERT atomic.  Falls back to NULL if any step fails.
-    snapshot = _build_trade_snapshot(
-        symbol=symbol,
-        strategy_tags=body.strategy_tags,
-        buy_probability=body.buy_probability,
-        expected_return_pct=body.expected_return_pct,
-    )
-    snapshot_json = _json.dumps(snapshot) if snapshot is not None else None
+    Query params:
+      index      — index name to scope (default: NIFTY 500)
+      min_score  — filter out stocks below this score (default: 0)
+      sector     — filter by sector name (optional)
+    """
+    from strategies.value_screener import _load_cache, get_cache_info
 
-    conn = get_conn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO trade_journal
-                    (symbol, strategy_tags, entry_price, stop_loss, target,
-                     trade_type, notes, buy_probability, expected_return_pct,
-                     quantity, feature_snapshot)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                RETURNING id
-            """, (
-                symbol, body.strategy_tags, body.entry_price,
-                body.stop_loss, body.target, body.trade_type, body.notes,
-                body.buy_probability, body.expected_return_pct, body.quantity,
-                snapshot_json,
-            ))
-            trade_id = cur.fetchone()[0]
-        conn.commit()
+    cached = _load_cache()
+    if cached is None:
         return {
-            "id":               trade_id,
-            "message":          "Trade logged",
-            "snapshot_captured": snapshot is not None,
+            "results":    [],
+            "count":      0,
+            "cached_at":  None,
+            "cache_info": get_cache_info(),
+            "message":    "No scan results yet. Trigger a scan via POST /api/screener/undervalued/refresh",
         }
-    finally:
-        conn.close()
+
+    results = cached.get("results", [])
+
+    # Filter by index scope (cache stores full NIFTY_500; slice here)
+    if index and index != "NIFTY 500":
+        from config.nse_indices import get_index_symbols
+        scoped = set(get_index_symbols(index) or [])
+        if scoped:
+            results = [r for r in results if r["symbol"] in scoped]
+
+    # Apply filters
+    if min_score > 0:
+        results = [r for r in results if r.get("value_score", 0) >= min_score]
+    if sector:
+        results = [r for r in results if (r.get("sector") or "").lower() == sector.lower()]
+
+    return {
+        "results":           results,
+        "count":             len(results),
+        "cached_at":         cached.get("cached_at"),
+        "scan_duration_s":   cached.get("scan_duration_s"),
+        "sector_pe_medians": cached.get("sector_pe_medians", {}),
+        "cache_info":        get_cache_info(),
+    }
 
 
-@app.get("/api/journal/trades")
-async def journal_list_trades(status: str = None, limit: int = 200, _: dict = Depends(require_user)):
-    """List trades — optionally filtered by status (open/win/loss/stopped/cancelled)."""
-    conn = get_conn()
-    try:
-        with conn.cursor() as cur:
-            if status:
-                cur.execute("""
-                    SELECT id, symbol, strategy_tags, entry_price, stop_loss, target,
-                           entry_date, exit_date, exit_price, status, trade_type,
-                           notes, buy_probability, expected_return_pct, actual_return_pct,
-                           quantity, pnl, created_at
-                    FROM trade_journal WHERE status=%s
-                    ORDER BY created_at DESC LIMIT %s
-                """, (status, limit))
-            else:
-                cur.execute("""
-                    SELECT id, symbol, strategy_tags, entry_price, stop_loss, target,
-                           entry_date, exit_date, exit_price, status, trade_type,
-                           notes, buy_probability, expected_return_pct, actual_return_pct,
-                           quantity, pnl, created_at
-                    FROM trade_journal ORDER BY created_at DESC LIMIT %s
-                """, (limit,))
-            cols = [d[0] for d in cur.description]
-            rows = [dict(zip(cols, row)) for row in cur.fetchall()]
-            # Convert dates/datetimes to strings
-            for r in rows:
-                for k in ("entry_date","exit_date","created_at"):
-                    if r.get(k): r[k] = str(r[k])
-                for k in ("entry_price","stop_loss","target","exit_price","pnl",
-                          "buy_probability","expected_return_pct","actual_return_pct"):
-                    if r.get(k) is not None: r[k] = float(r[k])
-        return {"trades": rows, "total": len(rows)}
-    finally:
-        conn.close()
-
-
-@app.get("/api/journal/stats")
-async def journal_stats(_: dict = Depends(require_user)):
-    """Return aggregate stats: win rate, avg R:R, total P&L, streaks."""
-    conn = get_conn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT
-                    COUNT(*)                                          AS total,
-                    COUNT(*) FILTER (WHERE status='open')            AS open_trades,
-                    COUNT(*) FILTER (WHERE status='win')             AS wins,
-                    COUNT(*) FILTER (WHERE status='loss')            AS losses,
-                    COUNT(*) FILTER (WHERE status='stopped')         AS stopped,
-                    ROUND(AVG(actual_return_pct) FILTER (WHERE status IN ('win','loss','stopped'))::numeric, 2)
-                                                                     AS avg_return_pct,
-                    ROUND(SUM(pnl) FILTER (WHERE pnl IS NOT NULL)::numeric, 2)
-                                                                     AS total_pnl,
-                    MAX(actual_return_pct) FILTER (WHERE status='win') AS best_trade_pct,
-                    MIN(actual_return_pct) FILTER (WHERE status IN ('loss','stopped')) AS worst_trade_pct,
-                    COUNT(*) FILTER (WHERE trade_type='paper')       AS paper_count,
-                    COUNT(*) FILTER (WHERE trade_type='live')        AS live_count
-                FROM trade_journal
-            """)
-            row = cur.fetchone()
-            cols = [d[0] for d in cur.description]
-            stats = dict(zip(cols, row))
-
-            closed = (stats["wins"] or 0) + (stats["losses"] or 0) + (stats["stopped"] or 0)
-            stats["closed_trades"] = closed
-            stats["win_rate"] = round((stats["wins"] or 0) / closed * 100, 1) if closed > 0 else None
-
-            for k in stats:
-                if stats[k] is not None:
-                    try: stats[k] = float(stats[k]) if '.' in str(stats[k]) else int(stats[k])
-                    except: pass
-
-        return stats
-    finally:
-        conn.close()
-
-
-@app.put("/api/journal/trade/{trade_id}/close")
-async def journal_close_trade(
-    trade_id: int,
-    body: TradeCloseRequest,
-    _: str = Depends(require_admin),
-):
-    """Manually close a trade with an exit price."""
-    conn = get_conn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT entry_price, stop_loss, quantity FROM trade_journal WHERE id=%s",
-                (trade_id,)
-            )
-            row = cur.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Trade not found")
-            entry_price, stop_loss, qty = float(row[0]), row[1], row[2] or 0
-
-            actual_return_pct = round((body.exit_price - entry_price) / entry_price * 100, 2)
-            pnl = round((body.exit_price - entry_price) * qty, 2) if qty else None
-
-            # Determine outcome
-            if actual_return_pct >= 2.0:
-                status = "win"
-            elif stop_loss and body.exit_price <= float(stop_loss):
-                status = "stopped"
-            else:
-                status = "loss"
-
-            cur.execute("""
-                UPDATE trade_journal SET
-                    exit_date=CURRENT_DATE, exit_price=%s, status=%s,
-                    actual_return_pct=%s, pnl=%s,
-                    notes=CASE WHEN %s != '' THEN %s ELSE notes END
-                WHERE id=%s
-            """, (body.exit_price, status, actual_return_pct, pnl,
-                  body.notes, body.notes, trade_id))
-        conn.commit()
-        return {"id": trade_id, "status": status, "actual_return_pct": actual_return_pct, "pnl": pnl}
-    finally:
-        conn.close()
-
-
-@app.delete("/api/journal/trade/{trade_id}")
-async def journal_delete_trade(
-    trade_id: int,
-    _: str = Depends(require_admin),
-):
-    """Delete a trade from the journal."""
-    conn = get_conn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM trade_journal WHERE id=%s RETURNING id", (trade_id,))
-            if not cur.fetchone():
-                raise HTTPException(status_code=404, detail="Trade not found")
-        conn.commit()
-        return {"deleted": trade_id}
-    finally:
-        conn.close()
-
-
-@app.post("/api/journal/settle")
-async def journal_settle_paper(
-    _: str = Depends(require_admin),
+@app.post("/api/screener/undervalued/refresh")
+async def screener_undervalued_refresh(
+    background_tasks: BackgroundTasks,
+    _r: dict = Depends(require_user),
+    index: str = "NIFTY 500",
 ):
     """
-    Auto-settle paper trades older than 5 days.
-    Looks up actual close price from the DB and marks WIN / LOSS / STOPPED.
+    Trigger a background re-scan of NIFTY 500 (or a scoped index).
+    Scans ~500 stocks via yfinance — takes 2-4 minutes.
+    Poll /api/screener/undervalued/status for progress.
     """
-    from config.settings import TABLE_NAME
-    conn = get_conn()
-    settled = []
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT id, symbol, entry_price, stop_loss, entry_date
-                FROM trade_journal
-                WHERE status='open' AND trade_type='paper'
-                  AND entry_date <= CURRENT_DATE - INTERVAL '5 days'
-            """)
-            open_trades = cur.fetchall()
+    if value_scan_state.is_running:
+        return {
+            "status":    "busy",
+            "message":   "Scan already running",
+            "processed": value_scan_state.processed,
+            "total":     value_scan_state.total,
+        }
 
-            for trade_id, symbol, entry_price, stop_loss, entry_date in open_trades:
-                entry_price = float(entry_price)
-                # Get the close price 5 trading days after entry
-                cur.execute(f"""
-                    SELECT close FROM {TABLE_NAME}
-                    WHERE symbol=%s AND trade_date > %s
-                    ORDER BY trade_date ASC LIMIT 1 OFFSET 4
-                """, (symbol, entry_date))
-                price_row = cur.fetchone()
-                if not price_row:
-                    continue
+    from config.nse_indices import get_index_symbols, NIFTY_500
+    symbols = get_index_symbols(index) if index != "NIFTY 500" else NIFTY_500
+    if not symbols:
+        symbols = NIFTY_500
 
-                exit_price = float(price_row[0])
-                actual_return_pct = round((exit_price - entry_price) / entry_price * 100, 2)
+    background_tasks.add_task(_run_value_scan, symbols)
+    return {
+        "status":  "started",
+        "message": f"Scanning {len(symbols)} symbols for {index}",
+        "total":   len(symbols),
+    }
 
-                if actual_return_pct >= 2.0:
-                    status = "win"
-                elif stop_loss and exit_price <= float(stop_loss):
-                    status = "stopped"
-                else:
-                    status = "loss"
 
-                cur.execute("""
-                    UPDATE trade_journal SET
-                        exit_date=entry_date + INTERVAL '5 days',
-                        exit_price=%s, status=%s, actual_return_pct=%s,
-                        notes='Auto-settled after 5 days'
-                    WHERE id=%s
-                """, (exit_price, status, actual_return_pct, trade_id))
-
-                settled.append({
-                    "id": trade_id, "symbol": symbol,
-                    "status": status, "actual_return_pct": actual_return_pct,
-                })
-
-        conn.commit()
-        return {"settled": len(settled), "trades": settled}
-    finally:
-        conn.close()
+@app.get("/api/screener/undervalued/status")
+async def screener_undervalued_status(_r: dict = Depends(require_user)):
+    """Return current scan progress and cache metadata."""
+    from strategies.value_screener import get_cache_info
+    return {
+        "is_running":      value_scan_state.is_running,
+        "processed":       value_scan_state.processed,
+        "total":           value_scan_state.total,
+        "current_symbol":  value_scan_state.current_symbol,
+        "started_at":      value_scan_state.started_at,
+        "error":           value_scan_state.error,
+        "cache":           get_cache_info(),
+    }
 
 
 # -------------------------------------------------------
