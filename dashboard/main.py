@@ -2005,8 +2005,13 @@ async def earnings_calendar(days_ahead: int = 21, index: str = None):
 # Undervalued Stock Screener
 # -------------------------------------------------------
 
-async def _run_value_scan(symbols: list):
-    """Background task: run the fundamental + technical value scan."""
+def _run_value_scan(symbols: list):
+    """
+    Background task: run the fundamental + technical value scan.
+    Must be a plain (non-async) function so FastAPI/Starlette runs it in a
+    thread pool — the scan blocks for ~2 minutes and must not freeze the
+    event loop (which would break status polling).
+    """
     value_scan_state.is_running = True
     value_scan_state.error = None
     value_scan_state.processed = 0

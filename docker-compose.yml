@@ -53,7 +53,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Port not exposed directly — all traffic goes through nginx
+    ports:
+      - "8000:8000"   # direct access (fallback) — primary access is nginx on port 80
     env_file:
       - .env                 # your secrets (FYERS_CLIENT_ID, etc.)
     environment:

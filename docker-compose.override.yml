@@ -1,0 +1,8 @@
+# Local development overrides — applied automatically by docker compose.
+# Disables nginx so you can access the app directly on port 8000.
+# On EC2/production, delete or rename this file to use nginx on port 80.
+
+services:
+  nginx:
+    profiles:
+      - production   # nginx only starts when: docker compose --profile production up

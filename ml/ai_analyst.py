@@ -25,15 +25,15 @@ def _fmt(v, suffix="", decimals=1):
     return f"{round(float(v), decimals)}{suffix}"
 
 
-def _cap_str(mktcap):
-    if mktcap is None:
+def _cap_str(mktcap_cr):
+    """mktcap_cr is in Indian crores."""
+    if mktcap_cr is None:
         return "N/A"
-    b = mktcap / 1e9
-    if b >= 500:
-        return f"₹{b/100:.0f}k Cr (Large Cap)"
-    if b >= 50:
-        return f"₹{b:.0f}B (Mid Cap)"
-    return f"₹{b:.1f}B (Small Cap)"
+    if mktcap_cr >= 20000:
+        return f"₹{mktcap_cr/100:.0f}k Cr (Large Cap)"
+    if mktcap_cr >= 5000:
+        return f"₹{mktcap_cr:.0f} Cr (Mid Cap)"
+    return f"₹{mktcap_cr:.0f} Cr (Small Cap)"
 
 
 def _trend(above_sma):
@@ -106,20 +106,20 @@ def _analyse_stock(s: dict, rank: int) -> str:
     score   = s.get("value_score", 0)
     grade   = s.get("grade", "")
     pe      = s.get("pe_ratio")
-    sector_pe = s.get("sector_pe_median")
+    sector_pe = s.get("sector_median_pe")
     pb      = s.get("pb_ratio")
     roe     = s.get("roe")
-    de      = s.get("de_ratio")
+    de      = s.get("debt_equity")
     ev      = s.get("ev_ebitda")
     rev_g   = s.get("revenue_growth")
     eps_g   = s.get("eps_growth")
     div     = s.get("dividend_yield")
     rsi     = s.get("rsi")
     above_sma = s.get("above_sma200")
-    mktcap  = s.get("market_cap")
+    mktcap_cr = s.get("market_cap_cr")   # in crores
 
     lines = [f"### {rank}. {sym} — {grade} ({score}/100) | {sector}"]
-    lines.append(f"*{_cap_str(mktcap)} · {_trend(above_sma)}*\n")
+    lines.append(f"*{_cap_str(mktcap_cr)} · {_trend(above_sma)}*\n")
 
     # Valuation
     val_pts = []
@@ -242,7 +242,7 @@ def _risk_stocks(stocks: list[dict]) -> str:
     flags = []
     for s in stocks[:10]:
         sym  = s.get("symbol", "?")
-        de   = s.get("de_ratio")
+        de   = s.get("debt_equity")
         roe  = s.get("roe")
         rev_g = s.get("revenue_growth")
         above = s.get("above_sma200")
@@ -334,7 +334,7 @@ def _answer_question(stocks: list[dict], question: str) -> str:
 
     # Debt / leverage
     if any(w in q for w in ["debt", "leverage", "debt-free", "balance sheet", "d/e"]):
-        low_debt = [s for s in stocks if s.get("de_ratio") is not None and s["de_ratio"] < 0.3]
+        low_debt = [s for s in stocks if s.get("debt_equity") is not None and s["debt_equity"] < 0.3]
         low_debt.sort(key=lambda s: s.get("value_score", 0), reverse=True)
         if not low_debt:
             return "No debt-free or very low debt stocks found in the current screened results."
@@ -342,7 +342,7 @@ def _answer_question(stocks: list[dict], question: str) -> str:
         for i, s in enumerate(low_debt[:5], 1):
             lines.append(
                 f"**{i}. {s['symbol']}** ({s.get('sector','')}, score {s.get('value_score',0)}) — "
-                f"D/E {_fmt(s.get('de_ratio'),'x',2)} · ROE {_fmt(s.get('roe'),'%')} · "
+                f"D/E {_fmt(s.get('debt_equity'),'x',2)} · ROE {_fmt(s.get('roe'),'%')} · "
                 f"P/E {_fmt(s.get('pe_ratio'),'x')}"
             )
         return "\n".join(lines)
@@ -364,33 +364,33 @@ def _answer_question(stocks: list[dict], question: str) -> str:
 
     # Smallcap / midcap / largecap
     if any(w in q for w in ["small", "smallcap", "small cap"]):
-        filtered = [s for s in stocks if s.get("market_cap") and s["market_cap"] < 50e9]
+        filtered = [s for s in stocks if s.get("market_cap_cr") and s["market_cap_cr"] < 5000]
         filtered.sort(key=lambda s: s.get("value_score", 0), reverse=True)
         if not filtered:
             return "No small-cap stocks found in current results."
         lines = ["## Small-Cap Value Stocks\n"]
         for i, s in enumerate(filtered[:5], 1):
-            lines.append(f"**{i}. {s['symbol']}** — Score {s.get('value_score',0)} · {_cap_str(s.get('market_cap'))}")
+            lines.append(f"**{i}. {s['symbol']}** — Score {s.get('value_score',0)} · {_cap_str(s.get('market_cap_cr'))}")
         return "\n".join(lines)
 
     if any(w in q for w in ["mid", "midcap", "mid cap"]):
-        filtered = [s for s in stocks if s.get("market_cap") and 50e9 <= s["market_cap"] < 500e9]
+        filtered = [s for s in stocks if s.get("market_cap_cr") and 5000 <= s["market_cap_cr"] < 20000]
         filtered.sort(key=lambda s: s.get("value_score", 0), reverse=True)
         if not filtered:
             return "No mid-cap stocks found in current results."
         lines = ["## Mid-Cap Value Stocks\n"]
         for i, s in enumerate(filtered[:5], 1):
-            lines.append(f"**{i}. {s['symbol']}** — Score {s.get('value_score',0)} · {_cap_str(s.get('market_cap'))}")
+            lines.append(f"**{i}. {s['symbol']}** — Score {s.get('value_score',0)} · {_cap_str(s.get('market_cap_cr'))}")
         return "\n".join(lines)
 
     if any(w in q for w in ["large", "largecap", "large cap", "bluechip", "blue chip"]):
-        filtered = [s for s in stocks if s.get("market_cap") and s["market_cap"] >= 500e9]
+        filtered = [s for s in stocks if s.get("market_cap_cr") and s["market_cap_cr"] >= 20000]
         filtered.sort(key=lambda s: s.get("value_score", 0), reverse=True)
         if not filtered:
             return "No large-cap stocks found in current results."
         lines = ["## Large-Cap Value Stocks\n"]
         for i, s in enumerate(filtered[:5], 1):
-            lines.append(f"**{i}. {s['symbol']}** — Score {s.get('value_score',0)} · {_cap_str(s.get('market_cap'))}")
+            lines.append(f"**{i}. {s['symbol']}** — Score {s.get('value_score',0)} · {_cap_str(s.get('market_cap_cr'))}")
         return "\n".join(lines)
 
     # Risk / dangerous

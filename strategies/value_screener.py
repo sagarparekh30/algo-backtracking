@@ -419,6 +419,8 @@ def undervalued_scan(
             # Technical
             "rsi":             tech.get("rsi"),
             "sma200":          tech.get("sma200"),
+            "above_sma200":    (fund.get("current_price") > tech["sma200"])
+                               if (tech.get("sma200") and fund.get("current_price")) else None,
             # Score
             **scored,
         })
