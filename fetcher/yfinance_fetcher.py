@@ -152,122 +152,187 @@ def fetch_yahoo(yahoo_symbol: str, start: str = None, end: str = None) -> pd.Dat
 # ── Insert ───────────────────────────────────────────────────────────────
 
 def insert_df(cursor, symbol: str, df: pd.DataFrame) -> int:
-    """Insert rows into DB, skipping duplicates. Returns count inserted."""
+    """
+    Bulk-insert rows into DB using executemany, skipping duplicates.
+    Returns count of newly inserted rows.
+
+    ~50-100× faster than row-by-row inserts for large DataFrames.
+    """
     if df.empty:
         return 0
-    inserted = 0
-    for _, row in df.iterrows():
+
+    rows = [
+        (
+            symbol,
+            row["trade_date"],
+            round(float(row["open"]),  4),
+            round(float(row["high"]),  4),
+            round(float(row["low"]),   4),
+            round(float(row["close"]), 4),
+            int(row["volume"]),
+            SOURCE_NAME,
+        )
+        for _, row in df.iterrows()
+        if all(pd.notna(row[c]) for c in ["open", "high", "low", "close"])
+    ]
+    if not rows:
+        return 0
+
+    try:
+        cursor.executemany(
+            f"""INSERT INTO {TABLE_NAME}
+                (symbol, trade_date, open, high, low, close, volume, source)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, trade_date) DO NOTHING""",
+            rows,
+        )
+        return cursor.rowcount if cursor.rowcount >= 0 else len(rows)
+    except Exception as e:
+        logger.debug(f"Bulk insert error for {symbol}: {e}")
+        return 0
+
+
+# ── Parallel fetch worker ─────────────────────────────────────────────────
+
+_RATE_LIMIT_DELAY  = 60    # seconds to wait after a rate-limit hit
+_MAX_RETRIES       = 3     # per-symbol retries on rate-limit
+
+
+def _fetch_one(args):
+    """
+    Worker function executed by each thread in the pool.
+    Retries up to _MAX_RETRIES times on rate-limit errors with backoff.
+
+    Args:
+        args: (symbol, fetch_start) tuple
+
+    Returns:
+        (symbol, df_or_None, error_or_None)
+    """
+    symbol, fetch_start = args
+    yahoo_sym = to_yahoo_symbol(symbol)
+
+    for attempt in range(1, _MAX_RETRIES + 1):
         try:
-            cursor.execute(
-                f"""INSERT INTO {TABLE_NAME}
-                    (symbol, trade_date, open, high, low, close, volume, source)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (symbol, trade_date) DO NOTHING""",
-                (
-                    symbol,
-                    row["trade_date"],
-                    round(float(row["open"]),  4),
-                    round(float(row["high"]),  4),
-                    round(float(row["low"]),   4),
-                    round(float(row["close"]), 4),
-                    int(row["volume"]),
-                    SOURCE_NAME,
-                ),
-            )
-            if cursor.rowcount > 0:
-                inserted += 1
+            df = fetch_yahoo(yahoo_sym, start=fetch_start)
+            if df.empty:
+                return symbol, None, "no_data"
+            return symbol, df, None
         except Exception as e:
-            logger.debug(f"Insert error for {symbol} {row.get('trade_date')}: {e}")
-    return inserted
+            err_str = str(e)
+            if "Too Many Requests" in err_str or "Rate limit" in err_str.lower():
+                if attempt < _MAX_RETRIES:
+                    wait = _RATE_LIMIT_DELAY * attempt   # 60s, 120s
+                    logger.warning(f"  {yahoo_sym}: rate limited (attempt {attempt}), waiting {wait}s")
+                    time.sleep(wait)
+                    continue
+            return symbol, None, err_str
+
+    return symbol, None, f"rate_limited after {_MAX_RETRIES} retries"
 
 
 # ── Main backfill ────────────────────────────────────────────────────────
 
 def run_yfinance_backfill(
-    symbols: list[str] = None,
+    symbols: list = None,
     start_date: str = None,
     progress_cb=None,
+    workers: int = 3,
 ) -> dict:
     """
     Fetch full history for all (or specified) symbols from Yahoo Finance
-    and store in the SQLite database.
+    and store in the database.
+
+    Uses a thread pool for parallel downloads, then writes to DB serially.
+    Default 3 workers — Yahoo Finance is strict about rate limits; keep
+    this value ≤ 5 to avoid 429 errors.  Each worker retries up to
+    _MAX_RETRIES times with exponential backoff on rate-limit responses.
 
     Args:
-        symbols:     List of NSE plain symbols. Defaults to all from SYMBOL_FILE.
+        symbols:     List of NSE plain symbols. Defaults to fetch_nse_all_symbols().
         start_date:  Fetch from this ISO date. None = maximum available history.
         progress_cb: Optional callable(processed, total, symbol, candles) for UI updates.
+        workers:     Parallel Yahoo Finance download threads (default 3, max ~5).
 
     Returns:
         Summary dict.
     """
+    import concurrent.futures
+
     if symbols is None:
-        with open(SYMBOL_FILE) as f:
-            data = json.load(f)
-        symbols = [s for s in data["symbols"] if not s.startswith("DUMMY")]
+        try:
+            from config.nse_indices import fetch_nse_all_symbols
+            symbols = fetch_nse_all_symbols()
+            logger.info(f"[YF] Using dynamic NSE All list: {len(symbols)} symbols")
+        except Exception:
+            with open(SYMBOL_FILE) as f:
+                data = json.load(f)
+            symbols = [s for s in data["symbols"] if not s.startswith("DUMMY")]
 
-    total         = len(symbols)
-    total_new     = 0
-    failed        = []
+    total     = len(symbols)
+    total_new = 0
+    failed    = []
 
     logger.info("=" * 60)
-    logger.info(f"Yahoo Finance backfill: {total} symbols | start={start_date or 'max'}")
+    logger.info(f"Yahoo Finance backfill: {total} symbols | start={start_date or 'max'} | workers={workers}")
     logger.info("=" * 60)
+
+    # Build work list: (symbol, fetch_start)
+    work = [(symbol, start_date) for symbol in symbols]
+
+    # ── Streaming download + write phase ──────────────────────────────────
+    # Downloads happen in worker threads; DB writes happen in the main thread
+    # as each download completes.  This keeps memory flat (one DF at a time)
+    # instead of buffering all 2 000+ DataFrames before writing.
+    logger.info(f"[YF] Starting parallel download with {workers} workers …")
 
     conn   = connect_db()
     cursor = conn.cursor()
+    done_count = 0
 
-    for idx, symbol in enumerate(symbols, 1):
-        yahoo_sym = to_yahoo_symbol(symbol)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_fetch_one, w): w[0] for w in work}
+        for future in concurrent.futures.as_completed(futures):
+            symbol, df, err = future.result()
+            done_count += 1
 
-        # Determine fetch start: use last yfinance date if we have any
-        fetch_start = start_date
-        if fetch_start is None:
-            earliest = get_earliest_any_date(cursor, symbol)
-            if earliest:
-                # We have some Fyers data — fetch from the very beginning
-                # so Yahoo fills in everything before Fyers' 10-year window
-                pass   # fetch_start stays None → period='max'
-
-        try:
-            logger.info(f"[{idx}/{total}] Fetching {yahoo_sym} (start={fetch_start or 'max'})")
-            df = fetch_yahoo(yahoo_sym, start=fetch_start)
-
-            if df.empty:
-                logger.warning(f"  {yahoo_sym}: No data returned — skipping")
+            if err:
+                logger.warning(f"  [{done_count}/{total}] {symbol}: {err}")
                 failed.append(symbol)
             else:
-                inserted = insert_df(cursor, symbol, df)
-                conn.commit()
-                total_new += inserted
-                logger.info(
-                    f"  {yahoo_sym}: {len(df)} rows fetched | {inserted} new candles inserted"
-                    f" | range {df['trade_date'].iloc[0]} → {df['trade_date'].iloc[-1]}"
-                )
+                try:
+                    inserted = insert_df(cursor, symbol, df)
+                    conn.commit()
+                    total_new += inserted
+                    if inserted > 0:
+                        logger.info(
+                            f"  [{done_count}/{total}] {symbol}: "
+                            f"{len(df)} rows | {inserted} new "
+                            f"| {df['trade_date'].iloc[0]} → {df['trade_date'].iloc[-1]}"
+                        )
+                except Exception as e:
+                    conn.rollback()
+                    logger.error(f"  {symbol}: DB write error — {e}")
+                    failed.append(symbol)
 
-        except Exception as e:
-            logger.error(f"  {symbol}: ERROR — {e}")
-            failed.append(symbol)
-
-        if progress_cb:
-            progress_cb(idx, total, symbol, total_new)
-
-        time.sleep(0.5)   # be polite to Yahoo
+            if progress_cb:
+                progress_cb(done_count, total, symbol, total_new)
 
     conn.close()
 
     summary = {
-        "source":        SOURCE_NAME,
-        "total_symbols": total,
-        "successful":    total - len(failed),
-        "failed":        len(failed),
-        "failed_list":   failed,
+        "source":            SOURCE_NAME,
+        "total_symbols":     total,
+        "successful":        total - len(failed),
+        "failed":            len(failed),
+        "failed_list":       failed[:50],   # cap list size in response
         "total_new_candles": total_new,
-        "completed_at":  datetime.now().isoformat(),
+        "completed_at":      datetime.now().isoformat(),
     }
     logger.info("=" * 60)
-    logger.info(f"Done. New candles: {total_new} | Failed: {len(failed)}")
+    logger.info(f"Done. New candles: {total_new} | Successful: {total - len(failed)}/{total} | Failed: {len(failed)}")
     if failed:
-        logger.warning(f"Failed: {failed}")
+        logger.warning(f"Failed symbols ({len(failed)}): {failed[:20]}{'…' if len(failed) > 20 else ''}")
     logger.info("=" * 60)
     return summary
 

@@ -64,8 +64,9 @@ services:
       # Scheduler — runs inside the app process
       SCHEDULER_ENABLED:     "true"
       SCHEDULER_DATA_UPDATE_TIME: "16:00"
+      SCHEDULER_ML_DAILY_TIME:    "18:00"   # auto-retrain Mon-Fri after data fetch
       SCHEDULER_ML_RETRAIN_DAY:   "sun"
-      SCHEDULER_ML_RETRAIN_TIME:  "22:00"
+      SCHEDULER_ML_RETRAIN_TIME:  "22:00"   # full deep retrain every Sunday
       # Admin auth — $$ in YAML becomes $ in the actual value
       ADMIN_USERNAME:        admin
       ADMIN_PASSWORD_HASH:   "$$2b$$12$$FN.KT30wU8qDbfgE/cglz.4DXOUCLGrTFai45zNdxhhDjRlaTHN/O"

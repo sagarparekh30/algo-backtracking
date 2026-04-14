@@ -113,9 +113,52 @@ async def startup_event():
     # Auto-bootstrap: fetch 30-year history + train model if DB is empty
     from scheduler.bootstrap import run_bootstrap_if_needed
     run_bootstrap_if_needed()
-    # Pre-warm slow caches so first user request is fast
+    # Auto-train if DB has data but model file is missing or never trained
     import threading
+    threading.Thread(target=_auto_train_if_needed, name="auto-train-check", daemon=True).start()
+    # Pre-warm slow caches so first user request is fast
     threading.Thread(target=_prewarm_caches, name="cache-prewarm", daemon=True).start()
+
+
+def _auto_train_if_needed():
+    """
+    On startup: if the DB has enough data but the ML model has never been
+    trained (no model file), kick off a training run immediately without
+    waiting for the daily schedule.
+    """
+    import time as _t
+    import os as _os
+    _t.sleep(5)   # wait for DB pool + bootstrap check to settle
+
+    try:
+        from config.settings import BASE_DIR
+        model_file = _os.path.join(str(BASE_DIR), "ml", "models", "price_predictor.joblib")
+        meta_file  = _os.path.join(str(BASE_DIR), "ml", "models", "model_meta.json")
+
+        if _os.path.exists(model_file) and _os.path.exists(meta_file):
+            logger.info("[AutoTrain] Model already exists — skipping startup train.")
+            return
+
+        # Check if there's enough data to train
+        from db.connection import get_conn
+        from config.settings import TABLE_NAME
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+            row = cur.fetchone()
+        conn.close()
+        row_count = row[0] if row else 0
+
+        if row_count < 10_000:
+            logger.info(f"[AutoTrain] Not enough data ({row_count:,} rows) — skipping.")
+            return
+
+        logger.info(f"[AutoTrain] Model not found but DB has {row_count:,} rows — training now…")
+        from scheduler.auto_scheduler import trigger_ml_retrain_now
+        trigger_ml_retrain_now()
+
+    except Exception as e:
+        logger.error(f"[AutoTrain] Startup check failed: {e}")
 
 
 def _prewarm_caches():
@@ -299,6 +342,7 @@ class ExecuteCache:
     results: list = []
     count: int = 0
     top_symbols: list = []
+    top_results: list = []    # top-5 full trade objects for the Home tab
     regime: str = "Unknown"
     buy_threshold: float = 0.60
     last_checked: datetime = None
@@ -962,6 +1006,7 @@ async def combined_signals(trend_period: str = "any"):
     execute_cache.results       = results
     execute_cache.count         = len(results)
     execute_cache.top_symbols   = [r["symbol"] for r in results[:5]]
+    execute_cache.top_results   = results[:5]   # full objects for Home tab
     execute_cache.regime        = regime
     execute_cache.buy_threshold = buy_thresh
     execute_cache.last_checked  = datetime.now()
@@ -1050,6 +1095,7 @@ async def _refresh_execute_cache():
         execute_cache.results       = results
         execute_cache.count         = len(results)
         execute_cache.top_symbols   = [r["symbol"] for r in results[:5]]
+        execute_cache.top_results   = results[:5]
         execute_cache.regime        = regime
         execute_cache.buy_threshold = buy_thresh
         execute_cache.last_checked  = datetime.now()
@@ -1095,6 +1141,7 @@ async def execute_poll(background_tasks: BackgroundTasks):
     return {
         "count":          execute_cache.count,
         "top_symbols":    execute_cache.top_symbols,
+        "top_results":    execute_cache.top_results,
         "regime":         execute_cache.regime,
         "buy_threshold":  execute_cache.buy_threshold,
         "last_checked":   execute_cache.last_checked.isoformat() if execute_cache.last_checked else None,
@@ -1734,6 +1781,14 @@ async def _run_yfinance_task(symbols: list = None):
     yf_state.total_new_candles = 0
     yf_state.current_symbol = "Starting…"
 
+    # Default = full NSE universe (all active EQ stocks, ~1 800)
+    if symbols is None:
+        try:
+            from config.nse_indices import fetch_nse_all_symbols
+            symbols = fetch_nse_all_symbols()
+        except Exception:
+            symbols = None   # yfinance_fetcher will fall back to SYMBOL_FILE
+
     def progress_cb(processed, total, symbol, total_new):
         yf_state.processed = processed
         yf_state.total = total
@@ -1742,7 +1797,7 @@ async def _run_yfinance_task(symbols: list = None):
 
     try:
         from fetcher.yfinance_fetcher import run_yfinance_backfill
-        result = run_yfinance_backfill(symbols=symbols, progress_cb=progress_cb)
+        result = run_yfinance_backfill(symbols=symbols, progress_cb=progress_cb, workers=3)
         yf_state.last_result = result
         yf_state.current_symbol = "Done"
     except Exception as e:
@@ -1760,15 +1815,17 @@ async def start_yfinance_backfill(
     _: str = Depends(require_admin),
 ):
     """
-    Fetch full historical data (up to 30 years) for all symbols from Yahoo Finance.
-    Optional ?index=NIFTY+50 to limit to a specific index.
-    Runs in background — poll /api/yfinance/status for progress. Admin only.
+    Fetch full 30-year historical data for all NSE-listed stocks from Yahoo Finance.
+    Default: entire NSE universe (~1 800 EQ stocks, fetched live from NSE's official CSV).
+    Optional ?index=NIFTY+500 to limit to a specific index.
+    Runs in background with 8 parallel workers — poll /api/yfinance/status for progress.
+    Admin only.
     """
     if yf_state.is_running:
         return {"message": "Yahoo Finance backfill already running", "status": "busy"}
 
     symbols = None
-    index_label = "All symbols"
+    index_label = "NSE All (~1 800 stocks)"
     if index:
         from config.nse_indices import get_index_symbols
         symbols = get_index_symbols(index)
@@ -2045,13 +2102,14 @@ async def screener_undervalued(
     Return undervalued stocks sorted by value score (highest first).
 
     Serves from 24-hour cache. Trigger a refresh via POST /api/screener/undervalued/refresh.
+    Each result includes a `buy_signal` dict with verdict, conviction score, and gate details.
 
     Query params:
       index      — index name to scope (default: NIFTY 500)
       min_score  — filter out stocks below this score (default: 0)
       sector     — filter by sector name (optional)
     """
-    from strategies.value_screener import _load_cache, get_cache_info
+    from strategies.value_screener import _load_cache, get_cache_info, compute_buy_signal
 
     cached = _load_cache()
     if cached is None:
@@ -2063,7 +2121,10 @@ async def screener_undervalued(
             "message":    "No scan results yet. Trigger a scan via POST /api/screener/undervalued/refresh",
         }
 
-    results = cached.get("results", [])
+    # Shallow-copy each result dict so we can attach buy_signal without mutating
+    # the cached objects (cache is shared across requests; stale signals would
+    # persist across regime changes if we mutated in-place).
+    results = [{**r} for r in cached.get("results", [])]
 
     # Filter by index scope (cache stores full NIFTY_500; slice here)
     if index and index != "NIFTY 500":
@@ -2078,6 +2139,65 @@ async def screener_undervalued(
     if sector:
         results = [r for r in results if (r.get("sector") or "").lower() == sector.lower()]
 
+    # ── Buy Signal: regime + ML ──────────────────────────────────────────────
+    # Run all blocking I/O (DB + ML) in the thread-pool so we don't hold up
+    # the uvicorn event loop for other requests.
+    import asyncio as _asyncio
+
+    def _compute_signals_sync(results_snap):
+        """Blocking work: regime lookup, ML predictions, signal computation."""
+        global _regime_cache, _regime_cache_ts
+
+        # Step 1: get current regime (use cached value; 5-min TTL)
+        regime = "Neutral"
+        try:
+            now = _time.monotonic()
+            if _regime_cache and now - _regime_cache_ts < _REGIME_TTL:
+                regime = _regime_cache.get("regime", "Neutral")
+            else:
+                from ml.regime import compute_regime
+                _regime_cache = compute_regime()
+                _regime_cache_ts = now
+                regime = _regime_cache.get("regime", "Neutral")
+        except Exception:
+            pass
+
+        # Step 2: ML probabilities for top-50 stocks
+        ml_prob_map: dict = {}
+        try:
+            predictor = get_ml_predictor()
+            if predictor is not None and getattr(predictor, "clf", None) is not None:
+                top_syms = [r.get("symbol", "") for r in results_snap[:50] if r.get("symbol")]
+                engine = get_engine()
+                candle_map = _bulk_fetch_candles(engine, symbols=top_syms)
+                for sym in top_syms:
+                    try:
+                        df = candle_map.get(sym)
+                        if df is None or df.empty or len(df) < 60:
+                            continue
+                        ml = predictor.predict_symbol(df, sym, regime=regime)
+                        if "error" not in ml:
+                            ml_prob_map[sym] = ml.get("buy_probability") or ml.get("prob_5d")
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        return regime, ml_prob_map
+
+    regime, ml_prob_map = await _asyncio.get_event_loop().run_in_executor(
+        None, _compute_signals_sync, results
+    )
+
+    # Step 3: attach buy_signal to every result
+    for stock in results:
+        sym = stock.get("symbol", "")
+        ml_prob = ml_prob_map.get(sym)
+        try:
+            stock["buy_signal"] = compute_buy_signal(stock, regime=regime, ml_prob=ml_prob)
+        except Exception:
+            stock["buy_signal"] = None
+
     return {
         "results":           results,
         "count":             len(results),
@@ -2085,6 +2205,7 @@ async def screener_undervalued(
         "scan_duration_s":   cached.get("scan_duration_s"),
         "sector_pe_medians": cached.get("sector_pe_medians", {}),
         "cache_info":        get_cache_info(),
+        "regime":            regime,
     }
 
 

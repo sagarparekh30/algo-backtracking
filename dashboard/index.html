@@ -12,37 +12,40 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     /* ═══════════════════════════════════════════
-       DESIGN TOKENS
+       DESIGN TOKENS — APEX DARK PREMIUM
     ═══════════════════════════════════════════ */
     :root {
-      --bg:      #ffffff;
-      --s1:      #fafafa;
-      --s2:      #f5f5f4;
-      --s3:      #eeede9;
-      --border:  rgba(0,0,0,0.09);
-      --border2: rgba(0,0,0,0.13);
+      --bg:      #070C16;
+      --s1:      #0C1220;
+      --s2:      #111827;
+      --s3:      #1A2540;
+      --border:  rgba(255,255,255,0.06);
+      --border2: rgba(255,255,255,0.10);
 
-      --txt:     #1a1a1a;
-      --txt1:    #1a1a1a;
-      --txt2:    #6b6b6b;
-      --txt3:    #a0a0a0;
+      --txt:     #E2E8F0;
+      --txt1:    #F1F5F9;
+      --txt2:    #94A3B8;
+      --txt3:    #4E6080;
 
-      --data:    #534AB7;
-      --data-d:  #EEEDFE;
-      --sig:     #0F6E56;
-      --sig-d:   #E1F5EE;
-      --bt:      #534AB7;
-      --bt-d:    #EEEDFE;
-      --live:    #854F0B;
-      --live-d:  #FAEEDA;
+      --data:    #818CF8;
+      --data-d:  rgba(129,140,248,0.12);
+      --sig:     #34D399;
+      --sig-d:   rgba(52,211,153,0.12);
+      --bt:      #818CF8;
+      --bt-d:    rgba(129,140,248,0.12);
+      --live:    #FBBF24;
+      --live-d:  rgba(251,191,36,0.12);
 
-      --green:   #3B6D11;
-      --green-d: #EAF3DE;
-      --red:     #A32D2D;
-      --red-d:   #FCEBEB;
+      --green:   #34D399;
+      --green-d: rgba(52,211,153,0.12);
+      --red:     #F87171;
+      --red-d:   rgba(248,113,113,0.12);
 
-      --nav-h:   64px;
-      --hdr-h:   58px;
+      --gold:    #F59E0B;
+      --gold-d:  rgba(245,158,11,0.12);
+
+      --nav-h:   68px;
+      --hdr-h:   60px;
     }
 
     body {
@@ -65,8 +68,10 @@
     ═══════════════════════════════════════════ */
     .hdr {
       height: var(--hdr-h);
-      background: #fff;
-      border-bottom: 0.5px solid #eee;
+      background: rgba(7,12,22,0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -77,10 +82,14 @@
     }
 
     .logo {
-      font-size: 15px;
-      font-weight: 500;
-      letter-spacing: -0.3px;
-      color: #1a1a1a;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #F59E0B, #FBBF24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-transform: uppercase;
     }
 
     .hdr-right { display: flex; align-items: center; gap: 8px; }
@@ -96,10 +105,10 @@
       letter-spacing: .2px;
     }
     .chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .chip-green { background: #EAF3DE; color: #27500A; border: 1px solid rgba(59,109,17,.2); }
-    .chip-red   { background: #FCEBEB; color: #791F1F; border: 1px solid rgba(163,45,45,.2); }
-    .chip-gray  { background: #f5f5f4; color: #6b6b6b; border: 1px solid #e5e5e5; }
-    .chip-amber { background: #FAEEDA; color: #633806; border: 1px solid rgba(133,79,11,.2); }
+    .chip-green { background: rgba(52,211,153,0.12); color: #34D399; border: 1px solid rgba(52,211,153,0.25); }
+    .chip-red   { background: rgba(248,113,113,0.12); color: #F87171; border: 1px solid rgba(248,113,113,0.25); }
+    .chip-gray  { background: rgba(255,255,255,0.06); color: var(--txt2); border: 1px solid rgba(255,255,255,0.08); }
+    .chip-amber { background: rgba(251,191,36,0.12); color: #FBBF24; border: 1px solid rgba(251,191,36,0.25); }
 
     .hdr-clock {
       font-family: 'JetBrains Mono', monospace;
@@ -118,7 +127,9 @@
       overflow-x: hidden;
       padding-bottom: calc(var(--nav-h) + 8px);
     }
-    .scroll::-webkit-scrollbar { display: none; }
+    .scroll::-webkit-scrollbar { width: 2px; }
+    .scroll::-webkit-scrollbar-track { background: transparent; }
+    .scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
 
     /* ═══════════════════════════════════════════
        BOTTOM NAV
@@ -127,8 +138,10 @@
       position: fixed;
       bottom: 0; left: 0; right: 0;
       height: var(--nav-h);
-      background: #fff;
-      border-top: 0.5px solid #eee;
+      background: rgba(7,12,22,0.97);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255,255,255,0.07);
       display: flex;
       overflow-x: hidden;
       overflow-y: hidden;
@@ -156,15 +169,15 @@
       transition: all .2s;
     }
     .mode-btn-active {
-      background: var(--s3);
-      border-color: var(--sig);
+      background: var(--sig-d);
+      border-color: rgba(52,211,153,.3);
       color: var(--sig);
     }
 
     /* ── Combined signal card ── */
     .comb-card {
       padding: 14px 16px;
-      border-bottom: 0.5px solid rgba(0,0,0,0.07);
+      border-bottom: 1px solid var(--border);
     }
     .comb-card:last-child { border-bottom: none; }
     .comb-card-top {
@@ -175,7 +188,7 @@
     }
     .comb-symbol {
       font-size: 15px;
-      font-weight: 500;
+      font-weight: 600;
       letter-spacing: .1px;
     }
     .comb-prob-wrap {
@@ -183,7 +196,7 @@
     }
     .comb-prob-bar-bg {
       height: 4px;
-      background: #eeede9;
+      background: var(--s3);
       border-radius: 3px;
       overflow: hidden;
       margin-top: 4px;
@@ -195,7 +208,7 @@
     }
     .comb-prob-pct {
       font-size: 18px;
-      font-weight: 500;
+      font-weight: 600;
       font-family: 'JetBrains Mono', monospace;
     }
     .comb-conf-badge {
@@ -216,9 +229,9 @@
       font-weight: 500;
       padding: 3px 7px;
       border-radius: 99px;
-      background: #E1F5EE;
-      color: #0F6E56;
-      border: 1px solid #9FE1CB;
+      background: var(--sig-d);
+      color: var(--sig);
+      border: 1px solid rgba(52,211,153,.25);
     }
     .comb-trade-grid {
       display: grid;
@@ -226,14 +239,14 @@
       gap: 6px;
     }
     .comb-trade-cell {
-      background: #fff;
-      border: 0.5px solid rgba(0,0,0,0.08);
-      border-radius: 8px;
+      background: var(--s3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
       padding: 8px 10px;
     }
     .comb-trade-label {
       font-size: 9px;
-      font-weight: 500;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: .5px;
       color: var(--txt3);
@@ -250,7 +263,7 @@
       justify-content: space-between;
       margin-top: 10px;
       padding-top: 8px;
-      border-top: 0.5px solid rgba(0,0,0,0.07);
+      border-top: 1px solid var(--border);
     }
 
     .nav-btn {
@@ -263,25 +276,25 @@
       gap: 3px;
       border: none;
       background: none;
-      color: #a0a0a0;
+      color: var(--txt3);
       font-size: 9px;
       font-weight: 500;
       letter-spacing: .3px;
       cursor: pointer;
       font-family: 'Inter', sans-serif;
       -webkit-tap-highlight-color: transparent;
-      transition: color .15s;
+      transition: color .2s;
       position: relative;
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 6px 4px;
     }
     .nav-btn svg { width: 20px; height: 20px; transition: transform .15s; }
     .nav-btn:active svg { transform: scale(.9); }
     .adm-input {
-      background:#f5f5f4; border:0.5px solid rgba(0,0,0,0.12); border-radius:8px;
+      background:var(--s2); border:1px solid var(--border); border-radius:8px;
       padding:8px 10px; color:var(--txt); font-size:12px; width:100%;
     }
-    .adm-input:focus { outline:none; border-color:#534AB7; }
+    .adm-input:focus { outline:none; border-color:var(--data); }
     .pb-pos-row {
       padding:12px 16px; border-bottom:1px solid var(--border);
       display:flex; align-items:center; justify-content:space-between;
@@ -290,31 +303,31 @@
     .qs-ring {
       width:44px; height:44px; border-radius:50%; display:flex;
       align-items:center; justify-content:center; font-weight:800;
-      font-size:14px; flex-shrink:0;
+      font-size:14px; flex-shrink:0; border: 2px solid;
     }
 
     .scr-tab-btn {
       padding: 7px 14px; font-size: 12px; font-weight: 500;
-      background: #f5f5f4; border: 0.5px solid #e5e5e5;
-      border-radius: 8px; color: #6b6b6b; cursor: pointer;
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--txt2); cursor: pointer;
       white-space: nowrap; transition: all .15s;
     }
     .scr-tab-btn.active {
-      background: #E1F5EE; color: #0F6E56;
-      border-color: #9FE1CB;
+      background: var(--sig-d); color: var(--sig);
+      border-color: rgba(52,211,153,0.3);
     }
     .trend-btn {
       padding: 8px 4px; font-size: 11px; font-weight: 500;
-      background: #f5f5f4; border: 0.5px solid #e5e5e5;
-      border-radius: 8px; color: #6b6b6b; cursor: pointer;
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--txt2); cursor: pointer;
       transition: all .15s; text-align: center;
     }
     .trend-btn.active {
-      background: #EEEDFE; color: #3C3489;
-      border-color: #AFA9EC;
+      background: var(--data-d); color: var(--data);
+      border-color: rgba(129,140,248,0.3);
     }
     .scr-row {
-      padding: 11px 16px; border-bottom: 0.5px solid rgba(0,0,0,0.07);
+      padding: 11px 16px; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
     }
     .scr-row:last-child { border-bottom: none; }
@@ -324,11 +337,11 @@
       border-radius: 99px; margin-left: 6px;
     }
     .sector-tile {
-      padding: 14px; border-radius: 10px; margin-bottom: 8px;
-      background: #fff; border: 0.5px solid rgba(0,0,0,0.08);
+      padding: 14px; border-radius: 12px; margin-bottom: 8px;
+      background: var(--s2); border: 1px solid var(--border);
     }
 
-    .nav-btn.active { color: #534AB7; background: #f0effc; }
+    .nav-btn.active { color: var(--gold); background: rgba(245,158,11,0.1); }
 
     /* ═══════════════════════════════════════════
        TABS
@@ -359,18 +372,19 @@
        CARDS
     ═══════════════════════════════════════════ */
     .card {
-      background: #fff;
-      border: 0.5px solid rgba(0,0,0,0.1);
-      border-radius: 14px;
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
       overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.25);
     }
     .card-p { padding: 16px; }
 
-    /* Accent top border — kept for structure but neutralized */
-    .card-accent-data  { border-top: 1px solid rgba(83,74,183,.25); }
-    .card-accent-sig   { border-top: 1px solid rgba(15,110,86,.25); }
-    .card-accent-bt    { border-top: 1px solid rgba(83,74,183,.25); }
-    .card-accent-live  { border-top: 1px solid rgba(133,79,11,.25); }
+    /* Accent top border */
+    .card-accent-data  { border-top: 2px solid var(--data); }
+    .card-accent-sig   { border-top: 2px solid var(--sig); }
+    .card-accent-bt    { border-top: 2px solid var(--bt); }
+    .card-accent-live  { border-top: 2px solid var(--live); }
 
     /* ═══════════════════════════════════════════
        STAT TILES
@@ -378,12 +392,13 @@
     .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
     .tile {
-      background: #fff;
-      border: 0.5px solid rgba(0,0,0,0.09);
-      border-radius: 14px;
-      padding: 14px 16px;
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
       position: relative;
       overflow: hidden;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.2);
     }
     .tile-label {
       font-size: 10px;
@@ -391,7 +406,7 @@
       color: var(--txt3);
       letter-spacing: .6px;
       text-transform: uppercase;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
     .tile-value {
       font-family: 'JetBrains Mono', monospace;
@@ -418,24 +433,24 @@
       border: none;
       border-radius: 12px;
       font-family: 'Inter', sans-serif;
-      font-weight: 500;
+      font-weight: 600;
       font-size: 13px;
       cursor: pointer;
-      transition: opacity .15s, transform .1s;
+      transition: opacity .15s, transform .1s, box-shadow .15s;
       -webkit-tap-highlight-color: transparent;
       white-space: nowrap;
     }
-    .btn:disabled { opacity: .35; cursor: not-allowed; }
+    .btn:disabled { opacity: .3; cursor: not-allowed; }
     .btn:not(:disabled):active { transform: scale(.97); }
     .btn-full { width: 100%; }
 
-    .btn-data  { background: linear-gradient(135deg,#534AB7,#3C3489); color: #fff; padding: 11px 20px; }
-    .btn-sig   { background: linear-gradient(135deg,#534AB7,#3C3489); color: #fff; padding: 11px 20px; }
-    .btn-bt    { background: linear-gradient(135deg,#534AB7,#3C3489); color: #fff; padding: 11px 20px; }
-    .btn-live  { background: #f5f5f4; color: #444; padding: 11px 20px; border: 0.5px solid #ddd; }
-    .btn-green { background: #EAF3DE; color: #27500A; padding: 11px 20px; border: 0.5px solid rgba(59,109,17,.2); }
-    .btn-red   { background: #FCEBEB; color: #791F1F; padding: 11px 20px; border: 0.5px solid rgba(163,45,45,.2); }
-    .btn-ghost { background: #f5f5f4; color: #444;    padding: 11px 20px; border: 0.5px solid #ddd; }
+    .btn-data  { background: linear-gradient(135deg,#6366F1,#4F46E5); color: #fff; padding: 11px 20px; box-shadow: 0 4px 16px rgba(99,102,241,0.3); }
+    .btn-sig   { background: linear-gradient(135deg,#059669,#10B981); color: #fff; padding: 11px 20px; box-shadow: 0 4px 16px rgba(16,185,129,0.3); }
+    .btn-bt    { background: linear-gradient(135deg,#6366F1,#4F46E5); color: #fff; padding: 11px 20px; box-shadow: 0 4px 16px rgba(99,102,241,0.3); }
+    .btn-live  { background: var(--s3); color: var(--txt); padding: 11px 20px; border: 1px solid var(--border2); }
+    .btn-green { background: var(--green-d); color: var(--green); padding: 11px 20px; border: 1px solid rgba(52,211,153,0.25); }
+    .btn-red   { background: var(--red-d); color: var(--red); padding: 11px 20px; border: 1px solid rgba(248,113,113,0.25); }
+    .btn-ghost { background: var(--s3); color: var(--txt2); padding: 11px 20px; border: 1px solid var(--border2); }
     .btn-sm   { padding: 7px 14px; font-size: 12px; border-radius: 10px; }
     .btn-xs   { padding: 5px 10px; font-size: 11px; border-radius: 8px; }
 
@@ -443,15 +458,15 @@
        INPUTS / SELECTS
     ═══════════════════════════════════════════ */
     .field {
-      background: #f5f5f4;
-      border: 0.5px solid rgba(0,0,0,0.12);
+      background: var(--s3);
+      border: 1px solid var(--border);
       border-radius: 12px;
       padding: 11px 14px;
       display: flex;
       align-items: center;
       gap: 10px;
     }
-    .field:focus-within { border-color: #534AB7; }
+    .field:focus-within { border-color: var(--data); box-shadow: 0 0 0 3px rgba(129,140,248,0.1); }
     .field-label {
       font-size: 10px;
       font-weight: 500;
@@ -471,11 +486,11 @@
       font-family: 'Inter', sans-serif;
       width: 100%;
     }
-    .field select option { background: #fff; }
+    .field select option { background: #1A2540; color: var(--txt); }
 
     .input-bare {
-      background: #f5f5f4;
-      border: 0.5px solid rgba(0,0,0,0.12);
+      background: var(--s3);
+      border: 1px solid var(--border);
       border-radius: 12px;
       padding: 11px 14px;
       color: var(--txt);
@@ -483,18 +498,18 @@
       font-family: 'Inter', sans-serif;
       outline: none;
       width: 100%;
-      transition: border-color .15s;
+      transition: border-color .15s, box-shadow .15s;
     }
     .input-bare::placeholder { color: var(--txt3); }
-    .input-bare:focus { border-color: #534AB7; }
+    .input-bare:focus { border-color: var(--data); box-shadow: 0 0 0 3px rgba(129,140,248,0.1); }
 
     /* ── Symbol autocomplete dropdown ─────────────────────── */
     .ac-wrap { position: relative; }
     .ac-wrap .input-bare { width: 100%; box-sizing: border-box; }
     .ac-list {
       position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 999;
-      background: #fff; border: 0.5px solid rgba(0,0,0,0.12); border-radius: 12px;
-      overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.10);
+      background: var(--s2); border: 1px solid var(--border2); border-radius: 12px;
+      overflow: hidden; box-shadow: 0 16px 48px rgba(0,0,0,.5);
       display: none;
     }
     .ac-list.open { display: block; }
@@ -503,7 +518,7 @@
       color: var(--txt); display: flex; align-items: center; gap: 8px;
       transition: background .1s;
     }
-    .ac-item:hover, .ac-item.ac-active { background: #f5f5f4; color: #534AB7; }
+    .ac-item:hover, .ac-item.ac-active { background: var(--s3); color: var(--data); }
     .ac-item-sub { font-size: 10px; font-weight: 400; color: var(--txt3); }
 
     /* ═══════════════════════════════════════════
@@ -512,14 +527,14 @@
     .progress-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .progress-track {
       height: 5px;
-      background: #eeede9;
+      background: var(--s3);
       border-radius: 99px;
       overflow: hidden;
     }
     .progress-fill {
       height: 100%;
       border-radius: 99px;
-      background: #534AB7;
+      background: var(--data);
       transition: width .5s cubic-bezier(.4,0,.2,1);
     }
     @keyframes shimmer {
@@ -532,7 +547,7 @@
     /* ═══════════════════════════════════════════
        DIVIDER
     ═══════════════════════════════════════════ */
-    .divider { height: 0.5px; background: rgba(0,0,0,0.08); }
+    .divider { height: 1px; background: var(--border); }
 
     /* ═══════════════════════════════════════════
        ROWS (info / signal / price)
@@ -542,7 +557,7 @@
       align-items: center;
       justify-content: space-between;
       padding: 11px 16px;
-      border-bottom: 0.5px solid rgba(0,0,0,0.07);
+      border-bottom: 1px solid var(--border);
     }
     .row:last-child { border-bottom: none; }
     .row-label { font-size: 12px; color: var(--txt2); }
@@ -560,13 +575,13 @@
       border-radius: 99px;
       letter-spacing: .2px;
     }
-    .badge-data  { background: #EEEDFE; color: #534AB7; }
-    .badge-sig   { background: #E1F5EE; color: #0F6E56; }
-    .badge-bt    { background: #EEEDFE; color: #534AB7; }
-    .badge-live  { background: #FAEEDA; color: #854F0B; }
-    .badge-green { background: #EAF3DE; color: #3B6D11; }
-    .badge-red   { background: #FCEBEB; color: #A32D2D; }
-    .badge-gray  { background: #f5f5f4; color: #6b6b6b; border: 0.5px solid #e5e5e5; }
+    .badge-data  { background: var(--data-d); color: var(--data); }
+    .badge-sig   { background: var(--sig-d); color: var(--sig); }
+    .badge-bt    { background: var(--bt-d); color: var(--bt); }
+    .badge-live  { background: var(--live-d); color: var(--live); }
+    .badge-green { background: var(--green-d); color: var(--green); }
+    .badge-red   { background: var(--red-d); color: var(--red); }
+    .badge-gray  { background: var(--s3); color: var(--txt2); border: 1px solid var(--border); }
 
     /* ═══════════════════════════════════════════
        TABLES
@@ -577,20 +592,20 @@
       padding: 9px 14px;
       text-align: left;
       font-size: 9px;
-      font-weight: 500;
+      font-weight: 600;
       color: var(--txt3);
-      letter-spacing: .6px;
+      letter-spacing: .7px;
       text-transform: uppercase;
-      border-bottom: 0.5px solid rgba(0,0,0,0.07);
+      border-bottom: 1px solid var(--border);
       white-space: nowrap;
-      background: #fafafa;
+      background: var(--s1);
     }
-    td { padding: 11px 14px; font-size: 13px; border-bottom: 0.5px solid rgba(0,0,0,0.07); }
+    td { padding: 11px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
     tr:last-child td { border-bottom: none; }
-    tr.tr-win { background: rgba(59,109,17,.03); }
-    tr.tr-loss { background: rgba(163,45,45,.03); }
-    tr.tr-win td:first-child { border-left: 2px solid #3B6D11; }
-    tr.tr-loss td:first-child { border-left: 2px solid #A32D2D; }
+    tr.tr-win { background: rgba(52,211,153,0.04); }
+    tr.tr-loss { background: rgba(248,113,113,0.04); }
+    tr.tr-win td:first-child { border-left: 2px solid var(--green); }
+    tr.tr-loss td:first-child { border-left: 2px solid var(--red); }
 
     /* ═══════════════════════════════════════════
        EMPTY STATE
@@ -600,14 +615,15 @@
       text-align: center;
     }
     .empty-icon {
-      width: 48px; height: 48px;
-      border-radius: 14px;
-      background: #f5f5f4;
+      width: 52px; height: 52px;
+      border-radius: 16px;
+      background: var(--s3);
+      border: 1px solid var(--border);
       display: flex; align-items: center; justify-content: center;
       font-size: 22px;
       margin: 0 auto 14px;
     }
-    .empty-title { font-size: 14px; font-weight: 500; color: var(--txt); margin-bottom: 5px; }
+    .empty-title { font-size: 14px; font-weight: 600; color: var(--txt); margin-bottom: 5px; }
     .empty-sub { font-size: 12px; color: var(--txt3); line-height: 1.6; }
 
     /* ═══════════════════════════════════════════
@@ -615,7 +631,7 @@
     ═══════════════════════════════════════════ */
     .spin {
       width: 15px; height: 15px;
-      border: 2px solid #e5e5e5;
+      border: 2px solid rgba(255,255,255,0.12);
       border-top-color: currentColor;
       border-radius: 50%;
       animation: _spin .65s linear infinite;
@@ -628,14 +644,14 @@
     ═══════════════════════════════════════════ */
     .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .metric {
-      background: #fff;
-      border: 0.5px solid rgba(0,0,0,0.09);
+      background: var(--s2);
+      border: 1px solid var(--border);
       border-radius: 14px;
       padding: 14px;
     }
     .metric-label {
       font-size: 9px;
-      font-weight: 500;
+      font-weight: 600;
       color: var(--txt3);
       text-transform: uppercase;
       letter-spacing: .7px;
@@ -654,24 +670,24 @@
     ═══════════════════════════════════════════ */
     .signal-item {
       padding: 14px 16px;
-      border-bottom: 0.5px solid rgba(0,0,0,0.07);
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
       gap: 10px;
     }
     .signal-item:last-child { border-bottom: none; }
-    .sig-name { font-size: 15px; font-weight: 500; letter-spacing: -.3px; }
+    .sig-name { font-size: 15px; font-weight: 600; letter-spacing: -.3px; }
     .sig-meta { font-size: 11px; color: var(--txt3); margin-top: 3px; }
     .sig-tags { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
-    .sig-price { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 500; color: #0F6E56; }
+    .sig-price { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 500; color: var(--sig); }
     .sig-levels { font-size: 10px; color: var(--txt3); margin-top: 4px; text-align: right; }
 
     /* ═══════════════════════════════════════════
        LIVE PRICE ROW
     ═══════════════════════════════════════════ */
-    @keyframes flash-g { 0%{background:rgba(59,109,17,.12)} 100%{background:transparent} }
-    @keyframes flash-r { 0%{background:rgba(163,45,45,.12)} 100%{background:transparent} }
+    @keyframes flash-g { 0%{background:rgba(52,211,153,.15)} 100%{background:transparent} }
+    @keyframes flash-r { 0%{background:rgba(248,113,113,.15)} 100%{background:transparent} }
     .fup   { animation: flash-g .7s ease-out; }
     .fdown { animation: flash-r .7s ease-out; }
 
@@ -681,8 +697,8 @@
     .chips { display: flex; flex-wrap: wrap; gap: 7px; }
     .chip-sym {
       display: flex; align-items: center; gap: 5px;
-      background: #f5f5f4;
-      border: 0.5px solid #e5e5e5;
+      background: var(--s3);
+      border: 1px solid var(--border);
       border-radius: 8px;
       padding: 5px 10px;
       font-size: 12px;
@@ -694,27 +710,27 @@
       cursor: pointer; font-size: 15px; line-height: 1;
       padding: 0 1px;
     }
-    .chip-sym button:hover { color: #A32D2D; }
+    .chip-sym button:hover { color: var(--red); }
 
     /* ═══════════════════════════════════════════
        RUNNING BANNER
     ═══════════════════════════════════════════ */
     .run-banner {
-      background: #EEEDFE;
-      border: 1px solid rgba(83,74,183,.2);
+      background: var(--data-d);
+      border: 1px solid rgba(129,140,248,.25);
       border-radius: 12px;
       padding: 10px 14px;
       display: flex; align-items: center; gap: 10px;
       font-size: 12px; font-weight: 500;
-      color: #534AB7;
+      color: var(--data);
     }
 
     /* ═══════════════════════════════════════════
        MARKET STATUS BAR
     ═══════════════════════════════════════════ */
     .mkt-bar {
-      background: #fff;
-      border: 0.5px solid rgba(0,0,0,0.09);
+      background: var(--s2);
+      border: 1px solid var(--border);
       border-radius: 14px;
       padding: 13px 16px;
       display: flex; align-items: center; justify-content: space-between;
@@ -722,19 +738,19 @@
     .mkt-dot {
       width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
     }
-    .mkt-dot.open  { background: #3B6D11; }
-    .mkt-dot.closed{ background: #a0a0a0; }
+    .mkt-dot.open  { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .mkt-dot.closed{ background: var(--txt3); }
 
     /* ═══════════════════════════════════════════
        DESCRIPTION BOX
     ═══════════════════════════════════════════ */
     .desc-box {
-      background: #E1F5EE;
-      border-left: 2px solid #5DCAA5;
+      background: var(--sig-d);
+      border-left: 2px solid var(--sig);
       border-radius: 0 10px 10px 0;
       padding: 11px 14px;
       font-size: 12px;
-      color: #085041;
+      color: var(--sig);
       line-height: 1.65;
     }
 
@@ -742,17 +758,18 @@
        TABS — PAGE HEADER BANNER
     ═══════════════════════════════════════════ */
     .tab-banner {
-      background: linear-gradient(135deg, #26215C, #3C3489);
-      padding: 20px 18px 16px;
+      background: linear-gradient(160deg, #0F1E3C, #070C16);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 22px 18px 18px;
       display: flex; align-items: flex-end; justify-content: space-between;
     }
     .tab-banner-title {
       font-size: 20px;
-      font-weight: 500;
+      font-weight: 700;
       letter-spacing: -.3px;
       color: #fff;
     }
-    .tab-banner-sub { font-size: 12px; color: rgba(255,255,255,.6); margin-top: 3px; }
+    .tab-banner-sub { font-size: 12px; color: rgba(255,255,255,.45); margin-top: 3px; }
 
     /* ═══════════════════════════════════════════
        SKELETON LOADER
@@ -763,7 +780,7 @@
     }
     .sk {
       border-radius: 6px;
-      background: linear-gradient(90deg, #f0efed 25%, #e8e5e0 50%, #f0efed 75%);
+      background: linear-gradient(90deg, #111827 25%, #1A2540 50%, #111827 75%);
       background-size: 800px 100%;
       animation: sk-wave 1.4s ease-in-out infinite;
     }
@@ -779,94 +796,107 @@
        HOME TAB — Command Centre
     ═══════════════════════════════════════════ */
     .home-hero {
-      background: linear-gradient(135deg, #26215C, #3C3489);
-      padding: 22px 18px 20px;
+      background: linear-gradient(160deg, #0F1E3C 0%, #0A1628 40%, #070C16 100%);
+      padding: 24px 18px 22px;
       position: relative;
       overflow: hidden;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .home-hero::before {
+      content: '';
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(245,158,11,0.08) 0%, transparent 70%);
+      pointer-events: none;
     }
     .home-hero-label {
-      font-size: 10px; font-weight: 500; letter-spacing: 1px;
-      text-transform: uppercase; color: rgba(255,255,255,.5); margin-bottom: 6px;
+      font-size: 10px; font-weight: 600; letter-spacing: 1.5px;
+      text-transform: uppercase; color: rgba(255,255,255,.35); margin-bottom: 8px;
     }
     .home-regime-pill {
       display: inline-flex; align-items: center; gap: 8px;
-      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15);
-      border-radius: 999px; padding: 5px 14px 5px 10px;
-      font-size: 13px; font-weight: 500; color: #fff; margin-bottom: 16px;
+      background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+      border-radius: 999px; padding: 6px 16px 6px 10px;
+      font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 18px;
+      backdrop-filter: blur(8px);
     }
     .home-regime-dot {
       width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
     }
     .breadth-bar-track {
-      height: 6px; background: rgba(255,255,255,.12); border-radius: 99px; overflow: hidden;
+      height: 6px; background: rgba(255,255,255,.08); border-radius: 99px; overflow: hidden;
       margin: 6px 0 4px;
     }
     .breadth-bar-fill {
       height: 100%; border-radius: 99px;
       transition: width .8s cubic-bezier(.4,0,.2,1);
-      background: #9FE1CB;
+      background: linear-gradient(90deg, #34D399, #10B981);
     }
     .home-stat-grid {
-      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px;
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px;
     }
     .home-stat {
-      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1);
-      border-radius: 12px; padding: 12px 10px; text-align: center;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px; padding: 14px 10px; text-align: center;
+      backdrop-filter: blur(8px);
     }
     .home-stat-val {
-      font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 500;
+      font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 600;
       color: #fff; letter-spacing: -1px;
     }
-    .home-stat-lbl { font-size: 9px; font-weight: 500; color: rgba(255,255,255,.5);
-      text-transform: uppercase; letter-spacing: .5px; margin-top: 3px; }
+    .home-stat-lbl { font-size: 9px; font-weight: 600; color: rgba(255,255,255,.4);
+      text-transform: uppercase; letter-spacing: .7px; margin-top: 4px; }
 
     /* Trade card in HOME — compact top-3 picks */
     .home-pick {
       display: flex; align-items: center; gap: 12px;
-      padding: 12px 16px; border-bottom: 0.5px solid rgba(0,0,0,0.07);
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
     }
     .home-pick:last-child { border-bottom: none; }
     .home-pick-rank {
-      width: 24px; height: 24px; border-radius: 8px; display: flex;
+      width: 26px; height: 26px; border-radius: 8px; display: flex;
       align-items: center; justify-content: center;
-      font-size: 11px; font-weight: 500; flex-shrink: 0;
+      font-size: 11px; font-weight: 600; flex-shrink: 0;
     }
     .home-pick-body { flex: 1; min-width: 0; }
-    .home-pick-sym { font-size: 15px; font-weight: 500; letter-spacing: -.2px; }
+    .home-pick-sym { font-size: 15px; font-weight: 600; letter-spacing: -.2px; }
     .home-pick-meta { font-size: 11px; color: var(--txt3); margin-top: 2px; }
     .home-pick-right { text-align: right; flex-shrink: 0; }
-    .home-pick-prob { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 500; }
+    .home-pick-prob { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600; }
 
     /* Quick-action shortcuts */
     .home-shortcuts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .home-shortcut {
-      background: #fff; border: 0.5px solid rgba(0,0,0,0.08);
-      border-radius: 14px; padding: 14px 16px;
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 16px; padding: 14px 16px;
       display: flex; align-items: center; gap: 12px;
-      cursor: pointer; transition: border-color .15s, background .15s;
+      cursor: pointer; transition: border-color .2s, background .2s, transform .1s;
       -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2);
     }
-    .home-shortcut:active { background: #f5f5f4; }
+    .home-shortcut:active { background: var(--s3); transform: scale(.97); }
     .home-shortcut-icon {
-      width: 36px; height: 36px; border-radius: 10px;
+      width: 38px; height: 38px; border-radius: 12px;
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
-    .home-shortcut-label { font-size: 13px; font-weight: 500; }
+    .home-shortcut-label { font-size: 13px; font-weight: 600; }
     .home-shortcut-sub { font-size: 10px; color: var(--txt3); margin-top: 2px; }
 
     /* System health row */
     .health-row {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 16px; border-bottom: 0.5px solid rgba(0,0,0,0.07);
+      padding: 11px 16px; border-bottom: 1px solid var(--border);
     }
     .health-row:last-child { border-bottom: none; }
     .health-dot {
       width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      box-shadow: 0 0 6px currentColor;
     }
-    .health-dot.ok    { background: #3B6D11; }
-    .health-dot.warn  { background: #854F0B; }
-    .health-dot.error { background: #A32D2D; }
-    .health-dot.idle  { background: #a0a0a0; }
+    .health-dot.ok    { background: var(--green); color: var(--green); }
+    .health-dot.warn  { background: var(--live); color: var(--live); }
+    .health-dot.error { background: var(--red); color: var(--red); }
+    .health-dot.idle  { background: var(--txt3); color: var(--txt3); }
 
     /* ═══════════════════════════════════════════
        ENHANCED EXECUTE TRADE CARD
@@ -875,29 +905,29 @@
       margin-top: 8px; display: flex; align-items: center; gap: 8px;
     }
     .rr-bar-track {
-      flex: 1; height: 4px; background: #FCEBEB; border-radius: 99px;
+      flex: 1; height: 4px; background: var(--red-d); border-radius: 99px;
       overflow: visible; position: relative;
     }
     .rr-bar-reward {
       position: absolute; left: 0; top: 0; height: 100%;
-      background: #639922; border-radius: 99px;
+      background: var(--green); border-radius: 99px;
       transition: width .5s;
     }
     .rr-label { font-size: 10px; font-weight: 500; color: var(--txt3); white-space: nowrap; }
 
     /* AI reasoning chip */
     .ai-reason {
-      font-size: 11px; color: #26215C; line-height: 1.55;
-      padding: 7px 10px; background: #EEEDFE;
-      border-left: 2px solid #534AB7; border-radius: 0 8px 8px 0;
+      font-size: 11px; color: var(--data); line-height: 1.55;
+      padding: 7px 10px; background: var(--data-d);
+      border-left: 2px solid var(--data); border-radius: 0 8px 8px 0;
       margin-top: 8px;
     }
 
     /* Sector badge */
     .sector-badge {
       font-size: 9px; font-weight: 500; padding: 2px 7px; border-radius: 99px;
-      background: #EAF3DE; color: #0F6E56;
-      border: 1px solid rgba(15,110,86,.2); letter-spacing: .2px;
+      background: var(--sig-d); color: var(--sig);
+      border: 1px solid rgba(52,211,153,.25); letter-spacing: .2px;
     }
 
     /* Horizon badges row */
@@ -906,7 +936,7 @@
     }
     .horizon-badge {
       display: flex; flex-direction: column; align-items: center;
-      padding: 4px 9px; border-radius: 7px; border: 1px solid;
+      padding: 4px 9px; border-radius: 8px; border: 1px solid;
       min-width: 58px;
     }
     .horizon-badge-label { font-size: 8px; font-weight: 700; letter-spacing: .4px; opacity: .7; }
@@ -927,28 +957,28 @@
     /* AI Explanation accordion */
     .ai-expl-wrap { margin: 10px 0 4px; }
     .ai-expl-toggle {
-      width: 100%; text-align: left; background: #f5f5f4;
-      border: 0.5px solid #e5e5e5; border-radius: 8px;
-      padding: 7px 11px; font-size: 11px; font-weight: 500; color: #534AB7;
+      width: 100%; text-align: left; background: var(--s3);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 7px 11px; font-size: 11px; font-weight: 500; color: var(--data);
       cursor: pointer; display: flex; align-items: center; gap: 6px;
     }
-    .ai-expl-toggle:hover { background: #EEEDFE; }
+    .ai-expl-toggle:hover { background: var(--data-d); }
     .ai-expl-body {
       display: none; padding: 10px 12px 8px;
-      background: #fafafa; border: 0.5px solid #e5e5e5;
+      background: var(--s1); border: 1px solid var(--border);
       border-top: none; border-radius: 0 0 8px 8px;
       font-size: 11px; line-height: 1.6;
     }
     .ai-expl-body.open { display: block; }
-    .ai-expl-headline { font-weight: 500; color: #1a1a1a; margin-bottom: 8px; }
+    .ai-expl-headline { font-weight: 600; color: var(--txt1); margin-bottom: 8px; }
     .ai-expl-bullets  { list-style: none; padding: 0; margin: 0 0 7px; }
-    .ai-expl-bullets li { padding: 2px 0 2px 14px; position: relative; color: #444; }
-    .ai-expl-bullets li::before { content: '↗'; position: absolute; left: 0; color: #3B6D11; font-size: 10px; }
+    .ai-expl-bullets li { padding: 2px 0 2px 14px; position: relative; color: var(--txt2); }
+    .ai-expl-bullets li::before { content: '↗'; position: absolute; left: 0; color: var(--green); font-size: 10px; }
     .ai-expl-cautions { list-style: none; padding: 0; margin: 0 0 7px; }
-    .ai-expl-cautions li { padding: 2px 0 2px 14px; position: relative; color: #854F0B; }
+    .ai-expl-cautions li { padding: 2px 0 2px 14px; position: relative; color: var(--live); }
     .ai-expl-cautions li::before { content: '⚠'; position: absolute; left: 0; font-size: 9px; top: 3px; }
-    .ai-expl-summary { color: #6b6b6b; font-style: italic; border-top: 0.5px solid #e5e5e5; padding-top: 6px; margin-top: 4px; }
-    .ai-expl-score   { color: #a0a0a0; font-size: 10px; margin-top: 4px; }
+    .ai-expl-summary { color: var(--txt3); font-style: italic; border-top: 1px solid var(--border); padding-top: 6px; margin-top: 4px; }
+    .ai-expl-score   { color: var(--txt3); font-size: 10px; margin-top: 4px; }
 
     /* Sector filter pills in Execute tab */
     .exec-sector-bar {
@@ -957,13 +987,13 @@
     }
     .exec-sector-pill {
       font-size: 10px; font-weight: 500; padding: 4px 10px; border-radius: 99px;
-      background: #f5f5f4; color: #6b6b6b; border: 0.5px solid #e5e5e5;
+      background: var(--s3); color: var(--txt2); border: 1px solid var(--border);
       cursor: pointer; white-space: nowrap; transition: all .15s;
     }
-    .exec-sector-pill:hover { background: #EEEDFE; color: #534AB7; }
+    .exec-sector-pill:hover { background: var(--data-d); color: var(--data); }
     .exec-sector-pill.active {
-      background: #EEEDFE; color: #534AB7;
-      border-color: #AFA9EC;
+      background: var(--data-d); color: var(--data);
+      border-color: rgba(129,140,248,.3);
     }
     .exec-sector-pill .pill-count {
       font-size: 9px; opacity: .7; margin-left: 3px;
@@ -972,16 +1002,16 @@
     /* Backtest year pills */
     .bt-yr-pill {
       font-size: 11px; font-weight: 500; padding: 5px 12px; border-radius: 99px;
-      background: #f5f5f4; color: #6b6b6b; border: 0.5px solid #e5e5e5;
+      background: var(--s3); color: var(--txt2); border: 1px solid var(--border);
       cursor: pointer; transition: all .15s;
     }
-    .bt-yr-pill:hover { background: #EEEDFE; color: #534AB7; border-color: #AFA9EC; }
-    .bt-yr-pill.active { background: #534AB7; color: #fff; border-color: #534AB7; }
+    .bt-yr-pill:hover { background: var(--data-d); color: var(--data); border-color: rgba(129,140,248,.3); }
+    .bt-yr-pill.active { background: var(--data); color: #fff; border-color: var(--data); box-shadow: 0 4px 12px rgba(129,140,248,0.3); }
 
     /* AI Insight card in execute tab */
     .ai-insight-card {
-      background: linear-gradient(135deg, #EEEDFE, #f0effd);
-      border: 1px solid #AFA9EC; border-radius: 14px;
+      background: linear-gradient(135deg, rgba(129,140,248,0.1), rgba(99,102,241,0.05));
+      border: 1px solid rgba(129,140,248,.25); border-radius: 14px;
       padding: 14px 16px;
     }
     .ai-insight-hdr {
@@ -989,12 +1019,97 @@
     }
     .ai-insight-icon {
       width: 28px; height: 28px; border-radius: 8px;
-      background: rgba(83,74,183,.15); display: flex;
+      background: rgba(129,140,248,.15); display: flex;
       align-items: center; justify-content: center; flex-shrink: 0;
     }
-    .ai-insight-title { font-size: 12px; font-weight: 500; color: #3C3489; }
-    .ai-insight-body { font-size: 12px; color: #4a4a4a; line-height: 1.65; }
-    .ai-insight-key { color: #534AB7; font-weight: 500; }
+    .ai-insight-title { font-size: 12px; font-weight: 600; color: var(--data); }
+    .ai-insight-body { font-size: 12px; color: var(--txt2); line-height: 1.65; }
+    .ai-insight-key { color: var(--data); font-weight: 600; }
+
+    /* ═══════════════════════════════════════════
+       PREMIUM FINISH — global overrides
+    ═══════════════════════════════════════════ */
+    /* Select elements dark styling */
+    select {
+      color-scheme: dark;
+    }
+
+    /* Section headers */
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--txt3);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* Page padding */
+    .page { padding: 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* Smooth transition on cards */
+    .card { transition: border-color .2s; }
+
+    /* Elevated card variant */
+    .card-elev {
+      background: var(--s2);
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+
+    /* Feature bar in ML */
+    .feature-bar-wrap { display: flex; align-items: center; gap: 10px; }
+    .feature-bar-track {
+      flex: 1; height: 4px; background: var(--s3);
+      border-radius: 99px; overflow: hidden;
+    }
+    .feature-bar-fill {
+      height: 100%; border-radius: 99px;
+      background: linear-gradient(90deg, var(--data), var(--sig));
+      transition: width .6s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* Tab banner — refined */
+    .tab-banner::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, transparent 60%, rgba(7,12,22,0.5));
+      pointer-events: none;
+    }
+    .tab-banner { position: relative; overflow: hidden; }
+
+    /* Glow ring animation for live dot */
+    @keyframes glow-pulse {
+      0%, 100% { box-shadow: 0 0 4px currentColor; }
+      50% { box-shadow: 0 0 12px currentColor; }
+    }
+    .mkt-dot.open { animation: glow-pulse 2s ease-in-out infinite; }
+
+    /* Scrollbar for table-wrap */
+    .table-wrap::-webkit-scrollbar { height: 3px; }
+    .table-wrap::-webkit-scrollbar-track { background: transparent; }
+    .table-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+
+    /* Journal tab rows */
+    .jnl-row {
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .jnl-row:last-child { border-bottom: none; }
+
+    /* Live tab rows */
+    .live-row {
+      padding: 11px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .live-row:last-child { border-bottom: none; }
+
+    /* Admin form sections */
+    .adm-section-title {
+      font-size: 10px; font-weight: 700; color: var(--txt3);
+      text-transform: uppercase; letter-spacing: .8px;
+      padding: 12px 16px 6px;
+    }
   </style>
 </head>
 <body>
@@ -1002,32 +1117,32 @@
 <!-- ══════════════════════════════════ LOGIN MODAL -->
 <div id="login-overlay" style="
   display:flex;position:fixed;inset:0;z-index:9999;
-  background:rgba(0,0,0,0.35);backdrop-filter:blur(6px);
+  background:rgba(0,0,0,0.7);backdrop-filter:blur(16px);
   align-items:center;justify-content:center;">
   <div style="
-    background:#fff;border:0.5px solid rgba(0,0,0,0.1);border-radius:18px;
-    padding:36px 32px;width:320px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.12);">
+    background:#0F1626;border:1px solid rgba(255,255,255,0.1);border-radius:20px;
+    padding:36px 32px;width:320px;max-width:90vw;box-shadow:0 24px 80px rgba(0,0,0,.6);">
     <div style="text-align:center;margin-bottom:28px;">
-      <div style="font-size:28px;margin-bottom:8px;">⚡</div>
-      <div style="font-size:18px;font-weight:500;color:#1a1a1a;">APEX Trading</div>
-      <div style="font-size:12px;color:#a0a0a0;margin-top:4px;">Sign in to continue</div>
+      <div style="font-size:32px;margin-bottom:12px;filter:drop-shadow(0 0 16px rgba(245,158,11,0.5));">⚡</div>
+      <div style="font-size:20px;font-weight:800;letter-spacing:3px;background:linear-gradient(135deg,#F59E0B,#FBBF24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">APEX</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.4);margin-top:6px;font-weight:500;">Sign in to continue</div>
     </div>
-    <div id="login-error" style="display:none;background:#FCEBEB;color:#791F1F;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
+    <div id="login-error" style="display:none;background:rgba(248,113,113,0.12);color:#F87171;border:1px solid rgba(248,113,113,0.25);border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
     <div style="margin-bottom:14px;">
-      <div style="font-size:10px;color:#a0a0a0;margin-bottom:6px;font-weight:500;letter-spacing:.6px;text-transform:uppercase;">Username or Mobile</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:6px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;">Username or Mobile</div>
       <input id="login-user" type="text" autocomplete="username" placeholder="Username or mobile number"
-        style="width:100%;box-sizing:border-box;background:#f5f5f4;border:0.5px solid rgba(0,0,0,0.12);border-radius:10px;padding:11px 14px;color:#1a1a1a;font-size:14px;outline:none;"
+        style="width:100%;box-sizing:border-box;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 14px;color:#E2E8F0;font-size:14px;outline:none;transition:border-color .15s;"
         onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
     </div>
-    <div style="margin-bottom:22px;">
-      <div style="font-size:10px;color:#a0a0a0;margin-bottom:6px;font-weight:500;letter-spacing:.6px;text-transform:uppercase;">Password</div>
+    <div style="margin-bottom:24px;">
+      <div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:6px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;">Password</div>
       <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••"
-        style="width:100%;box-sizing:border-box;background:#f5f5f4;border:0.5px solid rgba(0,0,0,0.12);border-radius:10px;padding:11px 14px;color:#1a1a1a;font-size:14px;outline:none;"
+        style="width:100%;box-sizing:border-box;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 14px;color:#E2E8F0;font-size:14px;outline:none;transition:border-color .15s;"
         onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <button onclick="doLogin()" id="login-btn"
-      style="width:100%;padding:13px;background:linear-gradient(135deg,#534AB7,#3C3489);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;">
-      Sign in
+      style="width:100%;padding:14px;background:linear-gradient(135deg,#F59E0B,#D97706);color:#0A0F1A;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.5px;box-shadow:0 8px 24px rgba(245,158,11,0.3);">
+      SIGN IN
     </button>
   </div>
 </div>
@@ -1099,33 +1214,33 @@
     <div class="page">
 
       <!-- Today's Best Trades -->
-      <div class="card" style="border-top:2px solid #534AB7;">
+      <div class="card" style="border-top:2px solid var(--data);">
         <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
           <div>
-            <div style="font-size:13px;font-weight:500;">Today's Best Trades</div>
+            <div style="font-size:13px;font-weight:600;">Today's Best Trades</div>
             <div style="font-size:10px;color:var(--txt3);margin-top:2px;">AI-confirmed, high-conviction setups</div>
           </div>
           <button onclick="go('execute',document.querySelector('[data-tab=execute]'));runExecute();"
-            style="font-size:11px;font-weight:500;padding:5px 11px;background:#EEEDFE;color:#534AB7;border:0.5px solid rgba(83,74,183,.25);border-radius:8px;cursor:pointer;">
+            style="font-size:11px;font-weight:600;padding:5px 12px;background:var(--data-d);color:var(--data);border:1px solid rgba(129,140,248,.25);border-radius:8px;cursor:pointer;">
             Run Scan →
           </button>
         </div>
         <div class="divider"></div>
         <div id="hm-picks">
           <div class="empty" style="padding:28px 20px;">
-            <div class="empty-icon" style="background:#EEEDFE;font-size:20px;">⚡</div>
+            <div class="empty-icon" style="font-size:20px;">⚡</div>
             <div class="empty-title">No scan today yet</div>
-            <div class="empty-sub">Tap "Run Scan" or go to Execute tab to find today's best setups. Results are cached here automatically.</div>
+            <div class="empty-sub">Sign in to auto-sync today's best setups, or tap "Run Scan" to generate them now.</div>
           </div>
         </div>
       </div>
 
       <!-- Quick Actions -->
-      <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.7px;padding:0 2px 4px;">Quick Actions</div>
+      <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;padding:0 2px 4px;">Quick Actions</div>
       <div class="home-shortcuts">
         <div class="home-shortcut" onclick="go('execute',document.querySelector('[data-tab=execute]'))">
-          <div class="home-shortcut-icon" style="background:#EEEDFE;">
-            <svg width="18" height="18" fill="none" stroke="#534AB7" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+          <div class="home-shortcut-icon" style="background:var(--data-d);">
+            <svg width="18" height="18" fill="none" stroke="var(--data)" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
           </div>
           <div>
             <div class="home-shortcut-label">Setups</div>
@@ -1133,8 +1248,8 @@
           </div>
         </div>
         <div class="home-shortcut" onclick="go('signals',document.querySelector('[data-tab=signals]'))">
-          <div class="home-shortcut-icon" style="background:#EAF3DE;">
-            <svg width="18" height="18" fill="none" stroke="#3B6D11" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <div class="home-shortcut-icon" style="background:var(--sig-d);">
+            <svg width="18" height="18" fill="none" stroke="var(--sig)" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
           </div>
           <div>
             <div class="home-shortcut-label">Signals</div>
@@ -1142,8 +1257,8 @@
           </div>
         </div>
         <div class="home-shortcut" onclick="go('screener',document.querySelector('[data-tab=screener]'))">
-          <div class="home-shortcut-icon" style="background:#f0effc;">
-            <svg width="18" height="18" fill="none" stroke="#534AB7" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          <div class="home-shortcut-icon" style="background:var(--live-d);">
+            <svg width="18" height="18" fill="none" stroke="var(--live)" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
           </div>
           <div>
             <div class="home-shortcut-label">Screener</div>
@@ -1312,7 +1427,7 @@
       </div>
 
       <!-- Yahoo Finance Deep History card -->
-      <div class="card" style="border-top:1px solid rgba(83,74,183,.25);">
+      <div class="card" style="border-top:1px solid rgba(99,102,241,.25);">
         <div class="card-p" style="display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
             <div>
@@ -1362,7 +1477,7 @@
 
           <div style="display:flex;gap:8px;">
             <button class="btn btn-full" id="yf-btn" onclick="startYFinance()"
-              style="background:var(--live);color:#431407;padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;">
+              style="background:var(--live-d);color:var(--live);border:1px solid rgba(251,191,36,.3);padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
               Fetch Full History (Yahoo Finance)
             </button>
@@ -1412,14 +1527,14 @@
               </div>
               <div style="text-align:right;">
                 <div style="font-size:10px;color:var(--txt3);">Next run</div>
-                <div style="font-size:11px;font-weight:600;color:#534AB7;" id="sched-ml-next">—</div>
+                <div style="font-size:11px;font-weight:600;color:var(--data);" id="sched-ml-next">—</div>
               </div>
             </div>
             <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
               <div style="font-size:10px;color:var(--txt3);">Last: <span id="sched-ml-last" style="color:var(--txt2);">Never</span>
-                · <span id="sched-ml-auc" style="color:#534AB7;font-weight:600;"></span></div>
-              <div id="sched-ml-running" style="display:none;" class="chip" style="background:rgba(99,102,241,.12);color:#534AB7;font-size:10px;">
-                <div class="spin" style="width:10px;height:10px;border-width:1.5px;color:#534AB7;"></div>
+                · <span id="sched-ml-auc" style="color:var(--data);font-weight:600;"></span></div>
+              <div id="sched-ml-running" style="display:none;" class="chip" style="background:rgba(99,102,241,.12);color:var(--data);font-size:10px;">
+                <div class="spin" style="width:10px;height:10px;border-width:1.5px;color:var(--data);"></div>
                 <span>Training</span>
               </div>
             </div>
@@ -1820,7 +1935,7 @@
     <div class="page">
 
       <!-- Model status card -->
-      <div class="card" style="border-top:2px solid #534AB7;">
+      <div class="card" style="border-top:2px solid var(--data);">
         <div class="card-p" style="display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
@@ -1837,15 +1952,15 @@
           <div id="ml-metrics-row" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:8px;">
             <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
               <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">AUC-ROC</div>
-              <div id="ml-auc" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#534AB7;">—</div>
+              <div id="ml-auc" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--data);">—</div>
             </div>
             <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
               <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Accuracy</div>
-              <div id="ml-acc" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#534AB7;">—</div>
+              <div id="ml-acc" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--data);">—</div>
             </div>
             <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
               <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">F1 Buy</div>
-              <div id="ml-f1" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#534AB7;">—</div>
+              <div id="ml-f1" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--data);">—</div>
             </div>
           </div>
 
@@ -1855,7 +1970,7 @@
 
           <div style="display:flex;gap:8px;">
             <button class="btn btn-full" id="ml-train-btn" onclick="trainModel()"
-              style="background:#534AB7;color:#fff;padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;">
+              style="background:linear-gradient(135deg,#6366F1,#4F46E5);color:#fff;padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 4px 16px rgba(99,102,241,0.3);">
               <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/></svg>
               Train Model
             </button>
@@ -1889,7 +2004,7 @@
             </div>
             <div style="text-align:right;">
               <div style="font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Breadth</div>
-              <div id="regime-breadth" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;color:#534AB7;">—%</div>
+              <div id="regime-breadth" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;color:var(--data);">—%</div>
             </div>
           </div>
           <!-- Breadth bar -->
@@ -1898,7 +2013,7 @@
               <span>Bear ≤40%</span><span>% of Nifty100 above SMA50</span><span>Bull ≥60%</span>
             </div>
             <div style="position:relative;height:6px;background:linear-gradient(90deg,var(--red-d),var(--s3),var(--green-d));border-radius:99px;">
-              <div id="regime-bar-marker" style="position:absolute;top:-3px;width:12px;height:12px;border-radius:50%;background:#534AB7;transform:translateX(-50%);transition:left .5s;left:50%;"></div>
+              <div id="regime-bar-marker" style="position:absolute;top:-3px;width:12px;height:12px;border-radius:50%;background:var(--data);transform:translateX(-50%);transition:left .5s;left:50%;"></div>
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px;">
@@ -1909,7 +2024,7 @@
             </div>
             <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
               <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">BUY Threshold</div>
-              <div id="regime-thresh" style="font-size:14px;font-weight:600;color:#534AB7;">—%</div>
+              <div id="regime-thresh" style="font-size:14px;font-weight:600;color:var(--data);">—%</div>
               <div id="regime-thresh-note" style="font-size:10px;color:var(--txt3);margin-top:2px;">regime-adjusted</div>
             </div>
           </div>
@@ -1927,7 +2042,7 @@
           <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:8px;">
             <svg width="16" height="16" fill="none" stroke="#534AB7" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <div>
-              <div style="font-size:12px;font-weight:600;color:#534AB7;">Walk-Forward Temporal Validation</div>
+              <div style="font-size:12px;font-weight:600;color:var(--data);">Walk-Forward Temporal Validation</div>
               <div id="wf-detail" style="font-size:10px;color:var(--txt3);margin-top:1px;">Train on oldest 80% · Test on most-recent 20% per symbol</div>
             </div>
           </div>
@@ -1938,12 +2053,12 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
               <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
                 <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">MAE</div>
-                <div id="ml-reg-mae" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#534AB7;">—%</div>
+                <div id="ml-reg-mae" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--data);">—%</div>
                 <div style="font-size:10px;color:var(--txt3);margin-top:2px;">mean absolute error</div>
               </div>
               <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
                 <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">R²</div>
-                <div id="ml-reg-r2" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:#534AB7;">—</div>
+                <div id="ml-reg-r2" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--data);">—</div>
                 <div style="font-size:10px;color:var(--txt3);margin-top:2px;">variance explained</div>
               </div>
             </div>
@@ -1955,7 +2070,7 @@
             <div style="font-size:11px;color:var(--txt3);margin-bottom:10px;">When the model says 70%, does it actually happen 70% of the time?</div>
             <div id="ml-calibration-bars" style="display:flex;flex-direction:column;gap:8px;"></div>
             <div style="font-size:10px;color:var(--txt3);margin-top:8px;">
-              <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#534AB7;display:inline-block;"></span>Predicted</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:var(--data);display:inline-block;"></span>Predicted</span>
               <span style="margin-left:10px;display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:var(--green);display:inline-block;"></span>Actual</span>
             </div>
           </div>
@@ -1975,17 +2090,17 @@
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
             <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;">
               <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Train Samples</div>
-              <div id="val-train-samples" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:#534AB7;">—</div>
+              <div id="val-train-samples" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--data);">—</div>
               <div style="font-size:10px;color:var(--txt3);margin-top:2px;">rows used</div>
             </div>
             <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;">
               <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Symbols</div>
-              <div id="val-symbols" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:#534AB7;">—</div>
+              <div id="val-symbols" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--data);">—</div>
               <div style="font-size:10px;color:var(--txt3);margin-top:2px;">of 100</div>
             </div>
             <div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;">
               <div style="font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Data Span</div>
-              <div id="val-years" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:#534AB7;">—</div>
+              <div id="val-years" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--data);">—</div>
               <div style="font-size:10px;color:var(--txt3);margin-top:2px;">years</div>
             </div>
           </div>
@@ -2029,7 +2144,7 @@
         <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Predictions</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-            <span id="ml-live-badge" style="display:none;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--green-d);color:var(--green);border:0.5px solid rgba(59,109,17,.3);">● LIVE</span>
+            <span id="ml-live-badge" style="display:none;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--green-d);color:var(--green);border:1px solid rgba(52,211,153,.3);">● LIVE</span>
             <span id="ml-buy-count" style="font-size:11px;font-weight:600;color:var(--green);"></span>
             <span id="ml-pred-count" style="font-size:11px;color:var(--txt3);"></span>
           </div>
@@ -2039,7 +2154,7 @@
         <!-- Filter bar -->
         <div style="padding:10px 16px;display:flex;gap:8px;">
           <button class="btn btn-xs" id="ml-filter-all" onclick="mlFilter('all')"
-            style="background:#534AB7;color:#fff;">All</button>
+            style="background:var(--data);color:#fff;">All</button>
           <button class="btn btn-xs btn-ghost" id="ml-filter-buy" onclick="mlFilter('BUY')">BUY</button>
           <button class="btn btn-xs btn-ghost" id="ml-filter-neutral" onclick="mlFilter('NEUTRAL')">Neutral</button>
           <button class="btn btn-xs btn-ghost" id="ml-filter-avoid" onclick="mlFilter('AVOID')">Avoid</button>
@@ -2080,7 +2195,7 @@
         </div>
         <div style="text-align:right;flex-shrink:0;">
           <div style="font-size:10px;color:var(--txt3);margin-bottom:2px;">BUY threshold</div>
-          <div style="font-size:20px;font-weight:800;color:#A32D2D;font-family:'JetBrains Mono',monospace;" id="exec-threshold">—</div>
+          <div style="font-size:20px;font-weight:800;color:var(--red);font-family:'JetBrains Mono',monospace;" id="exec-threshold">—</div>
         </div>
       </div>
 
@@ -2103,7 +2218,7 @@
 
       <!-- Run button -->
       <button class="btn btn-full" id="exec-run-btn" onclick="runExecute()"
-        style="background:linear-gradient(135deg,#534AB7,#3C3489);color:#fff;font-weight:500;border:none;font-size:15px;padding:14px;">
+        style="background:linear-gradient(135deg,#6366F1,#4F46E5);color:#fff;font-weight:700;border:none;font-size:15px;padding:14px;box-shadow:0 8px 24px rgba(99,102,241,0.35);letter-spacing:.3px;">
         <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
         Find Today's Best Trades
       </button>
@@ -2115,11 +2230,11 @@
           <div style="font-size:10px;color:var(--txt3);margin-top:2px;">Strategy Hits</div>
         </div>
         <div class="card card-p" style="text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:#854F0B;" id="exec-stat-symbols">—</div>
+          <div style="font-size:22px;font-weight:800;color:var(--live);" id="exec-stat-symbols">—</div>
           <div style="font-size:10px;color:var(--txt3);margin-top:2px;">Stocks Fired</div>
         </div>
         <div class="card card-p" style="text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:#534AB7;" id="exec-stat-confirmed">—</div>
+          <div style="font-size:22px;font-weight:800;color:var(--data);" id="exec-stat-confirmed">—</div>
           <div style="font-size:10px;color:var(--txt3);margin-top:2px;">AI Confirmed</div>
         </div>
       </div>
@@ -2128,7 +2243,7 @@
       <div class="ai-insight-card" id="exec-ai-insight" style="display:none;">
         <div class="ai-insight-hdr">
           <div class="ai-insight-icon">
-            <svg width="14" height="14" fill="none" stroke="#534AB7" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082"/></svg>
+            <svg width="14" height="14" fill="none" stroke="var(--data)" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082"/></svg>
           </div>
           <div class="ai-insight-title">AI Market Insight</div>
         </div>
@@ -2145,7 +2260,7 @@
         <div id="exec-sector-filter" style="display:none;"></div>
         <div id="exec-body">
           <div class="empty">
-            <div class="empty-icon" style="background:#FCEBEB;">🎯</div>
+            <div class="empty-icon" style="background:var(--red-d);">🎯</div>
             <div class="empty-title">Ready to scan</div>
             <div class="empty-sub">Tap the button above — strategies find the setup, AI validates the edge. Only the best trades make it through.</div>
           </div>
@@ -2238,20 +2353,23 @@
               <div id="uv-stat-total" style="font-size:22px;font-weight:700;color:var(--txt);">—</div>
               <div style="font-size:10px;color:var(--txt3);margin-top:2px;">SCANNED</div>
             </div>
-            <div class="card card-p" style="text-align:center;background:var(--green-d);">
+            <div class="card card-p" style="text-align:center;background:var(--green-d);cursor:pointer;" onclick="uvSetSignal('STRONG_BUY')">
               <div id="uv-stat-deep" style="font-size:22px;font-weight:700;color:var(--green);">—</div>
-              <div style="font-size:10px;color:var(--green);margin-top:2px;">DEEP VALUE</div>
+              <div style="font-size:10px;color:var(--green);margin-top:2px;">STRONG BUY</div>
             </div>
-            <div class="card card-p" style="text-align:center;background:#eef3ff;">
-              <div id="uv-stat-good" style="font-size:22px;font-weight:700;color:#3a5bbf;">—</div>
-              <div style="font-size:10px;color:#3a5bbf;margin-top:2px;">GOOD VALUE</div>
+            <div class="card card-p" style="text-align:center;background:var(--data-d);cursor:pointer;" onclick="uvSetSignal('GOOD_BUY')">
+              <div id="uv-stat-good" style="font-size:22px;font-weight:700;color:var(--data);">—</div>
+              <div style="font-size:10px;color:var(--data);margin-top:2px;">GOOD BUY</div>
             </div>
             <div class="card card-p" style="text-align:center;background:var(--s2);">
               <div id="uv-cache-age" style="font-size:13px;font-weight:600;color:var(--txt2);">—</div>
-              <div style="font-size:10px;color:var(--txt3);margin-top:2px;">CACHE AGE</div>
+              <div style="font-size:10px;color:var(--txt3);margin-top:2px;">REGIME</div>
             </div>
           </div>
         </div>
+
+        <!-- Signal filter pills (populated dynamically) -->
+        <div id="uv-signal-pills" style="display:none;margin-bottom:10px;"></div>
 
         <!-- Progress bar (shown during scan) -->
         <div id="uv-progress-wrap" style="display:none;margin-bottom:10px;">
@@ -2353,7 +2471,7 @@
               <input class="input-bare" id="pa-sym" placeholder="Enter symbol — e.g. RELIANCE" autocomplete="off" style="font-size:13px;" />
               <div class="ac-list" id="pa-sym-list"></div>
             </div>
-            <select id="pa-days" style="padding:9px 10px;border-radius:10px;border:0.5px solid #ddd;font-size:12px;font-weight:500;background:#f5f5f4;color:#444;">
+            <select id="pa-days" style="padding:9px 10px;border-radius:10px;border:1px solid var(--border);font-size:12px;font-weight:500;background:var(--s3);color:var(--txt);">
               <option value="10">10 days</option>
               <option value="20">20 days</option>
               <option value="30" selected>1 Month</option>
@@ -2362,7 +2480,7 @@
               <option value="252">1 Year</option>
             </select>
             <button onclick="loadPriceAction()" id="pa-btn"
-              style="padding:9px 16px;background:#534AB7;color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;">
+              style="padding:9px 16px;background:var(--data);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;">
               Analyse
             </button>
           </div>
@@ -2456,7 +2574,7 @@
       <!-- System stats -->
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="admin-stats-grid">
         <div class="card card-p" style="text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:#a855f7;" id="adm-total-users">—</div>
+          <div style="font-size:22px;font-weight:800;color:var(--data);" id="adm-total-users">—</div>
           <div style="font-size:10px;color:var(--txt3);margin-top:2px;">Total Users</div>
         </div>
         <div class="card card-p" style="text-align:center;">
@@ -2517,7 +2635,7 @@
   <button class="nav-btn" data-tab="execute" onclick="go('execute',this)" id="nav-execute-btn" style="position:relative;">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
     Setups
-    <span id="execute-badge" style="display:none;position:absolute;top:4px;right:10px;background:#534AB7;color:#fff;font-size:9px;font-weight:500;border-radius:999px;min-width:15px;height:15px;line-height:15px;padding:0 3px;text-align:center;"></span>
+    <span id="execute-badge" style="display:none;position:absolute;top:4px;right:10px;background:var(--data);color:#fff;font-size:9px;font-weight:600;border-radius:999px;min-width:15px;height:15px;line-height:15px;padding:0 3px;text-align:center;"></span>
   </button>
   <button class="nav-btn" data-tab="screener" onclick="go('screener',this)">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
@@ -2535,47 +2653,47 @@
 
 <!-- ══════════════════════════════════ MORE SHEET -->
 <div id="more-sheet" style="display:none;position:fixed;inset:0;z-index:200;">
-  <div onclick="closeMoreSheet()" style="position:absolute;inset:0;background:rgba(0,0,0,0.25);"></div>
-  <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;padding:16px 16px 40px;">
-    <div style="width:36px;height:4px;background:#e5e5e5;border-radius:2px;margin:0 auto 16px;"></div>
+  <div onclick="closeMoreSheet()" style="position:absolute;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);"></div>
+  <div style="position:absolute;bottom:0;left:0;right:0;background:#0C1220;border:1px solid rgba(255,255,255,0.08);border-bottom:none;border-radius:24px 24px 0 0;padding:16px 16px 44px;">
+    <div style="width:36px;height:3px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px;"></div>
     <!-- User info + logout row -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding:0 2px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:0 2px;">
       <div>
-        <div id="more-sheet-username" style="font-size:13px;font-weight:700;color:var(--txt1);"></div>
-        <div id="more-sheet-plan" style="font-size:11px;color:var(--txt3);margin-top:1px;"></div>
+        <div id="more-sheet-username" style="font-size:14px;font-weight:700;color:#F1F5F9;"></div>
+        <div id="more-sheet-plan" style="font-size:11px;color:rgba(255,255,255,.4);margin-top:2px;"></div>
       </div>
       <button onclick="closeMoreSheet();doLogout();"
-        style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:#FCEBEB;color:#A32D2D;border:1px solid rgba(163,45,45,.25);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;">
+        style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(248,113,113,0.12);color:#F87171;border:1px solid rgba(248,113,113,.25);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;">
         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/></svg>
         Sign out
       </button>
     </div>
-    <div style="font-size:10px;font-weight:500;color:#a0a0a0;text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;">More tools</div>
+    <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">More tools</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
       <button id="more-data-btn" onclick="closeMoreSheet();go('data',document.querySelector('[data-tab=data]'))"
-        style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f5f5f4;border:0.5px solid #e5e5e5;border-radius:12px;cursor:pointer;">
-        <svg width="22" height="22" fill="none" stroke="#534AB7" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8M8 8h8M8 16h4"/></svg>
-        <span style="font-size:11px;font-weight:500;color:#1a1a1a;">Data</span>
+        style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:16px 8px;background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.2);border-radius:14px;cursor:pointer;">
+        <svg width="22" height="22" fill="none" stroke="#818CF8" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8M8 8h8M8 16h4"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#E2E8F0;">Data</span>
       </button>
       <button onclick="closeMoreSheet();go('signals',document.querySelector('[data-tab=signals]'))"
-        style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f5f5f4;border:0.5px solid #e5e5e5;border-radius:12px;cursor:pointer;">
-        <svg width="22" height="22" fill="none" stroke="#0F6E56" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-        <span style="font-size:11px;font-weight:500;color:#1a1a1a;">Signals</span>
+        style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:16px 8px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.2);border-radius:14px;cursor:pointer;">
+        <svg width="22" height="22" fill="none" stroke="#34D399" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#E2E8F0;">Signals</span>
       </button>
       <button onclick="closeMoreSheet();go('bt',document.querySelector('[data-tab=bt]'))"
-        style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f5f5f4;border:0.5px solid #e5e5e5;border-radius:12px;cursor:pointer;">
-        <svg width="22" height="22" fill="none" stroke="#534AB7" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-        <span style="font-size:11px;font-weight:500;color:#1a1a1a;">Backtest</span>
+        style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:16px 8px;background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.2);border-radius:14px;cursor:pointer;">
+        <svg width="22" height="22" fill="none" stroke="#818CF8" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#E2E8F0;">Backtest</span>
       </button>
       <button onclick="closeMoreSheet();go('live',document.querySelector('[data-tab=live]'))"
-        style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f5f5f4;border:0.5px solid #e5e5e5;border-radius:12px;cursor:pointer;">
-        <svg width="22" height="22" fill="none" stroke="#854F0B" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-        <span style="font-size:11px;font-weight:500;color:#1a1a1a;">Live</span>
+        style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:16px 8px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:14px;cursor:pointer;">
+        <svg width="22" height="22" fill="none" stroke="#FBBF24" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#E2E8F0;">Live</span>
       </button>
       <button id="nav-admin-btn" onclick="closeMoreSheet();go('admin',document.querySelector('[data-tab=admin]'))"
-        style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:#f5f5f4;border:0.5px solid #e5e5e5;border-radius:12px;cursor:pointer;">
-        <svg width="22" height="22" fill="none" stroke="#534AB7" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
-        <span style="font-size:11px;font-weight:500;color:#1a1a1a;">Admin</span>
+        style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:16px 8px;background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.2);border-radius:14px;cursor:pointer;">
+        <svg width="22" height="22" fill="none" stroke="#818CF8" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#E2E8F0;">Admin</span>
       </button>
     </div>
   </div>
@@ -2592,8 +2710,10 @@
   // ── State ─────────────────────────────────────────────────────────────
   let _uvData        = null;   // last loaded results
   let _uvSector      = null;   // active sector filter
+  let _uvSignal      = null;   // active signal filter (verdict key)
   let _uvPollTimer   = null;   // scan progress poll handle
   let _uvInitDone    = false;  // has initUndervalued() been called?
+  let _uvMeta        = {};     // last meta from API (regime, counts, etc.)
 
   // ── Grade config ──────────────────────────────────────────────────────
   const GRADE_CFG = {
@@ -2603,6 +2723,27 @@
     'Fair Value':     { bg: '#f5f5f4', color: '#555',    stars: '★★'    },
     'Avoid':          { bg: '#fdecea', color: '#b71c1c', stars: '★'     },
   };
+
+  // ── Buy signal config ─────────────────────────────────────────────────
+  const SIGNAL_CFG = {
+    STRONG_BUY:   { label: 'Strong Buy',   bg: 'var(--green-d)',   color: 'var(--green)', icon: '▲▲' },
+    GOOD_BUY:     { label: 'Good Buy',     bg: 'var(--data-d)',    color: 'var(--data)',  icon: '▲'  },
+    AI_CAUTION:   { label: 'AI Caution',   bg: 'var(--live-d)',    color: 'var(--live)',  icon: '⚠'  },
+    WAIT_ENTRY:   { label: 'Wait — Entry', bg: 'var(--s3)',        color: 'var(--txt2)',  icon: '◷'  },
+    WAIT_REGIME:  { label: 'Wait — Bear',  bg: 'var(--red-d)',     color: 'var(--red)',   icon: '↓'  },
+    VALUE_TRAP:   { label: 'Value Trap',   bg: 'var(--red-d)',     color: 'var(--red)',   icon: '⚑'  },
+    AVOID:        { label: 'Avoid',        bg: 'var(--red-d)',     color: 'var(--red)',   icon: '✕'  },
+  };
+
+  // Signal groups for filter pills
+  const SIGNAL_FILTER_GROUPS = [
+    { key: null,          label: 'All' },
+    { key: 'STRONG_BUY',  label: '▲▲ Strong Buy' },
+    { key: 'GOOD_BUY',    label: '▲ Good Buy' },
+    { key: 'AI_CAUTION',  label: '⚠ Caution' },
+    { key: 'WAIT',        label: '◷ Wait' },       // matches WAIT_ENTRY + WAIT_REGIME
+    { key: 'AVOID',       label: '✕ Avoid / Trap' }, // matches AVOID + VALUE_TRAP
+  ];
 
   // ── Init (lazy — called when tab is first opened) ─────────────────────
   window.initUndervalued = function () {
@@ -2713,19 +2854,49 @@
     const wrapEl  = document.getElementById('uv-results-wrap');
     if (!results || !results.length) return;
 
-    // Apply sector filter
+    _uvMeta = meta || {};
+
+    // Apply sector + signal filters
     let filtered = results;
     if (_uvSector) {
-      filtered = results.filter(r => (r.sector || '').toLowerCase() === _uvSector.toLowerCase());
+      filtered = filtered.filter(r => (r.sector || '').toLowerCase() === _uvSector.toLowerCase());
+    }
+    if (_uvSignal) {
+      if (_uvSignal === 'WAIT') {
+        filtered = filtered.filter(r => {
+          const v = r.buy_signal && r.buy_signal.verdict;
+          return v === 'WAIT_ENTRY' || v === 'WAIT_REGIME';
+        });
+      } else if (_uvSignal === 'AVOID') {
+        filtered = filtered.filter(r => {
+          const v = r.buy_signal && r.buy_signal.verdict;
+          return v === 'AVOID' || v === 'VALUE_TRAP';
+        });
+      } else {
+        filtered = filtered.filter(r => r.buy_signal && r.buy_signal.verdict === _uvSignal);
+      }
     }
 
-    // Stats
-    const deepCount = results.filter(r => r.grade === 'Deep Value').length;
-    const goodCount = results.filter(r => r.grade === 'Good Value').length;
-    document.getElementById('uv-stat-total').textContent = meta.count || results.length;
-    document.getElementById('uv-stat-deep').textContent  = deepCount;
-    document.getElementById('uv-stat-good').textContent  = goodCount;
+    // Signal counts for stats
+    const sigCounts = { STRONG_BUY: 0, GOOD_BUY: 0, AI_CAUTION: 0, WAIT: 0, AVOID: 0 };
+    results.forEach(r => {
+      const v = r.buy_signal && r.buy_signal.verdict;
+      if (!v) return;
+      if (v === 'STRONG_BUY') sigCounts.STRONG_BUY++;
+      else if (v === 'GOOD_BUY') sigCounts.GOOD_BUY++;
+      else if (v === 'AI_CAUTION') sigCounts.AI_CAUTION++;
+      else if (v === 'WAIT_ENTRY' || v === 'WAIT_REGIME') sigCounts.WAIT++;
+      else if (v === 'AVOID' || v === 'VALUE_TRAP') sigCounts.AVOID++;
+    });
 
+    // Stats row
+    document.getElementById('uv-stat-total').textContent = meta.count || results.length;
+    document.getElementById('uv-stat-deep').textContent  = sigCounts.STRONG_BUY;
+    document.getElementById('uv-stat-good').textContent  = sigCounts.GOOD_BUY;
+
+    // Regime badge in cache tile
+    const regimeTxt = meta.regime ? meta.regime : null;
+    const regimeColor = regimeTxt === 'Bull' ? 'var(--green)' : regimeTxt === 'Bear' ? 'var(--red)' : 'var(--live)';
     const cacheInfo = meta.cache_info || {};
     if (cacheInfo.age_hours != null) {
       const age = cacheInfo.age_hours < 1
@@ -2733,14 +2904,22 @@
         : cacheInfo.age_hours.toFixed(1) + 'h ago';
       document.getElementById('uv-cache-age').textContent = age;
     }
+    if (regimeTxt) {
+      document.getElementById('uv-cache-age').innerHTML =
+        `<span style="color:${regimeColor};font-weight:700;">${regimeTxt}</span>` +
+        (cacheInfo.age_hours != null
+          ? `<br><span style="font-size:10px;color:var(--txt3);">${cacheInfo.age_hours < 1 ? Math.round(cacheInfo.age_hours*60)+'m' : cacheInfo.age_hours.toFixed(1)+'h'} ago</span>`
+          : '');
+    }
     statsEl.style.display = 'block';
 
     // Show AI analyst panel once we have results
     const aiWrap = document.getElementById('uv-ai-wrap');
     if (aiWrap) aiWrap.style.display = 'block';
 
-    // Sector pills
+    // Sector pills + signal pills
     uvRenderSectorPills(results);
+    uvRenderSignalPills(sigCounts);
 
     // Table / cards
     if (!filtered.length) {
@@ -2762,24 +2941,63 @@
 
       // Score bar (out of 100 for display, cap at 100)
       const scoreDisplay = Math.min(100, s.value_score);
-      const barColor = s.value_score >= 75 ? '#1a7a3a'
-                     : s.value_score >= 60 ? '#2c52b8'
-                     : s.value_score >= 45 ? '#8a6200'
-                     : '#888';
+      const barColor = s.value_score >= 75 ? 'var(--green)'
+                     : s.value_score >= 60 ? 'var(--data)'
+                     : s.value_score >= 45 ? 'var(--live)'
+                     : 'var(--txt3)';
+
+      // Buy signal badge
+      const bs = s.buy_signal;
+      let signalBadge = '';
+      let gateBar = '';
+      if (bs && bs.verdict) {
+        const sc = SIGNAL_CFG[bs.verdict] || {};
+        const conviction = bs.conviction != null ? bs.conviction : 0;
+        signalBadge = `
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+            <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:${sc.bg};color:${sc.color};">
+              ${sc.icon || ''} ${sc.label || bs.verdict}
+            </span>
+            <div style="flex:1;background:var(--s3);border-radius:3px;height:5px;overflow:hidden;" title="Conviction ${conviction}/100">
+              <div style="height:100%;border-radius:3px;background:${sc.color};width:${conviction}%;transition:width .4s;"></div>
+            </div>
+            <span style="font-size:10px;color:var(--txt3);min-width:28px;text-align:right;">${conviction}</span>
+          </div>`;
+        // Gate summary chips
+        const gateLabels = bs.gates ? Object.entries(bs.gates).map(([k, v]) => {
+          const passed = v === true;
+          const failed = v === false;
+          const skipped = v === 'skip';
+          const gColor = passed ? 'var(--green)' : failed ? 'var(--red)' : 'var(--txt3)';
+          const gIcon  = passed ? '✓' : failed ? '✗' : '–';
+          const gName  = k === 'quality' ? 'Quality' : k === 'entry' ? 'Entry' : k === 'regime' ? 'Regime' : 'AI';
+          return `<span style="font-size:10px;color:${gColor};">${gIcon} ${gName}</span>`;
+        }).join('') : '';
+        if (gateLabels) {
+          gateBar = `<div style="display:flex;gap:10px;padding:4px 14px 6px;">${gateLabels}</div>`;
+        }
+        // Reasons tooltip / inline (show first reason if any)
+        if (bs.reasons && bs.reasons.length) {
+          gateBar += `<div style="padding:0 14px 8px;font-size:10px;color:var(--txt3);">${bs.reasons[0]}</div>`;
+        }
+      }
 
       html += `
       <div class="card" style="margin-bottom:8px;overflow:hidden;">
         <!-- Header row -->
         <div style="padding:10px 14px 6px;display:flex;justify-content:space-between;align-items:flex-start;">
-          <div>
+          <div style="flex:1;">
             <div style="font-size:14px;font-weight:700;color:var(--txt);">${s.symbol}</div>
             <div style="font-size:11px;color:var(--txt3);margin-top:1px;">${s.sector || '—'} ${s.industry ? '· ' + s.industry : ''}</div>
+            ${signalBadge}
           </div>
-          <div style="text-align:right;">
+          <div style="text-align:right;padding-left:10px;">
             <div style="font-size:14px;font-weight:700;color:var(--txt);">${s.last_price != null ? '₹' + s.last_price.toLocaleString('en-IN') : '—'}</div>
             <div style="margin-top:2px;display:flex;gap:4px;justify-content:flex-end;">${pct52}${rsiTag}</div>
           </div>
         </div>
+
+        ${gateBar}
 
         <!-- Score bar -->
         <div style="padding:0 14px 8px;">
@@ -2837,7 +3055,49 @@
 
   window.uvSetSector = function (sector, el) {
     _uvSector = sector;
-    if (_uvData) uvRender(_uvData, { count: _uvData.length, cache_info: {} });
+    if (_uvData) uvRender(_uvData, _uvMeta);
+  };
+
+  // ── Signal filter pills ───────────────────────────────────────────────
+  function uvRenderSignalPills(sigCounts) {
+    const container = document.getElementById('uv-signal-pills');
+    if (!container) return;
+
+    const hasAny = Object.values(sigCounts).some(v => v > 0);
+    if (!hasAny) { container.style.display = 'none'; return; }
+
+    const countMap = {
+      null: null,
+      STRONG_BUY: sigCounts.STRONG_BUY,
+      GOOD_BUY: sigCounts.GOOD_BUY,
+      AI_CAUTION: sigCounts.AI_CAUTION,
+      WAIT: sigCounts.WAIT,
+      AVOID: sigCounts.AVOID,
+    };
+
+    let html = SIGNAL_FILTER_GROUPS.map(g => {
+      const active  = _uvSignal === g.key;
+      const count   = g.key === null ? null : countMap[g.key];
+      const countTxt = count != null ? ` <span style="opacity:.6;">${count}</span>` : '';
+      const sc = g.key && SIGNAL_CFG[g.key] ? SIGNAL_CFG[g.key] : null;
+      const bg    = active ? (sc ? sc.color : 'var(--data)') : 'var(--s2)';
+      const color = active ? '#fff' : (sc ? sc.color : 'var(--txt)');
+      return `<button onclick="uvSetSignal(${g.key ? "'"+g.key+"'" : 'null'})"
+        style="font-size:11px;padding:4px 11px;border-radius:12px;border:1px solid var(--border);
+               background:${bg};color:${color};cursor:pointer;font-weight:600;white-space:nowrap;">
+        ${g.label}${countTxt}
+      </button>`;
+    }).join('');
+
+    container.innerHTML = html;
+    container.style.display = 'flex';
+    container.style.gap = '6px';
+    container.style.flexWrap = 'wrap';
+  }
+
+  window.uvSetSignal = function (signal) {
+    _uvSignal = signal || null;
+    if (_uvData) uvRender(_uvData, _uvMeta);
   };
 
   // Re-apply filters when dropdowns change

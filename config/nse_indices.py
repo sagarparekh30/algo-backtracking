@@ -7,6 +7,75 @@ Used by:
   - ML training (optionally train on a broader universe)
 """
 
+import logging
+import time as _time
+
+logger = logging.getLogger(__name__)
+
+# ── Dynamic NSE-All symbol fetcher ───────────────────────────────────────
+# Fetches the complete list of NSE equity (EQ series) stocks from NSE's
+# official EQUITY_L.csv.  Falls back to NIFTY_500 if download fails.
+# Result is cached in-process for 24 hours.
+
+_NSE_ALL_CACHE: list = []
+_NSE_ALL_CACHE_TS: float = 0.0
+_NSE_ALL_CACHE_TTL: float = 86400.0   # 24 hours
+
+
+def fetch_nse_all_symbols() -> list:
+    """
+    Return every NSE equity (EQ series) symbol as a plain string list.
+
+    Downloads NSE's official EQUITY_L.csv and filters to Series=EQ.
+    Result is cached for 24 hours so repeated calls are cheap.
+    Falls back to NIFTY_500 on any network/parse error.
+    """
+    global _NSE_ALL_CACHE, _NSE_ALL_CACHE_TS
+
+    now = _time.time()
+    if _NSE_ALL_CACHE and now - _NSE_ALL_CACHE_TS < _NSE_ALL_CACHE_TTL:
+        return _NSE_ALL_CACHE
+
+    try:
+        import csv
+        import io
+        import urllib.request
+
+        url     = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
+        headers = {
+            "User-Agent":      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+            "Accept":          "text/html,application/xhtml+xml,*/*;q=0.9",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Referer":         "https://www.nseindia.com/",
+        }
+        req  = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+
+        symbols: list = []
+        reader = csv.DictReader(io.StringIO(raw))
+        for row in reader:
+            series = (row.get("SERIES") or row.get(" SERIES") or "").strip()
+            symbol = (row.get("SYMBOL") or row.get(" SYMBOL") or "").strip()
+            if series == "EQ" and symbol and not symbol.startswith("-"):
+                symbols.append(symbol)
+
+        if len(symbols) >= 500:           # sanity — NSE has 1 700+ EQ stocks
+            _NSE_ALL_CACHE    = symbols
+            _NSE_ALL_CACHE_TS = now
+            logger.info(f"[NSE] Fetched {len(symbols)} EQ symbols from NSE official CSV.")
+            return symbols
+
+        logger.warning(f"[NSE] CSV returned only {len(symbols)} symbols — using fallback.")
+
+    except Exception as e:
+        logger.warning(f"[NSE] Could not fetch NSE symbol list: {e}. Using NIFTY_500 fallback.")
+
+    # NIFTY_500 is defined later in this module file.
+    # Python resolves module-level names at call time (not definition time),
+    # so this direct reference works correctly once the module is fully loaded.
+    return list(NIFTY_500)
+
 # ── Broad Market Indices ─────────────────────────────────────────────────
 
 NIFTY_50 = [
@@ -248,13 +317,15 @@ INDEX_REGISTRY = {
 
 def get_index_symbols(index_name: str) -> list:
     """Return symbol list for a given index name."""
+    if index_name == "NSE All":
+        return fetch_nse_all_symbols()
     entry = INDEX_REGISTRY.get(index_name)
     return entry["symbols"] if entry else []
 
 
 def list_indices() -> list:
     """Return all indices with metadata (no symbol lists)."""
-    return [
+    rows = [
         {
             "name":        name,
             "category":    info["category"],
@@ -263,3 +334,11 @@ def list_indices() -> list:
         }
         for name, info in INDEX_REGISTRY.items()
     ]
+    # Add NSE All as a dynamic entry (count known at call time only)
+    rows.insert(4, {   # insert after NIFTY 500
+        "name":        "NSE All",
+        "category":    "Broad Market",
+        "description": "All NSE-listed equities (~1 800 stocks) — fetched live from NSE",
+        "count":       1800,   # approximate; real count returned by fetch_nse_all_symbols()
+    })
+    return rows

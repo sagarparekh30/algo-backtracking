@@ -47,15 +47,18 @@ IST = pytz.timezone("Asia/Kolkata")
 # ── Shared state (read by the API) ──────────────────────────────────────
 class SchedulerState:
     scheduler: BackgroundScheduler = None
-    last_data_update:    str = "Never"
-    last_data_result:    dict = {}
-    last_ml_retrain:     str = "Never"
-    last_ml_result:      dict = {}
-    last_daily_ml:       str = "Never"
-    last_daily_ml_result: dict = {}
-    data_update_running:  bool = False
-    ml_retrain_running:   bool = False
-    daily_ml_running:     bool = False
+    last_data_update:      str = "Never"
+    last_data_result:      dict = {}
+    last_ml_retrain:       str = "Never"
+    last_ml_result:        dict = {}
+    last_daily_ml:         str = "Never"
+    last_daily_ml_result:  dict = {}
+    last_yf_full:          str = "Never"
+    last_yf_full_result:   dict = {}
+    data_update_running:   bool = False
+    ml_retrain_running:    bool = False
+    daily_ml_running:      bool = False
+    yf_full_running:       bool = False
 
 
 _state = SchedulerState()
@@ -213,22 +216,32 @@ def _job_daily_data_update():
         }
         logger.info(f"[Scheduler] Daily data update done. candles={total_candles} success={success}")
 
-        # After data is refreshed: retrain ML model, then send Telegram alert
+        # After Fyers fetch: run yfinance supplement → retrain ML → send alert
         if success:
-            # Trigger daily ML retrain in a background thread so it doesn't
-            # block the data-update job from completing
             import threading
+
+            def _post_fetch_pipeline():
+                # Step 1: yfinance incremental (fills gaps, keeps 30yr data fresh)
+                try:
+                    _run_yfinance_incremental()
+                except Exception as e:
+                    logger.error(f"[Scheduler] yfinance incremental failed: {e}")
+
+                # Step 2: retrain ML on the now-updated full dataset
+                _job_daily_ml_retrain()
+
+                # Step 3: Telegram trade alert
+                try:
+                    _run_execute_alert()
+                except Exception as e:
+                    logger.error(f"[Scheduler] Execute alert error: {e}")
+
             threading.Thread(
-                target=_job_daily_ml_retrain,
-                name="post-fetch-ml-retrain",
+                target=_post_fetch_pipeline,
+                name="post-fetch-pipeline",
                 daemon=True,
             ).start()
-            logger.info("[Scheduler] Triggered daily ML retrain after data update.")
-
-            try:
-                _run_execute_alert()
-            except Exception as e:
-                logger.error(f"[Scheduler] Execute alert error: {e}")
+            logger.info("[Scheduler] Post-fetch pipeline started: yfinance → retrain → alert")
 
     except subprocess.TimeoutExpired:
         _state.last_data_result = {"success": False, "error": "Timed out after 1 hour"}
@@ -240,42 +253,113 @@ def _job_daily_data_update():
         _state.data_update_running = False
 
 
-def _run_ml_retrain(label: str) -> dict:
+MAX_TRAIN_RETRIES  = 3      # max attempts before giving up
+TRAIN_RETRY_DELAY  = 300    # seconds between retries (5 min)
+
+
+def _run_yfinance_incremental():
     """
-    Core ML retrain logic — shared by daily and weekly jobs.
-    Returns result dict.
+    Run a yfinance incremental fetch for all NSE symbols — fills gaps and
+    keeps the 30-year history current.  Called after every Fyers daily fetch.
+    Only fetches the last 30 days so it completes quickly.
     """
-    started = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
-    logger.info(f"[Scheduler] {label} ML retrain started at {started}")
     try:
-        from ml.model import MLPredictor
-        predictor = MLPredictor()
-        meta = predictor.train()
-        completed = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
-        # meta.horizons contains per-horizon AUC — pick the first available
-        horizons = meta.get("horizons", {})
-        first_h = next(iter(horizons.values()), {}) if horizons else {}
-        auc = first_h.get("auc_roc") or meta.get("auc_roc")
-        result = {
-            "success":       True,
-            "started_at":    started,
-            "completed_at":  completed,
-            "auc_roc":       auc,
-            "symbols_used":  meta.get("symbols_used"),
-            "train_samples": meta.get("train_samples"),
-            "error":         meta.get("error"),
-        }
-        logger.info(f"[Scheduler] {label} ML retrain done. AUC={auc} symbols={meta.get('symbols_used')}")
+        from datetime import date, timedelta as td
+        from fetcher.yfinance_fetcher import run_yfinance_backfill
+        from config.nse_indices import fetch_nse_all_symbols
+
+        all_symbols = fetch_nse_all_symbols()
+        # Only fetch the last 30 days incrementally (fast); full history
+        # is already in DB from bootstrap or a previous full refresh run.
+        start = (date.today() - td(days=30)).isoformat()
+        logger.info(f"[Scheduler] yfinance incremental fetch start={start} ({len(all_symbols)} symbols)")
+        result = run_yfinance_backfill(symbols=all_symbols, start_date=start, workers=3)
+        logger.info(
+            f"[Scheduler] yfinance incremental done. "
+            f"new={result.get('total_new_candles',0)} failed={result.get('failed',0)}"
+        )
         return result
     except Exception as e:
-        logger.error(f"[Scheduler] {label} ML retrain error: {e}")
-        return {"success": False, "error": str(e), "started_at": started}
+        logger.error(f"[Scheduler] yfinance incremental error: {e}")
+        return {"error": str(e)}
+
+
+def _run_ml_retrain(label: str) -> dict:
+    """
+    Core ML retrain logic with automatic retry on failure.
+
+    Attempts up to MAX_TRAIN_RETRIES times.  On each failure it waits
+    TRAIN_RETRY_DELAY seconds then tries again from scratch — the model
+    trains on ALL data in the DB (up to 30 years if yfinance bootstrap ran).
+    """
+    started = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
+    last_error = ""
+
+    for attempt in range(1, MAX_TRAIN_RETRIES + 1):
+        try:
+            if attempt > 1:
+                logger.info(
+                    f"[Scheduler] {label} ML retrain — attempt {attempt}/{MAX_TRAIN_RETRIES} "
+                    f"(previous error: {last_error})"
+                )
+                import time as _t
+                _t.sleep(TRAIN_RETRY_DELAY)
+
+            logger.info(f"[Scheduler] {label} ML retrain attempt {attempt} starting …")
+            from ml.model import MLPredictor
+            predictor = MLPredictor()
+            meta      = predictor.train()
+
+            # Check if training itself reported an error
+            if meta.get("error"):
+                last_error = meta["error"]
+                logger.warning(f"[Scheduler] {label} attempt {attempt} returned error: {last_error}")
+                continue   # retry
+
+            completed = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
+            horizons  = meta.get("horizons", {})
+            first_h   = next(iter(horizons.values()), {}) if horizons else {}
+            auc       = first_h.get("auc_roc") or meta.get("auc_roc")
+
+            logger.info(
+                f"[Scheduler] {label} ML retrain done (attempt {attempt}). "
+                f"AUC={auc} symbols={meta.get('symbols_used')}"
+            )
+            return {
+                "success":       True,
+                "attempt":       attempt,
+                "started_at":    started,
+                "completed_at":  completed,
+                "auc_roc":       auc,
+                "symbols_used":  meta.get("symbols_used"),
+                "train_samples": meta.get("train_samples"),
+            }
+
+        except Exception as e:
+            last_error = str(e)
+            logger.error(
+                f"[Scheduler] {label} ML retrain attempt {attempt} failed: {e}",
+                exc_info=True,
+            )
+
+    # All attempts exhausted
+    logger.error(
+        f"[Scheduler] {label} ML retrain FAILED after {MAX_TRAIN_RETRIES} attempts. "
+        f"Last error: {last_error}"
+    )
+    return {
+        "success":    False,
+        "attempts":   MAX_TRAIN_RETRIES,
+        "error":      last_error,
+        "started_at": started,
+    }
 
 
 def _job_daily_ml_retrain():
     """
-    Daily ML retrain — runs every weekday after the data update (default 18:00 IST).
-    Incremental retrain on latest data.
+    Daily ML retrain — runs every weekday after the data update.
+    Trains on all available history (30yr if yfinance bootstrap ran).
+    Retries up to MAX_TRAIN_RETRIES times on failure.
     """
     if _state.daily_ml_running or _state.ml_retrain_running:
         logger.warning("[Scheduler] Daily ML retrain skipped — another retrain already running.")
@@ -284,16 +368,23 @@ def _job_daily_ml_retrain():
     _state.daily_ml_running = True
     try:
         result = _run_ml_retrain("Daily")
-        _state.last_daily_ml = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
+        _state.last_daily_ml        = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
         _state.last_daily_ml_result = result
+        # Reload the in-process predictor so new predictions use the fresh model
+        if result.get("success"):
+            try:
+                from dashboard.main import reload_ml_predictor
+                reload_ml_predictor()
+            except Exception:
+                pass
     finally:
         _state.daily_ml_running = False
 
 
 def _job_weekly_ml_retrain():
     """
-    Full ML retrain job — runs every Sunday night.
-    Trains on all available history in the DB (up to 10 years).
+    Full deep retrain — runs every Sunday night on all available history.
+    Retries up to MAX_TRAIN_RETRIES times on failure.
     """
     if _state.ml_retrain_running:
         logger.warning("[Scheduler] Weekly ML retrain already running — skipping.")
@@ -303,9 +394,56 @@ def _job_weekly_ml_retrain():
     try:
         result = _run_ml_retrain("Weekly")
         _state.last_ml_retrain = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
-        _state.last_ml_result = result
+        _state.last_ml_result  = result
+        if result.get("success"):
+            try:
+                from dashboard.main import reload_ml_predictor
+                reload_ml_predictor()
+            except Exception:
+                pass
     finally:
         _state.ml_retrain_running = False
+
+
+def _job_weekly_yfinance_full():
+    """
+    Weekly full yfinance history refresh — runs Sunday morning (06:00 IST).
+    Fetches up to 30 years of candles for all NIFTY 500 symbols and inserts
+    any missing rows.  Runs BEFORE the weekly deep ML retrain so the model
+    always trains on the most complete dataset available.
+    """
+    if _state.yf_full_running:
+        logger.warning("[Scheduler] Weekly yfinance full refresh already running — skipping.")
+        return
+
+    _state.yf_full_running = True
+    started = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
+    logger.info("[Scheduler] Weekly yfinance full history refresh starting …")
+
+    try:
+        from fetcher.yfinance_fetcher import run_yfinance_backfill
+        from config.nse_indices import fetch_nse_all_symbols
+
+        all_symbols = fetch_nse_all_symbols()
+        logger.info(f"[Scheduler] Weekly yfinance full: {len(all_symbols)} symbols, period=max (30yr)")
+        result = run_yfinance_backfill(symbols=all_symbols, workers=3)   # period='max' = 30yr
+        _state.last_yf_full        = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
+        _state.last_yf_full_result = {
+            "success":       True,
+            "started_at":    started,
+            "completed_at":  _state.last_yf_full,
+            "new_candles":   result.get("total_new_candles", 0),
+            "failed":        result.get("failed", 0),
+        }
+        logger.info(
+            f"[Scheduler] Weekly yfinance full done. "
+            f"new={result.get('total_new_candles',0)} failed={result.get('failed',0)}"
+        )
+    except Exception as e:
+        logger.error(f"[Scheduler] Weekly yfinance full error: {e}")
+        _state.last_yf_full_result = {"success": False, "error": str(e), "started_at": started}
+    finally:
+        _state.yf_full_running = False
 
 
 # ── Scheduler lifecycle ──────────────────────────────────────────────────
@@ -356,7 +494,24 @@ def start_scheduler():
             misfire_grace_time=3600,
         )
 
-    # ── Job 3: Weekly deep ML retrain (Sunday night) ────────────────────
+    # ── Job 3: Weekly yfinance full history refresh (Sunday 06:00 IST) ───
+    # Runs BEFORE the deep ML retrain so training uses the freshest 30yr data
+    scheduler.add_job(
+        _job_weekly_yfinance_full,
+        trigger=CronTrigger(
+            day_of_week=SCHEDULER_ML_RETRAIN_DAY,
+            hour=6,
+            minute=0,
+            timezone=IST,
+        ),
+        id="weekly_yfinance_full",
+        name="Weekly yfinance Full History Refresh",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=7200,
+    )
+
+    # ── Job 4: Weekly deep ML retrain (Sunday night) ─────────────────────
     ml_h, ml_m = SCHEDULER_ML_RETRAIN_TIME.split(":")
     scheduler.add_job(
         _job_weekly_ml_retrain,
@@ -379,7 +534,9 @@ def start_scheduler():
     logger.info(
         f"[Scheduler] Started. "
         f"Data update: Mon–Fri {SCHEDULER_DATA_UPDATE_TIME} IST | "
-        f"Daily ML retrain: Mon–Fri {SCHEDULER_ML_DAILY_TIME} IST | "
+        f"yfinance supplement: daily after fetch | "
+        f"Daily ML retrain: Mon–Fri {SCHEDULER_ML_DAILY_TIME} IST (retry up to {MAX_TRAIN_RETRIES}x) | "
+        f"Weekly yfinance full: {SCHEDULER_ML_RETRAIN_DAY.capitalize()} 06:00 IST | "
         f"Weekly deep retrain: {SCHEDULER_ML_RETRAIN_DAY.capitalize()} {SCHEDULER_ML_RETRAIN_TIME} IST"
     )
 
@@ -419,8 +576,14 @@ def get_scheduler_status() -> dict:
             "last_result":       _state.last_daily_ml_result,
             "currently_running": _state.daily_ml_running,
         },
+        "weekly_yfinance_full": {
+            "schedule":          f"{SCHEDULER_ML_RETRAIN_DAY.capitalize()} 06:00 IST (30yr history refresh)",
+            "last_run":          _state.last_yf_full,
+            "last_result":       _state.last_yf_full_result,
+            "currently_running": _state.yf_full_running,
+        },
         "weekly_ml_retrain": {
-            "schedule":          f"{SCHEDULER_ML_RETRAIN_DAY.capitalize()} {SCHEDULER_ML_RETRAIN_TIME} IST (deep retrain)",
+            "schedule":          f"{SCHEDULER_ML_RETRAIN_DAY.capitalize()} {SCHEDULER_ML_RETRAIN_TIME} IST (deep retrain, {MAX_TRAIN_RETRIES} retries)",
             "last_run":          _state.last_ml_retrain,
             "last_result":       _state.last_ml_result,
             "currently_running": _state.ml_retrain_running,

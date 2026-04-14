@@ -160,6 +160,8 @@ async function doLogin() {
     hideLogin();
     _showAdminBadge(d.username || user);
     _applyRoleUI(d.role || 'user', d.plan_type, d.plan_expiry);
+    loadHome();
+    _syncHomePicks();
   } catch(e) {
     err.textContent = e.message;
     err.style.display = 'block';
@@ -239,7 +241,7 @@ function _applyRoleUI(role, planType, planExpiry) {
       const daysLeft = Math.ceil((expDate - new Date()) / 864e5);
       const expired  = daysLeft <= 0;
       planChip.textContent = expired ? 'Plan expired' : `${planType.toUpperCase()} · ${daysLeft}d left`;
-      planChip.style.cssText = `font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${expired ? '#FCEBEB' : '#EAF3DE'};color:${expired ? '#A32D2D' : 'var(--green)'};display:inline-block;`;
+      planChip.style.cssText = `font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${expired ? 'var(--red-d)' : 'var(--green-d)'};color:${expired ? 'var(--red)' : 'var(--green)'};border:1px solid ${expired ? 'rgba(248,113,113,.25)' : 'rgba(52,211,153,.25)'};display:inline-block;`;
     } else {
       planChip.style.display = 'none';
     }
@@ -257,7 +259,7 @@ function _applyRoleUI(role, planType, planExpiry) {
       planEl.textContent = expired
         ? `${planType.toUpperCase()} plan — expired`
         : `${planType.toUpperCase()} plan · ${daysLeft} days remaining`;
-      planEl.style.color = expired ? '#A32D2D' : 'var(--txt3)';
+      planEl.style.color = expired ? 'var(--red)' : 'var(--txt3)';
     } else {
       planEl.textContent = '';
     }
@@ -380,7 +382,7 @@ function go(id, el) {
 function _showAccessDenied() {
   const toast = document.createElement('div');
   toast.textContent = '🔒 Admin access required';
-  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;opacity:1;transition:opacity .4s;';
+  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--s2);color:var(--txt);border:1px solid var(--border);padding:10px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;opacity:1;transition:opacity .4s;';
   document.body.appendChild(toast);
   setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 2000);
 }
@@ -510,7 +512,7 @@ async function runScan() {
   const cnt = document.getElementById('sig-count');
 
   btn.disabled = true;
-  btn.innerHTML = '<div class="spin" style="color:#022c22"></div> Scanning...';
+  btn.innerHTML = '<div class="spin" style="color:var(--sig)"></div> Scanning...';
   body.innerHTML = '<div class="empty"><div class="empty-title" style="color:var(--txt2)">Scanning all 100 symbols…</div></div>';
   cnt.textContent = '...';
 
@@ -573,52 +575,52 @@ async function loadPriceAction() {
     document.getElementById('pa-close').textContent  = fmtP(s.last_close);
     const chgEl = document.getElementById('pa-change');
     chgEl.textContent = s.change_pct != null ? (s.change_pct >= 0 ? '+' : '') + s.change_pct + '%' : '—';
-    chgEl.style.color = (s.change_pct || 0) >= 0 ? '#3B6D11' : '#A32D2D';
+    chgEl.style.color = (s.change_pct || 0) >= 0 ? 'var(--green)' : 'var(--red)';
 
     document.getElementById('pa-52h').textContent     = fmtP(s.high_52w);
     document.getElementById('pa-52h-pct').textContent = fmtN(s.pct_from_52w_high, '% from 52W High');
-    document.getElementById('pa-52h-pct').style.color = (s.pct_from_52w_high || 0) >= -5 ? '#3B6D11' : '#A32D2D';
+    document.getElementById('pa-52h-pct').style.color = (s.pct_from_52w_high || 0) >= -5 ? 'var(--green)' : 'var(--red)';
 
     document.getElementById('pa-52l').textContent     = fmtP(s.low_52w);
     document.getElementById('pa-52l-pct').textContent = fmtN(s.pct_from_52w_low, '% above 52W Low');
 
     const trendEl = document.getElementById('pa-trend');
     trendEl.textContent = s.trend;
-    trendEl.style.color = s.trend.includes('Above') ? '#3B6D11' : '#A32D2D';
+    trendEl.style.color = s.trend.includes('Above') ? 'var(--green)' : 'var(--red)';
     document.getElementById('pa-sma').textContent = `SMA20 ₹${s.sma20}${s.sma50 ? ' · SMA50 ₹' + s.sma50 : ''}`;
 
     document.getElementById('pa-range').textContent   = fmtN(s.avg_range_pct, '%');
     const streakEl = document.getElementById('pa-streak');
     streakEl.textContent = `${s.streak} ${s.streak_dir} candles`;
-    streakEl.style.color = s.streak_dir === 'green' ? '#3B6D11' : '#A32D2D';
+    streakEl.style.color = s.streak_dir === 'green' ? 'var(--green)' : 'var(--red)';
     document.getElementById('pa-bull-bear').textContent = `${s.bull_candles}↑ ${s.bear_candles}↓ of ${s.total_candles} bars`;
 
     document.getElementById('pa-summary').style.display = 'block';
 
     // Candle table
     const patternColor = p => {
-      if (!p) return '#a0a0a0';
+      if (!p) return 'var(--txt3)';
       const bull = ['Bullish','Hammer','Inverted Hammer','Bullish Marubozu','Morning Star'];
       const bear = ['Bearish','Shooting Star','Hanging Man','Bearish Marubozu','Evening Star'];
-      if (bull.some(b => p.includes(b))) return '#3B6D11';
-      if (bear.some(b => p.includes(b))) return '#A32D2D';
-      return '#854F0B';
+      if (bull.some(b => p.includes(b))) return 'var(--green)';
+      if (bear.some(b => p.includes(b))) return 'var(--red)';
+      return 'var(--live)';
     };
 
     document.getElementById('pa-count').textContent = `${d.candles.length} candles`;
     document.getElementById('pa-rows').innerHTML = d.candles.map(c => {
       const chg = c.change_pct;
-      const chgColor = chg == null ? '#a0a0a0' : chg >= 0 ? '#3B6D11' : '#A32D2D';
-      const volColor = (c.vol_ratio || 0) >= 2 ? '#534AB7' : (c.vol_ratio || 0) >= 1.5 ? '#854F0B' : '#6b6b6b';
-      const rowBg    = (c.body_pct || 0) >= 0 ? 'background:#f9fdf6' : 'background:#fdf9f9';
+      const chgColor = chg == null ? 'var(--txt3)' : chg >= 0 ? 'var(--green)' : 'var(--red)';
+      const volColor = (c.vol_ratio || 0) >= 2 ? 'var(--data)' : (c.vol_ratio || 0) >= 1.5 ? 'var(--live)' : 'var(--txt2)';
+      const rowBg    = (c.body_pct || 0) >= 0 ? 'background:rgba(52,211,153,0.04)' : 'background:rgba(248,113,113,0.04)';
       return `<tr style="${rowBg}">
         <td style="font-size:11px;font-weight:500;">${c.trade_date}</td>
         <td class="mono" style="font-size:11px;">₹${Number(c.open).toFixed(1)}</td>
-        <td class="mono" style="font-size:11px;color:#3B6D11;">₹${Number(c.high).toFixed(1)}</td>
-        <td class="mono" style="font-size:11px;color:#A32D2D;">₹${Number(c.low).toFixed(1)}</td>
+        <td class="mono" style="font-size:11px;color:var(--green);">₹${Number(c.high).toFixed(1)}</td>
+        <td class="mono" style="font-size:11px;color:var(--red);">₹${Number(c.low).toFixed(1)}</td>
         <td class="mono" style="font-size:11px;font-weight:700;">₹${Number(c.close).toFixed(1)}</td>
         <td style="font-weight:600;color:${chgColor};">${chg != null ? (chg >= 0 ? '+' : '') + chg + '%' : '—'}</td>
-        <td style="font-size:11px;color:#6b6b6b;">${c.range_pct != null ? c.range_pct + '%' : '—'}</td>
+        <td style="font-size:11px;color:var(--txt2);">${c.range_pct != null ? c.range_pct + '%' : '—'}</td>
         <td style="font-size:11px;font-weight:600;color:${volColor};">${c.vol_ratio != null ? c.vol_ratio + 'x' : '—'}</td>
         <td style="font-size:11px;font-weight:500;color:${patternColor(c.pattern)};">${c.pattern || '—'}</td>
       </tr>`;
@@ -908,7 +910,7 @@ async function loadMLDataValidation() {
       body.innerHTML = sym.map(s => {
         const barW = maxRows > 0 ? Math.round((s.rows / maxRows) * 100) : 0;
         const yrs  = s.years != null ? s.years + 'y' : '—';
-        const color = (s.years || 0) >= 20 ? 'var(--green)' : (s.years || 0) >= 5 ? '#534AB7' : 'var(--live)';
+        const color = (s.years || 0) >= 20 ? 'var(--green)' : (s.years || 0) >= 5 ? 'var(--data)' : 'var(--live)';
         return `
           <div style="display:flex;align-items:center;gap:8px;">
             <div style="width:72px;font-size:11px;font-weight:700;flex-shrink:0;">${s.symbol}</div>
@@ -950,7 +952,7 @@ function renderMLMeta(meta) {
           <span style="font-size:11px;color:var(--txt3);">${(f.importance*100).toFixed(2)}%</span>
         </div>
         <div style="height:4px;background:var(--s3);border-radius:99px;overflow:hidden;">
-          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#534AB7,#3C3489);border-radius:99px;"></div>
+          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--data),var(--sig));border-radius:99px;"></div>
         </div>
       </div>`;
     }).join('');
@@ -1051,7 +1053,7 @@ async function loadMLAnalytics() {
               </span>
             </div>
             <div style="height:16px;background:var(--s2);border-radius:6px;overflow:hidden;position:relative;display:flex;">
-              <div style="height:100%;width:${predW}%;background:#534AB7;border-radius:6px;opacity:.5;"></div>
+              <div style="height:100%;width:${predW}%;background:var(--data);border-radius:6px;opacity:.5;"></div>
               <div style="position:absolute;height:100%;width:${actW}%;background:var(--green);border-radius:6px;opacity:.7;"></div>
             </div>
           </div>`;
@@ -1065,7 +1067,7 @@ async function runPredictions() {
   btn.disabled = true;
   btn.innerHTML = '<div class="spin"></div> Scoring…';
   document.getElementById('ml-pred-body').innerHTML =
-    '<div class="empty"><div class="spin" style="color:#534AB7;margin:20px auto;"></div><div class="empty-sub" style="margin-top:8px;">Scoring all 99 symbols…</div></div>';
+    '<div class="empty"><div class="spin" style="color:var(--data);margin:20px auto;"></div><div class="empty-sub" style="margin-top:8px;">Scoring all 99 symbols…</div></div>';
 
   try {
     const d = await jAuth(`${API}/api/ml/predict`);
@@ -1097,7 +1099,7 @@ function mlFilter(type) {
   ['all','buy','neutral','avoid'].forEach(t => {
     const el = document.getElementById('ml-filter-' + t);
     if (!el) return;
-    el.style.background = t === type.toLowerCase() ? '#534AB7' : '#f5f5f4';
+    el.style.background = t === type.toLowerCase() ? 'var(--data)' : 'var(--s3)';
     el.style.color       = t === type.toLowerCase() ? '#fff'    : 'var(--txt2)';
     el.style.border      = t === type.toLowerCase() ? 'none'    : '1px solid var(--border2)';
   });
@@ -1119,7 +1121,7 @@ function mlFilter(type) {
   document.getElementById('ml-pred-body').innerHTML = filtered.map(p => {
     const pct  = Math.round((p.buy_probability || 0) * 100);
     const bar  = `<div style="height:3px;background:var(--s3);border-radius:99px;margin-top:5px;overflow:hidden;">
-      <div style="height:100%;width:${pct}%;background:${sigColour[p.signal]||'#534AB7'};border-radius:99px;transition:width .4s;"></div></div>`;
+      <div style="height:100%;width:${pct}%;background:${sigColour[p.signal]||'var(--data)'};border-radius:99px;transition:width .4s;"></div></div>`;
     const target = p.price_target ? `₹${fmtP(p.price_target)}` : '—';
     const retPct = p.expected_return_pct != null
       ? `<span style="color:${p.expected_return_pct>=0?'var(--green)':'var(--red)'};">${p.expected_return_pct>=0?'+':''}${p.expected_return_pct}%</span>`
@@ -1135,9 +1137,9 @@ function mlFilter(type) {
         ${bar}
       </div>
       <div style="text-align:right;flex-shrink:0;margin-left:8px;">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:${sigColour[p.signal]||'#534AB7'};">${pct}%</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:${sigColour[p.signal]||'var(--data)'};">${pct}%</div>
         <span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;
-          background:${sigBg[p.signal]||'rgba(99,102,241,.12)'};color:${sigColour[p.signal]||'#534AB7'};margin-top:3px;">${p.signal}</span>
+          background:${sigBg[p.signal]||'rgba(99,102,241,.12)'};color:${sigColour[p.signal]||'var(--data)'};margin-top:3px;">${p.signal}</span>
       </div>
     </div>`;
   }).join('');
@@ -1149,7 +1151,7 @@ let yfPoller = null;
 async function startYFinance() {
   const btn = document.getElementById('yf-btn');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spin" style="color:#431407;"></div> Starting…';
+  btn.innerHTML = '<div class="spin" style="color:var(--live);"></div> Starting…';
 
   const selectedIndex = document.getElementById('yf-index-select')?.value || '';
   const url = selectedIndex
@@ -1289,28 +1291,28 @@ async function loadExecuteRegime() {
 }
 
 function _probColor(p) {
-  if (p >= 0.70) return '#3B6D11';
-  if (p >= 0.60) return '#534AB7';
-  if (p >= 0.50) return '#854F0B';
-  return '#a0a0a0';
+  if (p >= 0.70) return 'var(--green)';
+  if (p >= 0.60) return 'var(--data)';
+  if (p >= 0.50) return 'var(--live)';
+  return 'var(--txt3)';
 }
 
 function _confBadgeStyle(conf) {
   const map = {
-    'Very High': 'background:#EAF3DE;color:#3B6D11;border:0.5px solid rgba(59,109,17,.25);',
-    'High':      'background:#EEEDFE;color:#534AB7;border:0.5px solid rgba(83,74,183,.25);',
-    'Moderate':  'background:#FAEEDA;color:#854F0B;border:0.5px solid rgba(133,79,11,.25);',
-    'Low':       'background:#f5f5f4;color:#a0a0a0;border:0.5px solid #e5e5e5;',
-    'Very Low':  'background:#f5f5f4;color:#a0a0a0;border:0.5px solid #e5e5e5;',
+    'Very High': 'background:var(--green-d);color:var(--green);border:1px solid rgba(52,211,153,.25);',
+    'High':      'background:var(--data-d);color:var(--data);border:1px solid rgba(99,102,241,.25);',
+    'Moderate':  'background:var(--live-d);color:var(--live);border:1px solid rgba(251,191,36,.25);',
+    'Low':       'background:var(--s3);color:var(--txt3);border:1px solid var(--border);',
+    'Very Low':  'background:var(--s3);color:var(--txt3);border:1px solid var(--border);',
   };
-  return map[conf] || 'background:#f5f5f4;color:#a0a0a0;border:0.5px solid #e5e5e5;';
+  return map[conf] || 'background:var(--s3);color:var(--txt3);border:1px solid var(--border);';
 }
 
 function _hColor(p) {
-  if (p >= 0.70) return {bg:'#EAF3DE',border:'rgba(59,109,17,.3)',color:'#3B6D11'};
-  if (p >= 0.60) return {bg:'#EEEDFE',border:'rgba(83,74,183,.3)',color:'#534AB7'};
-  if (p >= 0.50) return {bg:'#FAEEDA',border:'rgba(133,79,11,.3)',color:'#854F0B'};
-  return {bg:'#f5f5f4',border:'#e5e5e5',color:'#a0a0a0'};
+  if (p >= 0.70) return {bg:'var(--green-d)',border:'rgba(52,211,153,.3)',color:'var(--green)'};
+  if (p >= 0.60) return {bg:'var(--data-d)',border:'rgba(99,102,241,.3)',color:'var(--data)'};
+  if (p >= 0.50) return {bg:'var(--live-d)',border:'rgba(251,191,36,.3)',color:'var(--live)'};
+  return {bg:'var(--s3)',border:'var(--border)',color:'var(--txt3)'};
 }
 
 function _stratLabel(id) {
@@ -1454,7 +1456,7 @@ async function runExecute() {
 
     if (!d.results || !d.results.length) {
       const pct = Math.round((d.buy_threshold || 0) * 100);
-      body.innerHTML = `<div class="empty"><div class="empty-icon" style="background:#FCEBEB;">🔍</div><div class="empty-title">No confirmed trades today</div><div class="empty-sub">Strategies found ${d.symbols_with_signals||0} setups but none cleared the ${pct}% AI threshold in the current ${_regime} market. Try again tomorrow or after new data loads.</div></div>`;
+      body.innerHTML = `<div class="empty"><div class="empty-icon" style="background:var(--red-d);">🔍</div><div class="empty-title">No confirmed trades today</div><div class="empty-sub">Strategies found ${d.symbols_with_signals||0} setups but none cleared the ${pct}% AI threshold in the current ${_regime} market. Try again tomorrow or after new data loads.</div></div>`;
       return;
     }
 
@@ -1471,7 +1473,7 @@ async function runExecute() {
 
       // Quality score ring
       const qs = r.quality_score != null ? r.quality_score : null;
-      const qsColor = qs == null ? '#a0a0a0' : qs >= 75 ? '#3B6D11' : qs >= 50 ? '#854F0B' : '#A32D2D';
+      const qsColor = qs == null ? 'var(--txt3)' : qs >= 75 ? 'var(--green)' : qs >= 50 ? 'var(--live)' : 'var(--red)';
       const qsRing = qs != null ? `
         <div title="Quality Score: ${qs}/100" style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:1px;">
           <div style="position:relative;width:44px;height:44px;">
@@ -1513,7 +1515,7 @@ async function runExecute() {
         `<span class="strat-tag">${_stratLabel(s)}</span>`
       ).join('');
       const multiTag = r.strategy_count > 1
-        ? `<span class="strat-tag" style="background:#EEEDFE;color:#534AB7;border-color:rgba(83,74,183,.3);">⚡ ${r.strategy_count} strategies</span>`
+        ? `<span class="strat-tag" style="background:var(--data-d);color:var(--data);border-color:rgba(99,102,241,.3);">⚡ ${r.strategy_count} strategies</span>`
         : '';
 
       // Multi-horizon badges
@@ -1531,10 +1533,10 @@ async function runExecute() {
 
       // Stability badge
       const stabMap = {
-        HIGH:         {bg:'#EAF3DE',color:'#3B6D11',border:'rgba(59,109,17,.3)',icon:'●'},
-        MEDIUM:       {bg:'#FAEEDA',color:'#854F0B',border:'rgba(133,79,11,.3)',icon:'●'},
-        LOW:          {bg:'#FCEBEB',color:'#A32D2D',border:'rgba(163,45,45,.3)',icon:'●'},
-        INSUFFICIENT: {bg:'#f5f5f4',color:'#a0a0a0',border:'#e5e5e5',icon:'○'},
+        HIGH:         {bg:'var(--green-d)',color:'var(--green)',border:'rgba(52,211,153,.3)',icon:'●'},
+        MEDIUM:       {bg:'var(--live-d)',color:'var(--live)',border:'rgba(251,191,36,.3)',icon:'●'},
+        LOW:          {bg:'var(--red-d)',color:'var(--red)',border:'rgba(248,113,113,.3)',icon:'●'},
+        INSUFFICIENT: {bg:'var(--s3)',color:'var(--txt3)',border:'var(--border)',icon:'○'},
       };
       const stabBadge = r.stability ? (() => {
         const s = stabMap[r.stability] || stabMap.INSUFFICIENT;
@@ -1546,8 +1548,8 @@ async function runExecute() {
       const metaPill = metaDecision ? (() => {
         const isTake = metaDecision === 'TAKE';
         const style = isTake
-          ? 'background:#EAF3DE;color:#3B6D11;border:1px solid rgba(59,109,17,.3);'
-          : 'background:#FCEBEB;color:#A32D2D;border:1px solid rgba(163,45,45,.3);';
+          ? 'background:var(--green-d);color:var(--green);border:1px solid rgba(52,211,153,.3);'
+          : 'background:var(--red-d);color:var(--red);border:1px solid rgba(248,113,113,.3);';
         const prob_meta = r.meta_filter?.take_probability != null
           ? ` ${Math.round(r.meta_filter.take_probability*100)}%` : '';
         return `<span class="meta-pill" style="${style}">${isTake ? '✓ TAKE' : '✗ AVOID'}${prob_meta}</span>`;
@@ -1562,7 +1564,7 @@ async function runExecute() {
         return `
           <div class="ai-expl-wrap">
             <button class="ai-expl-toggle" onclick="(function(el){const b=document.getElementById('${uid}');b.classList.toggle('open');el.querySelector('span.chevron').textContent=b.classList.contains('open')?'▲':'▼';})(this)">
-              <svg width="13" height="13" fill="none" stroke="#534AB7" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+              <svg width="13" height="13" fill="none" stroke="var(--data)" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
               AI Analysis <span class="chevron" style="margin-left:auto;font-size:9px;">▼</span>
             </button>
             <div class="ai-expl-body" id="${uid}">
@@ -1576,20 +1578,20 @@ async function runExecute() {
       })() : '';
 
       const priceLabel = r.price_source === 'live'
-        ? `<span style="color:#3B6D11;font-size:10px;font-weight:500;">●LIVE</span>`
-        : `<span style="color:#a0a0a0;font-size:10px;">(last close)</span>`;
+        ? `<span style="color:var(--green);font-size:10px;font-weight:500;">●LIVE</span>`
+        : `<span style="color:var(--txt3);font-size:10px;">(last close)</span>`;
 
       const expRet = r.expected_return_pct != null
-        ? `<span style="color:#3B6D11;font-size:12px;font-weight:500;">+${r.expected_return_pct}% AI target</span>`
+        ? `<span style="color:var(--green);font-size:12px;font-weight:500;">+${r.expected_return_pct}% AI target</span>`
         : '';
 
       const periodLabels = { '1m':'1M', '3m':'3M', '6m':'6M', '1y':'1Y' };
       const trendTag = (r.trend_return_pct != null && r.trend_period && r.trend_period !== 'any')
-        ? `<span style="font-size:10px;font-weight:500;padding:2px 7px;border-radius:5px;background:#EAF3DE;color:#3B6D11;border:1px solid rgba(59,109,17,.2);">${periodLabels[r.trend_period]||''} trend +${r.trend_return_pct}%</span>`
+        ? `<span style="font-size:10px;font-weight:500;padding:2px 7px;border-radius:5px;background:var(--green-d);color:var(--green);border:1px solid rgba(59,109,17,.2);">${periodLabels[r.trend_period]||''} trend +${r.trend_return_pct}%</span>`
         : '';
 
       const rankBadge = i < 3
-        ? `<span style="font-size:9px;font-weight:500;padding:2px 7px;border-radius:5px;background:#EEEDFE;color:#534AB7;margin-left:6px;">#${i+1}</span>`
+        ? `<span style="font-size:9px;font-weight:500;padding:2px 7px;border-radius:5px;background:var(--data-d);color:var(--data);margin-left:6px;">#${i+1}</span>`
         : '';
 
       return `
@@ -1627,13 +1629,13 @@ async function runExecute() {
               <div class="comb-trade-label">Entry</div>
               <div class="comb-trade-val">${fmt(entry)}</div>
             </div>
-            <div class="comb-trade-cell" style="border:0.5px solid rgba(163,45,45,.2);background:#FCEBEB;">
-              <div class="comb-trade-label" style="color:#A32D2D;">Stop Loss</div>
-              <div class="comb-trade-val" style="color:#A32D2D;">${fmt(sl)}</div>
+            <div class="comb-trade-cell" style="border:0.5px solid rgba(163,45,45,.2);background:var(--red-d);">
+              <div class="comb-trade-label" style="color:var(--red);">Stop Loss</div>
+              <div class="comb-trade-val" style="color:var(--red);">${fmt(sl)}</div>
             </div>
-            <div class="comb-trade-cell" style="border:0.5px solid rgba(59,109,17,.2);background:#EAF3DE;">
-              <div class="comb-trade-label" style="color:#3B6D11;">Target</div>
-              <div class="comb-trade-val" style="color:#3B6D11;">${fmt(tgt)}</div>
+            <div class="comb-trade-cell" style="border:0.5px solid rgba(59,109,17,.2);background:var(--green-d);">
+              <div class="comb-trade-label" style="color:var(--green);">Target</div>
+              <div class="comb-trade-val" style="color:var(--green);">${fmt(tgt)}</div>
             </div>
           </div>
 
@@ -1648,7 +1650,7 @@ async function runExecute() {
           </div>
           <div style="padding:10px 16px 14px;border-top:0.5px solid var(--border);display:flex;align-items:center;gap:8px;">
             <button onclick="openChart('${r.symbol}')"
-              style="padding:9px 14px;font-size:12px;font-weight:500;background:#f5f5f4;color:#444;border:0.5px solid #ddd;border-radius:9px;cursor:pointer;">
+              style="padding:9px 14px;font-size:12px;font-weight:500;background:var(--s3);color:#444;border:0.5px solid #ddd;border-radius:9px;cursor:pointer;">
               Chart ↗
             </button>
           </div>
@@ -1846,13 +1848,13 @@ async function loadRS() {
     const url = idx ? `${API}/api/screener/rs?index=${encodeURIComponent(idx)}` : `${API}/api/screener/rs`;
     const d = await jAuth(url);
     const rows = (d.results || []).slice(0, 50);
-    const gradeColors = { 'A+':'#3B6D11', 'A':'#3B6D11', 'B':'#534AB7', 'C':'#854F0B', 'D':'#A32D2D', '—':'#a0a0a0' };
+    const gradeColors = { 'A+':'var(--green)', 'A':'var(--green)', 'B':'var(--data)', 'C':'var(--live)', 'D':'var(--red)', '—':'var(--txt3)' };
     body.innerHTML = rows.map((r, i) => `
       <div class="scr-row">
         <div>
           <div style="display:flex;align-items:center;gap:6px;">
             <span class="scr-sym">${r.symbol}</span>
-            <span class="scr-badge" style="background:#EEEDFE;color:#534AB7;">${r.sector}</span>
+            <span class="scr-badge" style="background:var(--data-d);color:var(--data);">${r.sector}</span>
           </div>
           <div style="font-size:11px;color:var(--txt3);margin-top:2px;">20D: ${_retSpan(r.return_20d)} &nbsp; 50D: ${_retSpan(r.return_50d)}</div>
         </div>
@@ -1921,7 +1923,7 @@ async function loadVolume() {
           <div style="font-size:11px;color:var(--txt3);margin-top:2px;">${r.sector} &nbsp;·&nbsp; Change: ${_retSpan(r.change_pct)}</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:18px;font-weight:800;color:#854F0B;">${r.vol_ratio}x</div>
+          <div style="font-size:18px;font-weight:800;color:var(--live);">${r.vol_ratio}x</div>
           <div style="font-size:10px;color:var(--txt3);">avg volume</div>
         </div>
       </div>`).join('') || '<div class="empty"><div class="empty-title">No volume spikes today</div><div class="empty-sub">Market may be in low-volume consolidation</div></div>';
@@ -2026,7 +2028,58 @@ async function _pollExecute() {
       _sendBrowserNotification(count, d.top_symbols || [], d.regime || 'Neutral');
     }
     _execPrevCount = count;
+
+    // Populate Home tab picks whenever the poll returns fresh data
+    if (d.top_results && d.top_results.length > 0) {
+      _homePicksCache = d.top_results;
+      renderHomePicks(_homePicksCache);
+    }
   } catch(e) {}
+}
+
+async function _syncHomePicks() {
+  const picks = document.getElementById('hm-picks');
+
+  // First poll — also triggers background refresh if cache is stale
+  let d;
+  try { d = await jAuth(`${API}/api/execute/poll`); } catch(e) { return; }
+
+  if (d.top_results && d.top_results.length > 0) {
+    _homePicksCache = d.top_results;
+    renderHomePicks(_homePicksCache);
+    return;
+  }
+
+  // Cache is empty — show loading state and wait for the background refresh
+  if (picks) {
+    picks.innerHTML = `<div style="padding:32px 20px;text-align:center;">
+      <div class="spin" style="margin:0 auto 10px;width:20px;height:20px;border-width:2px;color:var(--data);"></div>
+      <div style="font-size:12px;color:var(--txt3);">Syncing today's best trades…</div>
+    </div>`;
+  }
+
+  // Retry up to 6× (every 5 s = 30 s total) waiting for refresh to finish
+  for (let i = 0; i < 6; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    try { d = await jAuth(`${API}/api/execute/poll`); } catch(e) { break; }
+
+    if (d.top_results && d.top_results.length > 0) {
+      _homePicksCache = d.top_results;
+      renderHomePicks(_homePicksCache);
+      return;
+    }
+    // Refresh finished but found no trades — stop waiting
+    if (!d.is_refreshing) break;
+  }
+
+  // Restore empty state — nothing came back
+  if (picks && !(_homePicksCache && _homePicksCache.length > 0)) {
+    picks.innerHTML = `<div class="empty" style="padding:28px 20px;">
+      <div class="empty-icon" style="font-size:20px;">⚡</div>
+      <div class="empty-title">No trades found today</div>
+      <div class="empty-sub">Market conditions may not show strong setups right now. Check back after market hours or run a manual scan.</div>
+    </div>`;
+  }
 }
 
 // Request permission on page load (subtle — no UI prompt before interaction)
@@ -2141,7 +2194,7 @@ async function buildPortfolio() {
     card.style.display = 'block';
     body.innerHTML = positions.map((p, i) => {
       const rrColor = !p.rr_ratio ? 'var(--txt3)' : p.rr_ratio >= 2 ? 'var(--green)' : p.rr_ratio >= 1 ? 'var(--live)' : 'var(--red)';
-      const qsColor = !p.quality_score ? 'var(--txt3)' : p.quality_score >= 75 ? '#3B6D11' : p.quality_score >= 50 ? '#854F0B' : '#A32D2D';
+      const qsColor = !p.quality_score ? 'var(--txt3)' : p.quality_score >= 75 ? 'var(--green)' : p.quality_score >= 50 ? 'var(--live)' : 'var(--red)';
       return `
         <div style="padding:13px 16px;border-bottom:1px solid var(--border);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -2203,7 +2256,7 @@ async function adminCreateUser() {
   msgEl.style.display = 'none';
   if (!uname || !email || !pass) {
     msgEl.textContent = 'Username, email and password are required';
-    msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:#FCEBEB;color:#A32D2D;';
+    msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:var(--red-d);color:var(--red);';
     return;
   }
 
@@ -2220,12 +2273,12 @@ async function adminCreateUser() {
     document.getElementById('adm-new-pass').value     = '';
     document.getElementById('adm-new-mobile').value   = '';
     msgEl.textContent = `✓ User "${uname}" created — welcome email sent to ${email}`;
-    msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:#EAF3DE;color:var(--green);';
+    msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:var(--green-d);color:var(--green);';
     await loadAdminUsers();
     await loadAdminStats();
   } catch(e) {
     msgEl.textContent = 'Error: ' + e.message;
-    msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:#FCEBEB;color:#A32D2D;';
+    msgEl.style.cssText = 'font-size:12px;padding:8px;border-radius:8px;text-align:center;display:block;background:var(--red-d);color:var(--red);';
   } finally {
     btn.disabled = false;
     btn.textContent = '+ Create User';
@@ -2247,7 +2300,7 @@ async function loadAdminUsers() {
       const expiry  = u.plan_expiry ? new Date(u.plan_expiry) : null;
       const daysLeft = expiry ? Math.ceil((expiry - today) / 864e5) : null;
       const expired = daysLeft != null && daysLeft <= 0;
-      const subColor = !u.is_active ? 'var(--txt3)' : expired ? '#A32D2D' : 'var(--green)';
+      const subColor = !u.is_active ? 'var(--txt3)' : expired ? 'var(--red)' : 'var(--green)';
       const subLabel = !u.is_active ? 'Inactive' : expired ? `Expired ${-daysLeft}d ago` : `${daysLeft}d left`;
       const planBadge = u.plan_type
         ? `<span style="font-size:9px;padding:2px 7px;border-radius:5px;background:var(--s3);color:var(--txt3);font-weight:700;">${u.plan_type.toUpperCase()}</span>`
@@ -2269,7 +2322,7 @@ async function loadAdminUsers() {
                 <option value="12m">+12M</option>
               </select>
               <button onclick="adminToggleActive(${u.id}, ${!u.is_active})"
-                style="font-size:11px;padding:3px 9px;border-radius:6px;cursor:pointer;background:${u.is_active ? '#FCEBEB' : '#EAF3DE'};color:${u.is_active ? '#A32D2D' : 'var(--green)'};border:1px solid ${u.is_active ? 'rgba(163,45,45,.3)' : 'rgba(59,109,17,.3)'};">
+                style="font-size:11px;padding:3px 9px;border-radius:6px;cursor:pointer;background:${u.is_active ? '#FCEBEB' : '#EAF3DE'};color:${u.is_active ? 'var(--red)' : 'var(--green)'};border:1px solid ${u.is_active ? 'rgba(163,45,45,.3)' : 'rgba(59,109,17,.3)'};">
                 ${u.is_active ? 'Deactivate' : 'Activate'}
               </button>
               <button onclick="adminDeleteUser(${u.id}, '${u.username}')"
@@ -2410,8 +2463,8 @@ function renderHomePicks(results) {
   const picks = document.getElementById('hm-picks');
   if (!results || !results.length) return;
   const top3 = results.slice(0, 3);
-  const rankColors = ['#534AB7', '#3B6D11', '#854F0B'];
-  const rankBgs    = ['#EEEDFE', '#EAF3DE', '#FAEEDA'];
+  const rankColors = ['var(--data)',   'var(--green)',  'var(--live)'];
+  const rankBgs    = ['var(--data-d)', 'var(--green-d)','var(--live-d)'];
   picks.innerHTML = top3.map((r, i) => {
     const prob = Math.round((r.buy_probability || 0) * 100);
     const color = _probColor(r.buy_probability || 0);

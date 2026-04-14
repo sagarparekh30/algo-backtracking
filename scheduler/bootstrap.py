@@ -29,7 +29,10 @@ logger = logging.getLogger(__name__)
 IST = pytz.timezone("Asia/Kolkata")
 
 # ── How many rows count as "has data" ────────────────────────────────────
-MIN_ROWS_THRESHOLD = 50_000   # ~500 rows × 100 symbols = at least 1 year of data
+# 1 800 symbols × 250 trading days/yr × 1 yr ≈ 450 000 rows minimum.
+# If the DB is below this we treat it as a fresh environment and kick off
+# the full NSE-All backfill.
+MIN_ROWS_THRESHOLD = 400_000
 
 
 # ── Shared bootstrap state (read by /api/bootstrap/status) ───────────────
@@ -82,6 +85,10 @@ def _run_bootstrap():
     fetch_result = {}
     try:
         from fetcher.yfinance_fetcher import run_yfinance_backfill
+        from config.nse_indices import fetch_nse_all_symbols
+
+        all_symbols = fetch_nse_all_symbols()
+        logger.info(f"[Bootstrap] NSE symbol list: {len(all_symbols)} symbols")
 
         def _progress(processed, total, symbol, candles):
             state.progress = {
@@ -92,9 +99,13 @@ def _run_bootstrap():
                 "pct":       round(processed / total * 100, 1) if total else 0,
             }
 
-        logger.info("[Bootstrap] Fetching full history from Yahoo Finance (30 years)...")
-        fetch_result = run_yfinance_backfill(progress_cb=_progress)
-        total_inserted = fetch_result.get("total_inserted", fetch_result.get("total_new", 0))
+        logger.info("[Bootstrap] Fetching full 30-year history from Yahoo Finance (NSE All)...")
+        fetch_result = run_yfinance_backfill(
+            symbols=all_symbols,
+            progress_cb=_progress,
+            workers=3,
+        )
+        total_inserted = fetch_result.get("total_new_candles", 0)
         logger.info(f"[Bootstrap] Fetch complete. {total_inserted:,} candles inserted.")
 
     except Exception as e:
@@ -145,9 +156,10 @@ def _run_bootstrap():
         from alerts.telegram_bot import TelegramAlert
         rows_now = _count_db_rows()
         auc_str  = f"{train_result.get('auc_roc', 0) * 100:.1f}%" if train_result.get("auc_roc") else "N/A"
+        syms_fetched = fetch_result.get("total_symbols", 0)
         msg = (
             "✅ *Apex Trading — Bootstrap Complete*\n\n"
-            f"📊 *Data loaded:* {rows_now:,} candles across 100 symbols\n"
+            f"📊 *Data loaded:* {rows_now:,} candles across {syms_fetched} symbols\n"
             f"🤖 *Model trained:* AUC {auc_str}\n"
             f"⏱ *Started:* {state.started_at}\n"
             f"✅ *Completed:* {state.completed_at}\n\n"

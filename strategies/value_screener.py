@@ -444,6 +444,217 @@ def undervalued_scan(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Buy Signal — 4-gate decision engine
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Verdicts (in order of desirability)
+VERDICT_STRONG_BUY   = "STRONG_BUY"
+VERDICT_GOOD_BUY     = "GOOD_BUY"
+VERDICT_AI_CAUTION   = "AI_CAUTION"
+VERDICT_WAIT_ENTRY   = "WAIT_ENTRY"
+VERDICT_WAIT_REGIME  = "WAIT_REGIME"
+VERDICT_VALUE_TRAP   = "VALUE_TRAP"
+VERDICT_AVOID        = "AVOID"
+
+VERDICT_LABELS = {
+    VERDICT_STRONG_BUY:  "Strong Buy",
+    VERDICT_GOOD_BUY:    "Good Buy",
+    VERDICT_AI_CAUTION:  "AI Caution",
+    VERDICT_WAIT_ENTRY:  "Wait — Entry",
+    VERDICT_WAIT_REGIME: "Wait — Bear",
+    VERDICT_VALUE_TRAP:  "Value Trap",
+    VERDICT_AVOID:       "Avoid",
+}
+
+
+def compute_buy_signal(stock: dict, regime: str = "Neutral", ml_prob: float = None) -> dict:
+    """
+    Evaluate a value-screened stock through 4 decision gates and return a buy verdict.
+
+    Args:
+        stock     : One result dict from undervalued_scan() — must contain
+                    value_score, grade, roe, debt_equity, revenue_growth,
+                    rsi, sma200, above_sma200, last_price.
+        regime    : Current market regime — "Bull" | "Neutral" | "Bear"
+        ml_prob   : Optional ML model 5-day probability (0–1). None = skip Gate 4.
+
+    Returns:
+        {
+            "verdict":        VERDICT_* constant,
+            "verdict_label":  Human-readable label,
+            "gates": {
+                "g1_quality":   True | False,
+                "g2_technical": True | False,
+                "g3_regime":    True | False,
+                "g4_ml":        True | False | None,
+            },
+            "gates_passed": int,   # out of applicable gates (3 or 4)
+            "conviction":   int,   # 0–100 summary score
+            "reasons":      list,  # short strings explaining each gate result
+        }
+    """
+    reasons   = []
+    gates     = {}
+
+    score    = stock.get("value_score", 0) or 0
+    roe      = stock.get("roe")
+    de       = stock.get("debt_equity")
+    rev_g    = stock.get("revenue_growth")
+    rsi      = stock.get("rsi")
+    sma200   = stock.get("sma200")
+    price    = stock.get("last_price")
+    above_s  = stock.get("above_sma200")
+
+    # ── Gate 1: Quality filter ─────────────────────────────────────────────
+    g1_fail_reasons = []
+
+    if score < 60:
+        g1_fail_reasons.append(f"Score {score:.0f} below 60 threshold")
+
+    # Value trap check: decent score but poor business quality
+    is_value_trap = False
+    if score >= 60:
+        if roe is not None and roe < 5:
+            g1_fail_reasons.append(f"ROE {roe:.1f}% < 5% — may be a value trap")
+            is_value_trap = True
+        if de is not None and de > 2.0:
+            g1_fail_reasons.append(f"D/E {de:.1f}x > 2.0 — high leverage risk")
+            is_value_trap = True
+        if rev_g is not None and rev_g < -15:
+            g1_fail_reasons.append(f"Revenue declining {rev_g:.1f}% — business shrinking")
+            is_value_trap = True
+
+    if not g1_fail_reasons:
+        # Additional quality nudges (non-blocking but tracked)
+        if roe is not None and roe >= 15:
+            reasons.append(f"✓ ROE {roe:.1f}% — quality business")
+        elif roe is not None and roe >= 10:
+            reasons.append(f"✓ ROE {roe:.1f}% — acceptable quality")
+        elif roe is not None:
+            reasons.append(f"⚠ ROE {roe:.1f}% — borderline quality")
+        if de is not None and de <= 0.5:
+            reasons.append(f"✓ D/E {de:.2f}x — low debt")
+        elif de is not None and de > 1.0:
+            reasons.append(f"⚠ D/E {de:.2f}x — moderate debt")
+        gates["g1_quality"] = True
+    else:
+        reasons.extend([f"✗ {r}" for r in g1_fail_reasons])
+        gates["g1_quality"] = False
+
+    # ── Gate 2: Technical entry ────────────────────────────────────────────
+    g2_fail_reasons = []
+
+    # RSI check — avoid overbought (>70) or extreme capitulation (<22)
+    if rsi is not None:
+        if rsi > 70:
+            g2_fail_reasons.append(f"RSI {rsi:.1f} > 70 — overbought, wait for pullback")
+        elif rsi < 22:
+            g2_fail_reasons.append(f"RSI {rsi:.1f} < 22 — extreme selling, wait for stabilisation")
+        elif rsi <= 45:
+            reasons.append(f"✓ RSI {rsi:.1f} — oversold/neutral, good entry zone")
+        elif rsi <= 60:
+            reasons.append(f"✓ RSI {rsi:.1f} — neutral momentum")
+        else:
+            reasons.append(f"~ RSI {rsi:.1f} — mildly extended but acceptable")
+
+    # SMA200 check — avoid stocks in structural breakdown (>15% below SMA200)
+    if sma200 and price and price > 0:
+        pct_vs_sma = (price / sma200 - 1) * 100
+        if pct_vs_sma < -20:
+            g2_fail_reasons.append(
+                f"Price {pct_vs_sma:.1f}% below SMA200 — structural downtrend"
+            )
+        elif pct_vs_sma < -8:
+            reasons.append(f"~ Price {pct_vs_sma:.1f}% below SMA200 — approaching support")
+        elif above_s:
+            reasons.append(f"✓ Price above SMA200 — uptrend intact")
+        else:
+            reasons.append(f"~ Price near SMA200 — consolidation zone")
+
+    if not g2_fail_reasons:
+        gates["g2_technical"] = True
+    else:
+        reasons.extend([f"✗ {r}" for r in g2_fail_reasons])
+        gates["g2_technical"] = False
+
+    # ── Gate 3: Market regime ──────────────────────────────────────────────
+    if regime == "Bull":
+        gates["g3_regime"] = True
+        reasons.append("✓ Bull market — favourable entry conditions")
+    elif regime == "Neutral":
+        gates["g3_regime"] = True
+        reasons.append("~ Neutral market — selective buys only")
+    else:  # Bear
+        gates["g3_regime"] = False
+        reasons.append("✗ Bear market — avoid new positions, even cheap stocks fall")
+
+    # ── Gate 4: ML model ───────────────────────────────────────────────────
+    if ml_prob is None:
+        gates["g4_ml"] = None   # model not available, gate skipped
+    elif ml_prob >= 0.60:
+        gates["g4_ml"] = True
+        reasons.append(f"✓ ML probability {ml_prob*100:.0f}% ≥ 60% — AI confirms upside")
+    elif ml_prob >= 0.50:
+        gates["g4_ml"] = True   # borderline pass
+        reasons.append(f"~ ML probability {ml_prob*100:.0f}% — AI borderline positive")
+    else:
+        gates["g4_ml"] = False
+        reasons.append(f"✗ ML probability {ml_prob*100:.0f}% < 50% — AI not confident")
+
+    # ── Verdict resolution ─────────────────────────────────────────────────
+    g1 = gates.get("g1_quality",  False)
+    g2 = gates.get("g2_technical", False)
+    g3 = gates.get("g3_regime",    False)
+    g4 = gates.get("g4_ml")   # True | False | None
+
+    applicable = 3 + (0 if g4 is None else 1)
+    passed     = sum([
+        1 if g1 else 0,
+        1 if g2 else 0,
+        1 if g3 else 0,
+        1 if (g4 is True) else 0,
+    ])
+
+    if not g1:
+        verdict = VERDICT_VALUE_TRAP if is_value_trap else VERDICT_AVOID
+    elif not g3:
+        verdict = VERDICT_WAIT_REGIME
+    elif not g2:
+        verdict = VERDICT_WAIT_ENTRY
+    elif g4 is False:
+        verdict = VERDICT_AI_CAUTION
+    else:
+        # g1, g2, g3 all pass; g4 is True or None
+        if g4 is True and ml_prob is not None and ml_prob >= 0.60:
+            verdict = VERDICT_STRONG_BUY
+        elif g4 is None:
+            # No ML — go by score strength
+            verdict = VERDICT_STRONG_BUY if score >= 70 else VERDICT_GOOD_BUY
+        else:
+            verdict = VERDICT_GOOD_BUY   # g4 borderline (50–60%)
+
+    # Conviction score 0–100
+    base = (passed / max(applicable, 1)) * 70
+    # Bonus: score quality
+    score_bonus = min(20, max(0, (score - 60) / 2))
+    # Bonus: ROE quality
+    roe_bonus = min(10, max(0, ((roe or 0) - 10) / 3)) if roe else 0
+    conviction = round(min(100, base + score_bonus + roe_bonus))
+
+    return {
+        "verdict":       verdict,
+        "verdict_label": VERDICT_LABELS[verdict],
+        "gates":         gates,
+        "gates_passed":  passed,
+        "gates_total":   applicable,
+        "conviction":    conviction,
+        "reasons":       reasons,
+        "regime_used":   regime,
+        "ml_prob":       round(ml_prob * 100, 1) if ml_prob is not None else None,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Cache helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
