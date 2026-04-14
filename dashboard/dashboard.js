@@ -374,7 +374,7 @@ function go(id, el) {
   if (id === 'execute')   { loadExecuteRegime(); _updateExecuteBadge(0); _execPrevCount = 0; }
   if (id === 'screener')  { scrGo('sector', document.querySelector('.scr-tab-btn[data-scr="sector"]')); loadSectors(); }
   if (id === 'admin')     { loadAdminStats(); loadAdminUsers(); }
-  if (id === 'ml')        { checkMLStatus(); loadFeedbackStatus(); }
+  if (id === 'ml')        { checkMLStatus(); }
 }
 
 function _showAccessDenied() {
@@ -867,7 +867,6 @@ async function checkMLStatus() {
       loadMLAnalytics();
       loadRegime();
       loadMLDataValidation();
-      loadFeedbackStatus();
     }
   } catch(e) {}
 }
@@ -1142,155 +1141,6 @@ function mlFilter(type) {
       </div>
     </div>`;
   }).join('');
-}
-
-// ══════════════════════════════════════════════════════
-// TRADE FEEDBACK MODEL
-// ══════════════════════════════════════════════════════
-
-async function loadFeedbackStatus() {
-  try {
-    const d = await jAuth(`${API}/api/ml/trade-feedback/status`);
-
-    // Trade counts
-    const ts = d.trade_stats || {};
-    set('fb-count-win',    ts.win    ?? '—');
-    set('fb-count-loss',   (ts.loss || 0) + (ts.stopped || 0));
-    set('fb-count-open',   ts.open   ?? '—');
-    set('fb-count-closed', ts.closed ?? '—');
-
-    const min = ts.min_required || 20;
-    const closed = ts.closed || 0;
-
-    // Training state
-    if (d.is_training) {
-      document.getElementById('fb-status-chip').className = 'chip chip-amber';
-      document.getElementById('fb-status-chip').innerHTML =
-        '<div class="spin" style="color:#854F0B;"></div><span>Training…</span>';
-      document.getElementById('fb-retrain-btn').disabled = true;
-      setTimeout(loadFeedbackStatus, 3000);
-      return;
-    }
-
-    if (d.is_trained) {
-      const m = d.meta || {};
-      document.getElementById('fb-status-chip').className = 'chip chip-green';
-      document.getElementById('fb-status-chip').innerHTML =
-        '<span class="chip-dot" style="background:var(--green)"></span><span>Trained</span>';
-
-      const mr = document.getElementById('fb-metrics-row');
-      mr.style.display = 'grid';
-      set('fb-auc',     m.auc_roc     ? (m.auc_roc * 100).toFixed(1) + '%' : '—');
-      set('fb-acc',     m.accuracy    ? (m.accuracy * 100).toFixed(1) + '%' : '—');
-      set('fb-winrate', m.win_rate_pct ? m.win_rate_pct.toFixed(1) + '%' : '—');
-      set('fb-trades',  m.total_trades ?? '—');
-
-      const info = document.getElementById('fb-train-info');
-      const ts2 = d.last_trained && d.last_trained !== 'Never'
-        ? `Last trained: ${d.last_trained}`
-        : '';
-      info.textContent = ts2 || 'Model ready. Run Pre-Trade Check below.';
-      document.getElementById('fb-retrain-btn').disabled = false;
-      document.getElementById('fb-retrain-label').textContent = 'Re-train Feedback Model';
-    } else {
-      document.getElementById('fb-status-chip').className = 'chip chip-gray';
-      document.getElementById('fb-status-chip').innerHTML =
-        '<span class="chip-dot" style="background:var(--txt3)"></span><span>Not Trained</span>';
-      document.getElementById('fb-metrics-row').style.display = 'none';
-
-      const ready = closed >= min;
-      document.getElementById('fb-train-info').textContent = ready
-        ? `${closed} closed trades available — ready to train!`
-        : `Need ${min - closed} more closed trades (have ${closed}/${min}).`;
-      document.getElementById('fb-retrain-btn').disabled = !ready;
-    }
-  } catch(e) {
-    console.error('loadFeedbackStatus:', e);
-  }
-}
-
-async function retrainFeedback() {
-  const btn = document.getElementById('fb-retrain-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<div class="spin" style="color:#000;"></div> Starting…';
-  try {
-    const r = await jAuth(`${API}/api/ml/trade-feedback/retrain`, { method: 'POST' });
-    if (r.status === 'started') {
-      document.getElementById('fb-status-chip').className = 'chip chip-amber';
-      document.getElementById('fb-status-chip').innerHTML =
-        '<div class="spin" style="color:#854F0B;"></div><span>Training…</span>';
-      setTimeout(loadFeedbackStatus, 3000);
-    }
-  } catch(e) {
-    btn.disabled = false;
-    set('fb-retrain-label', 'Train Feedback Model');
-  }
-}
-
-async function runFeedbackPredict() {
-  const entry  = parseFloat(document.getElementById('fb-entry').value);
-  const sl     = parseFloat(document.getElementById('fb-sl').value);
-  const target = parseFloat(document.getElementById('fb-target').value);
-  const prob   = parseFloat(document.getElementById('fb-prob').value) || 0;
-  const ret    = parseFloat(document.getElementById('fb-ret').value) || 0;
-  const type   = document.getElementById('fb-type').value;
-
-  if (!entry || !sl || !target) {
-    alert('Please fill in Entry, Stop Loss, and Target.');
-    return;
-  }
-
-  try {
-    const d = await jAuth(`${API}/api/ml/trade-feedback/predict`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        entry_price: entry, stop_loss: sl, target, buy_probability: prob,
-        expected_return_pct: ret, trade_type: type, strategy_tags: ''
-      })
-    });
-
-    const box   = document.getElementById('fb-predict-result');
-    const badge = document.getElementById('fb-signal-badge');
-    box.style.display = 'block';
-
-    if (d.feedback_probability === null || d.feedback_probability === undefined) {
-      box.style.background = 'var(--s2)';
-      document.getElementById('fb-pred-prob').textContent = 'N/A';
-      document.getElementById('fb-pred-adj').textContent  = 'Model not trained';
-      badge.textContent = d.feedback_signal || 'unavailable';
-      badge.style.background = 'var(--s3)';
-      badge.style.color = 'var(--txt3)';
-      return;
-    }
-
-    const pct  = Math.round(d.feedback_probability * 100);
-    const sig  = d.feedback_signal;
-    const adj  = d.adjustment;
-
-    const colours = {
-      boost:    { bg: '#EAF3DE',  color: '#3B6D11', label: '🚀 BOOST'    },
-      neutral:  { bg: '#FAEEDA',  color: '#854F0B', label: '⚖ NEUTRAL'  },
-      penalise: { bg: '#FCEBEB',   color: '#A32D2D', label: '⚠ PENALISE' },
-    };
-    const c = colours[sig] || { bg: 'var(--s2)', color: 'var(--txt2)', label: sig };
-
-    box.style.background = c.bg;
-    box.style.borderColor = c.color + '44';
-    badge.textContent = c.label;
-    badge.style.background = c.bg;
-    badge.style.color = c.color;
-
-    document.getElementById('fb-pred-prob').style.color = c.color;
-    document.getElementById('fb-pred-prob').textContent = pct + '%';
-
-    const adjEl = document.getElementById('fb-pred-adj');
-    adjEl.style.color = adj >= 0 ? 'var(--green)' : 'var(--red)';
-    adjEl.textContent = (adj >= 0 ? '+' : '') + adj + ' pts';
-
-  } catch(e) {
-    console.error('runFeedbackPredict:', e);
-  }
 }
 
 // ── Yahoo Finance backfill ─────────────────────────────
@@ -1879,6 +1729,20 @@ async function loadIndexOptions() {
 
     const scrSel = document.getElementById('scr-index-select');
     if (scrSel) scrSel.innerHTML = buildOptions();
+
+    // Undervalued screener — same indices, default to NIFTY 500
+    const uvSel = document.getElementById('uv-index-select');
+    if (uvSel) {
+      let html = '';
+      for (const [cat, items] of Object.entries(groups)) {
+        html += `<optgroup label="${cat}">`;
+        items.forEach(i => {
+          html += `<option value="${i.name}"${i.name === 'NIFTY 500' ? ' selected' : ''}>${i.name} (${i.count})</option>`;
+        });
+        html += '</optgroup>';
+      }
+      uvSel.innerHTML = html;
+    }
 
     // Backfill selector: "All Symbols" means full universe
     const yfSel = document.getElementById('yf-index-select');
@@ -2473,11 +2337,10 @@ let _homePicksCache = null;
 async function loadHome() {
   const hasToken = !!getToken();
   // Fire requests in parallel — protected endpoints only if logged in
-  const [statusRes, regimeRes, mlRes, fbRes] = await Promise.allSettled([
+  const [statusRes, regimeRes, mlRes] = await Promise.allSettled([
     j(`${API}/api/status`),
-    hasToken ? jAuth(`${API}/api/ml/regime`)               : Promise.resolve({}),
-    hasToken ? jAuth(`${API}/api/ml/train/status`)         : Promise.resolve({}),
-    hasToken ? jAuth(`${API}/api/ml/trade-feedback/status`): Promise.resolve({}),
+    hasToken ? jAuth(`${API}/api/ml/regime`)      : Promise.resolve({}),
+    hasToken ? jAuth(`${API}/api/ml/train/status`): Promise.resolve({}),
   ]);
 
   // 1. Status / health data
@@ -2537,18 +2400,7 @@ async function loadHome() {
       : 'Not trained';
   } catch(e) {}
 
-  // 4. Feedback model health (pre-fetched in parallel)
-  try {
-    const fb = fbRes.status === 'fulfilled' ? fbRes.value : {};
-    const fbTrained = fb.is_trained === true;
-    const hFb = document.getElementById('hm-h-feedback');
-    hFb.className = 'health-dot ' + (fbTrained ? 'ok' : (fb.ready_to_train ? 'warn' : 'idle'));
-    document.getElementById('hm-h-feedback-val').textContent = fbTrained
-      ? 'AUC ' + ((fb.meta && fb.meta.auc_roc) ? (fb.meta.auc_roc * 100).toFixed(1) + '%' : '—')
-      : (fb.ready_to_train ? 'Ready to train' : 'Need more trades');
-  } catch(e) {}
-
-  // 5. Show cached top picks if available
+  // 4. Show cached top picks if available
   if (_homePicksCache && _homePicksCache.length > 0) {
     renderHomePicks(_homePicksCache);
   }
@@ -2705,4 +2557,3 @@ _visibleInterval(refreshStatus, 30000);       // was 5s — status is cached 60s
 _visibleInterval(refreshScheduler, 30000);    // was 15s
 _visibleInterval(() => { if (document.getElementById('tab-live').classList.contains('active')) refreshLive(); }, 3000);
 checkMLStatus();
-loadFeedbackStatus();

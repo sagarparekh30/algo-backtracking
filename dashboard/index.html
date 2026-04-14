@@ -1172,13 +1172,6 @@
         </div>
         <div class="health-row">
           <div style="display:flex;align-items:center;gap:8px;">
-            <div class="health-dot" id="hm-h-feedback"></div>
-            <span style="font-size:12px;font-weight:600;">Trade Feedback Model</span>
-          </div>
-          <span style="font-size:11px;color:var(--txt3);" id="hm-h-feedback-val">—</span>
-        </div>
-        <div class="health-row">
-          <div style="display:flex;align-items:center;gap:8px;">
             <div class="health-dot" id="hm-h-fyers"></div>
             <span style="font-size:12px;font-weight:600;">Fyers Connection</span>
           </div>
@@ -2062,143 +2055,6 @@
         </div>
       </div>
 
-      <!-- ───── Trade Feedback Model Card ───── -->
-      <div class="card" style="border-top:1px solid rgba(83,74,183,.25);margin-top:0;">
-        <div class="card-p" style="display:flex;flex-direction:column;gap:12px;">
-
-          <!-- Header row -->
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-            <div>
-              <div style="font-size:13px;font-weight:600;">Trade Outcome Learner
-                <span style="font-size:10px;font-weight:500;color:#854F0B;margin-left:6px;padding:2px 6px;background:rgba(245,158,11,.1);border-radius:5px;">BETA</span>
-              </div>
-              <div style="font-size:11px;color:var(--txt3);margin-top:3px;">Learns from your closed trades to predict future success</div>
-            </div>
-            <div id="fb-status-chip" class="chip chip-gray">
-              <span class="chip-dot" style="background:var(--txt3)"></span>
-              <span id="fb-status-label">Not Trained</span>
-            </div>
-          </div>
-
-          <!-- Trade counts row -->
-          <div id="fb-counts-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center;">
-              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Wins</div>
-              <div id="fb-count-win" class="mono" style="font-size:16px;font-weight:600;color:var(--green);">—</div>
-            </div>
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center;">
-              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Losses</div>
-              <div id="fb-count-loss" class="mono" style="font-size:16px;font-weight:600;color:var(--red);">—</div>
-            </div>
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center;">
-              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Open</div>
-              <div id="fb-count-open" class="mono" style="font-size:16px;font-weight:600;color:#854F0B;">—</div>
-            </div>
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center;">
-              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Closed</div>
-              <div id="fb-count-closed" class="mono" style="font-size:16px;font-weight:600;color:var(--txt2);">—</div>
-            </div>
-          </div>
-
-          <!-- Model metrics (shown when trained) -->
-          <div id="fb-metrics-row" style="display:none;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;">
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
-              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">AUC-ROC</div>
-              <div id="fb-auc" class="mono" style="font-size:16px;font-weight:600;color:#854F0B;">—</div>
-            </div>
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
-              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Accuracy</div>
-              <div id="fb-acc" class="mono" style="font-size:16px;font-weight:600;color:#854F0B;">—</div>
-            </div>
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
-              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Win Rate</div>
-              <div id="fb-winrate" class="mono" style="font-size:16px;font-weight:600;color:#854F0B;">—</div>
-            </div>
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
-              <div style="font-size:9px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Trades</div>
-              <div id="fb-trades" class="mono" style="font-size:16px;font-weight:600;color:#854F0B;">—</div>
-            </div>
-          </div>
-
-          <div id="fb-train-info" style="font-size:11px;color:var(--txt3);padding-left:2px;">
-            Requires ≥20 closed trades in your journal. Learns from your actual R:R, win patterns, and strategy tags.
-          </div>
-
-          <!-- Retrain button (admin only) -->
-          <button class="btn btn-full admin-only" id="fb-retrain-btn" onclick="retrainFeedback()"
-            style="background:linear-gradient(135deg,#534AB7,#3C3489);color:#fff;padding:10px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;">
-            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
-            </svg>
-            <span id="fb-retrain-label">Train Feedback Model</span>
-          </button>
-        </div>
-
-        <!-- Predict widget -->
-        <div class="divider"></div>
-        <div style="padding:13px 16px 8px;">
-          <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">
-            Pre-Trade Check
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
-            <div>
-              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">Entry ₹</div>
-              <input id="fb-entry" type="number" placeholder="e.g. 1500" step="0.01"
-                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;"/>
-            </div>
-            <div>
-              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">Stop Loss ₹</div>
-              <input id="fb-sl" type="number" placeholder="e.g. 1440" step="0.01"
-                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;"/>
-            </div>
-            <div>
-              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">Target ₹</div>
-              <input id="fb-target" type="number" placeholder="e.g. 1620" step="0.01"
-                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;"/>
-            </div>
-            <div>
-              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">ML Probability</div>
-              <input id="fb-prob" type="number" placeholder="e.g. 0.72" step="0.01" min="0" max="1"
-                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;"/>
-            </div>
-            <div>
-              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">Expected Return %</div>
-              <input id="fb-ret" type="number" placeholder="e.g. 4.2" step="0.1"
-                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;"/>
-            </div>
-            <div>
-              <div style="font-size:10px;color:var(--txt3);margin-bottom:4px;">Trade Type</div>
-              <select id="fb-type"
-                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none;">
-                <option value="paper">Paper</option>
-                <option value="live">Live</option>
-              </select>
-            </div>
-          </div>
-          <button onclick="runFeedbackPredict()"
-            style="width:100%;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#854F0B;padding:9px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;">
-            Check Trade Quality
-          </button>
-
-          <!-- Result box -->
-          <div id="fb-predict-result" style="display:none;margin-top:10px;padding:12px 14px;border-radius:10px;border:1px solid var(--border2);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;">Feedback Score</span>
-              <span id="fb-signal-badge" style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;">—</span>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <div>
-                <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">Success Probability</div>
-                <div id="fb-pred-prob" class="mono" style="font-size:20px;font-weight:700;">—%</div>
-              </div>
-              <div>
-                <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">Quality Score Δ</div>
-                <div id="fb-pred-adj" class="mono" style="font-size:20px;font-weight:700;">—</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
     </div>
   </div>
@@ -2357,11 +2213,6 @@
             <!-- Index picker -->
             <select id="uv-index-select" style="flex:1;min-width:120px;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--txt);font-size:12px;">
               <option value="NIFTY 500">NIFTY 500</option>
-              <option value="NIFTY 200">NIFTY 200</option>
-              <option value="NIFTY 100">NIFTY 100</option>
-              <option value="NIFTY 50">NIFTY 50</option>
-              <option value="NIFTY Midcap 100">Midcap 100</option>
-              <option value="NIFTY Smallcap 100">Smallcap 100</option>
             </select>
             <!-- Min score filter -->
             <select id="uv-score-filter" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--txt);font-size:12px;">
@@ -2422,6 +2273,34 @@
             <div class="empty-icon">🔍</div>
             <div class="empty-title">No scan yet</div>
             <div class="empty-sub">Tap "Scan" to find undervalued stocks across NIFTY 500 using fundamental + technical analysis.</div>
+          </div>
+        </div>
+
+        <!-- ── AI Analyst ── -->
+        <div id="uv-ai-wrap" style="margin-top:14px;display:none;">
+          <div class="card card-p">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+              <span style="font-size:18px;">✦</span>
+              <span style="font-size:13px;font-weight:700;color:var(--txt);">APEX AI Analyst</span>
+              <span style="font-size:10px;color:var(--txt3);margin-left:auto;">Rule-based · No API key needed</span>
+            </div>
+            <!-- Question input -->
+            <div style="display:flex;gap:6px;">
+              <input id="uv-ai-question" type="text" placeholder="Ask about these stocks… (or leave blank for auto analysis)"
+                style="flex:1;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--txt);font-size:12px;outline:none;"
+                onkeydown="if(event.key==='Enter')uvAskAI()">
+              <button id="uv-ai-btn" onclick="uvAskAI()"
+                style="padding:8px 16px;background:linear-gradient(135deg,#534AB7,#7c6ef5);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+                Analyse
+              </button>
+            </div>
+            <!-- Streaming response -->
+            <div id="uv-ai-response" style="display:none;margin-top:12px;">
+              <div style="height:1px;background:var(--border);margin-bottom:12px;"></div>
+              <div id="uv-ai-text"
+                style="font-size:13px;line-height:1.7;color:var(--txt);white-space:pre-wrap;font-family:inherit;max-height:600px;overflow-y:auto;">
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2856,6 +2735,10 @@
     }
     statsEl.style.display = 'block';
 
+    // Show AI analyst panel once we have results
+    const aiWrap = document.getElementById('uv-ai-wrap');
+    if (aiWrap) aiWrap.style.display = 'block';
+
     // Sector pills
     uvRenderSectorPills(results);
 
@@ -2964,6 +2847,87 @@
     if (scoreEl) scoreEl.addEventListener('change', () => { if (_uvInitDone) uvLoad(false); });
     if (indexEl) indexEl.addEventListener('change', () => { if (_uvInitDone) uvLoad(false); });
   });
+
+  // ── AI Analyst ────────────────────────────────────────────────────────
+  let _uvAiRunning = false;
+
+  window.uvAskAI = async function () {
+    if (_uvAiRunning) return;
+    _uvAiRunning = true;
+
+    const btn      = document.getElementById('uv-ai-btn');
+    const textEl   = document.getElementById('uv-ai-text');
+    const respWrap = document.getElementById('uv-ai-response');
+    const question = (document.getElementById('uv-ai-question').value || '').trim();
+    const minScore = parseInt(document.getElementById('uv-score-filter').value || '45', 10);
+
+    btn.textContent = 'Thinking…';
+    btn.disabled    = true;
+    respWrap.style.display = 'block';
+    textEl.textContent = '';
+
+    // Helper: convert markdown bold (**text**) and headers (## text) to simple inline styling
+    function renderMarkdown(text) {
+      return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^## (.+)$/gm, '<span style="display:block;margin-top:12px;font-weight:700;font-size:14px;color:var(--txt);">$1</span>')
+        .replace(/^### (.+)$/gm, '<span style="display:block;margin-top:8px;font-weight:600;font-size:13px;color:var(--txt2);">$1</span>')
+        .replace(/^- (.+)$/gm, '<span style="display:block;padding-left:12px;">• $1</span>');
+    }
+
+    try {
+      const token  = localStorage.getItem('apex_token') || '';
+      const resp   = await fetch('/api/screener/undervalued/ai-analysis', {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ question, top_n: 20, min_score: minScore }),
+      });
+
+      if (!resp.ok) {
+        textEl.innerHTML = `<span style="color:var(--red);">Error ${resp.status}: ${await resp.text()}</span>`;
+        return;
+      }
+
+      const reader  = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let   buffer  = '';
+      let   htmlBuf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep incomplete line
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') {
+            btn.textContent = 'Analyse';
+            btn.disabled    = false;
+            _uvAiRunning    = false;
+            return;
+          }
+          // Unescape newlines that were escaped server-side
+          const chunk = data.replace(/\\n/g, '\n');
+          htmlBuf    += chunk;
+          textEl.innerHTML = renderMarkdown(htmlBuf);
+          textEl.scrollTop = textEl.scrollHeight;
+        }
+      }
+    } catch (err) {
+      textEl.innerHTML = `<span style="color:var(--red);">Connection error: ${err.message}</span>`;
+    } finally {
+      btn.textContent = 'Analyse';
+      btn.disabled    = false;
+      _uvAiRunning    = false;
+    }
+  };
 
 })();
 </script>

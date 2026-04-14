@@ -62,6 +62,7 @@ from typing import Optional, Dict
 from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -223,7 +224,10 @@ async def shutdown_event():
     from scheduler.auto_scheduler import stop_scheduler
     stop_scheduler()
 
-# Enable CORS for local development
+# Gzip compression — compresses responses > 1KB (HTML/JS/JSON)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -1612,125 +1616,6 @@ async def ml_reliability(_: dict = Depends(require_user)):
         return {"error": str(e)}
 
 
-# -------------------------------------------------------
-# Trade Feedback Model endpoints
-# -------------------------------------------------------
-
-from ml.trade_feedback_model import get_feedback_model, reload_feedback_model
-
-
-class TradeFeedbackTrainState:
-    is_training = False
-    last_trained = "Never"
-    last_result: dict = {}
-
-
-_fb_train_state = TradeFeedbackTrainState()
-
-
-async def _run_feedback_training():
-    """Background task: train the trade feedback model."""
-    _fb_train_state.is_training = True
-    steps = []
-
-    def _progress(step: str):
-        steps.append(step)
-
-    try:
-        from ml.trade_feedback_model import TradeFeedbackModel
-        m = TradeFeedbackModel()
-        result = m.train(progress_cb=_progress)
-        _fb_train_state.last_result = result
-        _fb_train_state.last_trained = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if "error" not in result:
-            reload_feedback_model()
-    except Exception as e:
-        _fb_train_state.last_result = {"error": str(e)}
-    finally:
-        _fb_train_state.is_training = False
-
-
-@app.post("/api/ml/trade-feedback/retrain")
-async def feedback_retrain(
-    background_tasks: BackgroundTasks,
-    _: str = Depends(require_admin),
-):
-    """Retrain the trade feedback model from closed journal trades. Admin only."""
-    if _fb_train_state.is_training:
-        return {"message": "Training already in progress", "status": "busy"}
-    background_tasks.add_task(_run_feedback_training)
-    return {"message": "Trade feedback training started", "status": "started"}
-
-
-@app.get("/api/ml/trade-feedback/status")
-async def feedback_status(_: dict = Depends(require_user)):
-    """Return trade feedback model status, metrics, and trade counts."""
-    model = get_feedback_model()
-    stats = model.get_trade_stats()
-    return {
-        "is_training":   _fb_train_state.is_training,
-        "is_trained":    model.is_trained(),
-        "last_trained":  _fb_train_state.last_trained,
-        "last_result":   _fb_train_state.last_result,
-        "meta":          model.get_meta(),
-        "trade_stats":   stats,
-    }
-
-
-class FeedbackPredictRequest(BaseModel):
-    entry_price:          float
-    stop_loss:            float
-    target:               float
-    buy_probability:      float = 0.0
-    expected_return_pct:  float = 0.0
-    strategy_tags:        str   = ""
-    trade_type:           str   = "paper"
-    # ── Optional context — pass for higher-fidelity prediction ──────────
-    # Either supply the raw feature_snapshot dict (preferred), or pass
-    # individual market-context fields.  All default to neutral values.
-    snapshot:             Optional[dict] = None
-    regime:               str   = "Neutral"
-    atr_norm:             Optional[float] = None
-    bb_position:          Optional[float] = None
-    vol_ratio:            Optional[float] = None
-    sector_score:         Optional[float] = None
-    trend_score:          Optional[float] = None
-    gap_pct:              Optional[float] = None
-    quality_score:        Optional[int]   = None
-
-
-@app.post("/api/ml/trade-feedback/predict")
-async def feedback_predict(body: FeedbackPredictRequest):
-    """
-    Predict trade success probability using the feedback model (15 features).
-
-    For best accuracy pass either:
-      • snapshot  — the full feature_snapshot dict stored at trade creation, OR
-      • individual context fields (regime, atr_norm, bb_position, vol_ratio, …)
-
-    Without context fields the prediction falls back to neutral defaults for the
-    7 contextual features and uses only the 8 core trade-parameter features.
-    """
-    model = get_feedback_model()
-    result = model.predict(
-        entry_price=body.entry_price,
-        stop_loss=body.stop_loss,
-        target=body.target,
-        buy_probability=body.buy_probability,
-        expected_return_pct=body.expected_return_pct,
-        strategy_tags=body.strategy_tags,
-        trade_type=body.trade_type,
-        snapshot=body.snapshot,
-        regime=body.regime,
-        atr_norm=body.atr_norm,
-        bb_position=body.bb_position,
-        vol_ratio=body.vol_ratio,
-        sector_score=body.sector_score,
-        trend_score=body.trend_score,
-        gap_pct=body.gap_pct,
-        quality_score=body.quality_score,
-    )
-    return result
 
 
 # -------------------------------------------------------
@@ -2243,6 +2128,74 @@ async def screener_undervalued_status(_r: dict = Depends(require_user)):
         "error":           value_scan_state.error,
         "cache":           get_cache_info(),
     }
+
+
+# -------------------------------------------------------
+# AI Analyst — undervalued stock analysis
+# -------------------------------------------------------
+
+from fastapi.responses import StreamingResponse as _StreamingResponse
+
+
+class AIAnalystRequest(BaseModel):
+    question: str = ""
+    top_n:    int = 20
+    min_score: int = 45
+
+
+@app.post("/api/screener/undervalued/ai-analysis")
+async def screener_ai_analysis(
+    body: AIAnalystRequest,
+    _r: dict = Depends(require_user),
+):
+    """
+    Stream Claude's analysis of the current top undervalued stocks.
+
+    Body:
+      question  (str)  – optional natural language question
+      top_n     (int)  – how many top stocks to pass to Claude (default 20)
+      min_score (int)  – minimum value_score filter before passing to Claude
+
+    Returns a text/event-stream of markdown-formatted analysis chunks.
+    """
+    from strategies.value_screener import _load_cache, CACHE_FILE
+    from ml.ai_analyst import stream_ai_analysis
+
+    # Try fresh cache first; fall back to any existing cache file regardless of TTL
+    cache = _load_cache()
+    if cache is None and os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE) as _f:
+                cache = json.load(_f)
+        except Exception:
+            cache = {}
+    cache  = cache or {}
+    stocks = cache.get("results", [])
+
+    # Apply min_score filter
+    if body.min_score > 0:
+        stocks = [s for s in stocks if s.get("value_score", 0) >= body.min_score]
+
+    def generate():
+        for chunk in stream_ai_analysis(
+            stocks=stocks,
+            user_question=body.question,
+            top_n=body.top_n,
+        ):
+            # SSE format: data: <chunk>\n\n
+            # Escape newlines so each SSE message is a single line
+            escaped = chunk.replace("\n", "\\n")
+            yield f"data: {escaped}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return _StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # -------------------------------------------------------
@@ -2915,7 +2868,10 @@ async def auth_logout(
 @app.get("/")
 async def get_index():
     from fastapi.responses import FileResponse
-    return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
+    return FileResponse(
+        os.path.join(os.path.dirname(__file__), "index.html"),
+        headers={"Cache-Control": "no-cache"},   # always revalidate HTML
+    )
 
 
 if __name__ == "__main__":

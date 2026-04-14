@@ -17,6 +17,17 @@
 
 services:
 
+  # ── Nginx reverse proxy ──────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+
   # ── PostgreSQL ───────────────────────────────────────────────
   db:
     image: postgres:16-alpine
@@ -42,8 +53,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    # Port not exposed directly — all traffic goes through nginx
     env_file:
       - .env                 # your secrets (FYERS_CLIENT_ID, etc.)
     environment:
