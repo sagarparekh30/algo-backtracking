@@ -2107,6 +2107,164 @@ async def yfinance_status(_: dict = Depends(require_user)):
     }
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Stock Metadata endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+class _MetaState:
+    is_running   = False
+    phase        = ""
+    processed    = 0
+    total        = 0
+    current_sym  = ""
+    last_result  = None
+
+_meta_state = _MetaState()
+
+
+async def _run_metadata_task(enrich_yf: bool):
+    _meta_state.is_running  = True
+    _meta_state.phase       = "starting"
+    _meta_state.processed   = 0
+    _meta_state.total       = 0
+    _meta_state.current_sym = ""
+
+    def _cb(phase, done, total, sym):
+        _meta_state.phase       = phase
+        _meta_state.processed   = done
+        _meta_state.total       = total
+        _meta_state.current_sym = sym
+
+    try:
+        from fetcher.stock_metadata_fetcher import run_metadata_sync
+        result = run_metadata_sync(enrich_yf=enrich_yf, workers=4, progress_cb=_cb)
+        _meta_state.last_result = result
+        _meta_state.current_sym = "Done"
+    except Exception as e:
+        logger.error(f"Metadata sync error: {e}")
+        _meta_state.last_result = {"error": str(e)}
+        _meta_state.current_sym = "Error"
+    finally:
+        _meta_state.is_running = False
+
+
+@app.post("/api/stock/metadata/sync")
+async def metadata_sync(
+    background_tasks: BackgroundTasks,
+    enrich_yf: bool = True,
+    _: dict = Depends(require_admin),
+):
+    """
+    Phase 1 (~5 s): NSE CSV + index membership for all ~2100 EQ stocks.
+    Phase 2 (~15 min, only if enrich_yf=true): yfinance sector/industry for
+    symbols still missing a sector after Phase 1.
+    """
+    if _meta_state.is_running:
+        return {"status": "busy", "message": "Metadata sync already running"}
+    background_tasks.add_task(_run_metadata_task, enrich_yf)
+    return {"status": "started", "message": "Metadata sync started in background"}
+
+
+@app.get("/api/stock/metadata/status")
+async def metadata_status(_: dict = Depends(require_user)):
+    pct = round(_meta_state.processed / _meta_state.total * 100, 1) if _meta_state.total else 0
+    return {
+        "is_running":   _meta_state.is_running,
+        "phase":        _meta_state.phase,
+        "processed":    _meta_state.processed,
+        "total":        _meta_state.total,
+        "pct":          pct,
+        "current_sym":  _meta_state.current_sym,
+        "last_result":  _meta_state.last_result,
+    }
+
+
+@app.get("/api/stock/metadata/sectors")
+async def metadata_sectors(_: dict = Depends(require_user)):
+    """Return list of all distinct sectors in the metadata table."""
+    try:
+        from fetcher.stock_metadata_fetcher import get_sectors
+        return {"sectors": get_sectors()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/stock/metadata/indices")
+async def metadata_indices(_: dict = Depends(require_user)):
+    """Return list of all distinct index names stored in the metadata table."""
+    try:
+        from fetcher.stock_metadata_fetcher import get_indices_list
+        return {"indices": get_indices_list()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/stock/metadata/{symbol}")
+async def metadata_one(symbol: str, _: dict = Depends(require_user)):
+    """Return full metadata record for one symbol."""
+    try:
+        from fetcher.stock_metadata_fetcher import get_symbol_metadata
+        data = get_symbol_metadata(symbol.upper())
+        if not data:
+            raise HTTPException(status_code=404, detail=f"{symbol} not found in metadata")
+        # Convert psycopg2 arrays to plain lists
+        if isinstance(data.get("indices"), list):
+            data["indices"] = list(data["indices"])
+        if data.get("updated_at"):
+            data["updated_at"] = str(data["updated_at"])
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/stock/search")
+async def stock_search(
+    q: str = "",
+    sector: str = "",
+    index: str = "",
+    limit: int = 50,
+    _: dict = Depends(require_user),
+):
+    """
+    Search/filter stocks from metadata.
+    ?q=REL  — symbol/name prefix search
+    ?sector=IT  — filter by sector
+    ?index=NIFTY+50  — filter by index membership
+    """
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            conditions = ["is_active = TRUE"]
+            params: list = []
+            if q:
+                conditions.append("(symbol ILIKE %s OR company_name ILIKE %s)")
+                params += [f"{q}%", f"%{q}%"]
+            if sector:
+                conditions.append("sector = %s")
+                params.append(sector)
+            if index:
+                conditions.append("%s = ANY(indices)")
+                params.append(index)
+            where = " AND ".join(conditions)
+            cur.execute(
+                f"""SELECT symbol, company_name, sector, market_cap_cat, indices
+                    FROM stock_metadata WHERE {where}
+                    ORDER BY symbol LIMIT %s""",
+                params + [limit],
+            )
+            cols = ["symbol", "company_name", "sector", "market_cap_cat", "indices"]
+            results = [dict(zip(cols, row)) for row in cur.fetchall()]
+            for r in results:
+                if isinstance(r.get("indices"), list):
+                    r["indices"] = list(r["indices"])
+        conn.close()
+        return {"results": results, "count": len(results)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/db/sources")
 async def db_sources(_: dict = Depends(require_user)):
     """Return row counts grouped by data source. Cached 5 min (full table scan)."""

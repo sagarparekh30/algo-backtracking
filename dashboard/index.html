@@ -338,6 +338,40 @@
       font-size: 9px; font-weight: 500; padding: 2px 7px;
       border-radius: 99px; margin-left: 6px;
     }
+    /* ── Screener Card Layout ── */
+    .scr-card {
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px;
+      display: flex; flex-direction: column;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .scr-card:hover { transform: translateY(-1px); }
+    .scr-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 10px; padding: 12px;
+    }
+    @media (max-width: 460px) { .scr-grid { grid-template-columns: 1fr; } }
+    .scr-filter-bar {
+      display: flex; gap: 8px; padding: 10px 12px;
+      background: var(--s1); border-bottom: 1px solid var(--border);
+      overflow-x: auto; align-items: center;
+    }
+    .scr-filter-bar::-webkit-scrollbar { display: none; }
+    .scr-filter-sel {
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 10px; color: var(--txt2);
+      font-size: 11px; font-weight: 500; cursor: pointer; flex-shrink: 0;
+      outline: none;
+    }
+    .scr-filter-sel:focus { border-color: var(--accent); }
+    .scr-action-btn {
+      flex: 1; padding: 6px 0; background: var(--s3);
+      border: 1px solid transparent; border-radius: 7px;
+      color: var(--txt2); font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: background .15s, color .15s;
+    }
+    .scr-action-btn:hover { background: var(--s2); }
+    .active-pill { background: var(--sig-d) !important; color: var(--sig) !important; border-color: rgba(52,211,153,.3) !important; }
     .sector-tile {
       padding: 14px; border-radius: 12px; margin-bottom: 8px;
       background: var(--s2); border: 1px solid var(--border);
@@ -1602,6 +1636,67 @@
         </div>
       </div>
 
+      <!-- Stock Metadata card -->
+      <div class="card" style="border-top:1px solid rgba(0,230,118,.25);">
+        <div class="card-p" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <div>
+              <div style="font-size:13px;font-weight:600;">Stock Metadata</div>
+              <div style="font-size:11px;color:var(--txt3);margin-top:3px;">Sector · Index membership · Company name · ISIN for all NSE stocks</div>
+            </div>
+            <div id="meta-chip" class="chip chip-gray" style="flex-shrink:0;">
+              <span class="chip-dot" style="background:var(--txt3)"></span>
+              <span id="meta-chip-label">Idle</span>
+            </div>
+          </div>
+
+          <div id="meta-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;display:none;">
+            <div style="text-align:center;background:var(--s2);border-radius:8px;padding:8px;">
+              <div style="font-size:16px;font-weight:800;color:#00e676;" id="meta-total">—</div>
+              <div style="font-size:9px;color:var(--txt3);">SYMBOLS</div>
+            </div>
+            <div style="text-align:center;background:var(--s2);border-radius:8px;padding:8px;">
+              <div style="font-size:16px;font-weight:800;color:var(--data);" id="meta-sectors">—</div>
+              <div style="font-size:9px;color:var(--txt3);">SECTORS</div>
+            </div>
+            <div style="text-align:center;background:var(--s2);border-radius:8px;padding:8px;">
+              <div style="font-size:16px;font-weight:800;color:var(--live);" id="meta-indices">—</div>
+              <div style="font-size:9px;color:var(--txt3);">INDICES</div>
+            </div>
+          </div>
+
+          <!-- Progress bar -->
+          <div id="meta-progress-wrap" style="display:none;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:12px;font-weight:500;" id="meta-phase">Starting…</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:#00e676;" id="meta-pct">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="meta-bar" style="width:0%;background:#00e676;"></div>
+            </div>
+            <div style="font-size:11px;color:var(--txt3);margin-top:6px;">
+              <span id="meta-proc">0</span>/<span id="meta-tot">0</span> symbols · <span id="meta-sym" style="font-family:'JetBrains Mono',monospace;">—</span>
+            </div>
+          </div>
+
+          <div style="background:rgba(0,230,118,.06);border:1px solid rgba(0,230,118,.15);border-radius:8px;padding:9px 12px;font-size:11px;color:var(--txt2);line-height:1.6;">
+            <strong style="color:#00e676;">Phase 1</strong> (~5 sec): downloads NSE EQUITY_L.csv, assigns index membership and sector for all ~2100 stocks instantly.<br>
+            <strong style="color:var(--live);">Phase 2</strong> (~15 min): enriches remaining stocks with sector/industry from Yahoo Finance.
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-full" id="meta-btn" onclick="startMetaSync(true)"
+              style="background:rgba(0,230,118,.1);color:#00e676;border:1px solid rgba(0,230,118,.3);padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;">
+              🗄 Sync All Metadata (Full)
+            </button>
+            <button onclick="startMetaSync(false)"
+              style="padding:11px 14px;background:var(--s2);border:1px solid var(--border);border-radius:12px;font-size:12px;font-weight:600;color:var(--txt2);cursor:pointer;white-space:nowrap;">
+              Fast Only
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Auto-Scheduler card -->
       <div class="card card-accent-data">
         <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
@@ -2595,12 +2690,13 @@
 
       <!-- ── Relative Strength ── -->
       <div id="scr-rs" class="scr-panel" style="display:none;">
-        <div class="card">
-          <div style="padding:13px 16px 10px;">
+        <div class="card" style="overflow:hidden;">
+          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Relative Strength Leaders</span>
+            <span id="scr-rs-count" style="font-size:11px;color:var(--txt3);"></span>
           </div>
           <div class="divider"></div>
-          <div id="scr-rs-body" style="padding:8px 0;">
+          <div id="scr-rs-body">
             <div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Loading…</div></div>
           </div>
         </div>
@@ -2608,12 +2704,13 @@
 
       <!-- ── 52W High ── -->
       <div id="scr-52w" class="scr-panel" style="display:none;">
-        <div class="card">
-          <div style="padding:13px 16px 10px;">
+        <div class="card" style="overflow:hidden;">
+          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">52-Week High Breakouts</span>
+            <span id="scr-52w-count" style="font-size:11px;color:var(--txt3);"></span>
           </div>
           <div class="divider"></div>
-          <div id="scr-52w-body" style="padding:8px 0;">
+          <div id="scr-52w-body">
             <div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Loading…</div></div>
           </div>
         </div>
@@ -2621,12 +2718,13 @@
 
       <!-- ── Volume Spikes ── -->
       <div id="scr-volume" class="scr-panel" style="display:none;">
-        <div class="card">
-          <div style="padding:13px 16px 10px;">
+        <div class="card" style="overflow:hidden;">
+          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Volume Spikes (2x+ avg)</span>
+            <span id="scr-vol-count" style="font-size:11px;color:var(--txt3);"></span>
           </div>
           <div class="divider"></div>
-          <div id="scr-volume-body" style="padding:8px 0;">
+          <div id="scr-volume-body">
             <div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Loading…</div></div>
           </div>
         </div>
@@ -2714,13 +2812,14 @@
 
       <!-- ── Earnings Risk ── -->
       <div id="scr-earnings" class="scr-panel" style="display:none;">
-        <div class="card">
-          <div style="padding:13px 16px 10px;">
+        <div class="card" style="overflow:hidden;">
+          <div style="padding:13px 16px 10px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;">Upcoming Earnings (21 days)</span>
+            <span id="scr-earn-count" style="font-size:11px;color:var(--txt3);"></span>
           </div>
-          <div style="padding:8px 16px 0;font-size:11px;color:var(--txt3);">⚠️ Avoid holding swing trades through earnings — gap risk can wipe out a setup.</div>
-          <div class="divider" style="margin-top:10px;"></div>
-          <div id="scr-earnings-body" style="padding:8px 0;">
+          <div style="padding:6px 16px 8px;font-size:11px;color:var(--txt3);">⚠️ Avoid holding swing trades through earnings — gap risk can wipe out a setup.</div>
+          <div class="divider"></div>
+          <div id="scr-earnings-body">
             <div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Loading earnings dates…</div><div class="empty-sub">Takes ~30 seconds — fetches from Yahoo Finance</div></div>
           </div>
         </div>

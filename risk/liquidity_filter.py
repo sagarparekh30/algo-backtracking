@@ -41,7 +41,9 @@ logger = logging.getLogger(__name__)
 # ── Defaults ──────────────────────────────────────────────────────────────────
 
 DEFAULT_MIN_ADV_CR      = 5.0    # minimum ₹ Crore average daily turnover
-DEFAULT_MAX_SPREAD_PCT  = 0.5    # max estimated bid-ask spread as % of price
+DEFAULT_MAX_SPREAD_PCT  = 5.0    # max 20-day avg daily range as % of close
+                                 # NSE large-caps: ~1-2%, mid-caps: 2-4%
+                                 # >5% daily range = genuinely illiquid/manipulated
 DEFAULT_MAX_PROMOTER    = 75.0   # skip if promoter holding > this %
 ADV_WINDOW              = 20     # trading days for ADV calculation
 
@@ -163,15 +165,17 @@ def compute_liquidity(
     base["adv_shares"] = adv_shares
     base["adv_inr_cr"] = adv_inr_cr
 
-    # ── 2. Spread proxy (High–Low range as % of close) ────────────────────
+    # ── 2. Spread proxy: 20-day average daily range as % of close ─────────
+    # A single day's H-L is too noisy (news spikes). Use the 20-day average
+    # so only genuinely volatile/illiquid stocks (>5% avg swing) are flagged.
+    # NSE large-caps typically average 1-2%; mid-caps 2-4%.
     try:
-        px = close_price if close_price > 0 else float(df["close"].iloc[-1])
-        if px > 0:
-            last_high  = float(df["high"].iloc[-1])
-            last_low   = float(df["low"].iloc[-1])
-            spread_pct = round((last_high - last_low) / px * 100, 4) if px > 0 else 0.0
-        else:
-            spread_pct = 0.0
+        avg_range_pct = float(
+            ((window["high"].astype(float) - window["low"].astype(float))
+             / window["close"].astype(float).replace(0, float("nan")))
+            .mean() * 100
+        )
+        spread_pct = round(avg_range_pct, 4) if not __import__("math").isnan(avg_range_pct) else 0.0
     except Exception:
         spread_pct = 0.0
 

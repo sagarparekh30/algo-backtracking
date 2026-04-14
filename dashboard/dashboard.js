@@ -1329,6 +1329,70 @@ async function pollYFinance() {
   } catch(e) {}
 }
 
+// ── Stock Metadata sync ───────────────────────────────────────────────────────
+let _metaPoller = null;
+
+async function startMetaSync(enrichYf) {
+  const btn = document.getElementById('meta-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+  try {
+    const r = await jAuth(
+      `${API}/api/stock/metadata/sync?enrich_yf=${enrichYf}`,
+      { method: 'POST' }
+    );
+    if (r.status === 'busy') {
+      _toast('Metadata sync already running', 'info');
+      if (btn) btn.disabled = false;
+      return;
+    }
+    document.getElementById('meta-progress-wrap').style.display = 'block';
+    const chip = document.getElementById('meta-chip');
+    if (chip) chip.innerHTML = '<span class="chip-dot" style="background:#00e676"></span><span id="meta-chip-label">Running</span>';
+    _metaPoller = setInterval(_pollMeta, 2000);
+  } catch(e) {
+    _toast('Metadata sync error: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🗄 Sync All Metadata (Full)'; }
+  }
+}
+
+async function _pollMeta() {
+  try {
+    const d = await jAuth(`${API}/api/stock/metadata/status`);
+    const pct = d.pct || 0;
+    const phase = d.phase === 'yfinance' ? 'Phase 2: yfinance enrichment' : 'Phase 1: NSE CSV';
+    const sym = d.current_sym || '—';
+
+    const el = (id) => document.getElementById(id);
+    if (el('meta-pct'))   el('meta-pct').textContent = pct + '%';
+    if (el('meta-bar'))   el('meta-bar').style.width = pct + '%';
+    if (el('meta-phase')) el('meta-phase').textContent = phase;
+    if (el('meta-proc'))  el('meta-proc').textContent = d.processed || 0;
+    if (el('meta-tot'))   el('meta-tot').textContent = d.total || 0;
+    if (el('meta-sym'))   el('meta-sym').textContent = sym;
+
+    if (!d.is_running) {
+      clearInterval(_metaPoller);
+      const btn = document.getElementById('meta-btn');
+      if (btn) { btn.disabled = false; btn.textContent = '🗄 Sync All Metadata (Full)'; }
+      const chip = document.getElementById('meta-chip');
+      if (chip) chip.innerHTML = '<span class="chip-dot" style="background:#00e676"></span><span>Done</span>';
+      // Show final stats
+      if (d.last_result) {
+        const r = d.last_result;
+        const statsEl = document.getElementById('meta-stats');
+        if (statsEl) {
+          statsEl.style.display = 'grid';
+          const el2 = (id) => document.getElementById(id);
+          if (el2('meta-total'))   el2('meta-total').textContent = r.phase1_total || '—';
+          if (el2('meta-sectors')) el2('meta-sectors').textContent = '18';
+          if (el2('meta-indices')) el2('meta-indices').textContent = '17';
+        }
+      }
+      _toast('Metadata sync complete', 'success');
+    }
+  } catch(e) {}
+}
+
 async function loadDbSources() {
   try {
     const rows = await jAuth(`${API}/api/db/sources`);
@@ -2132,131 +2196,524 @@ function _retSpan(v) {
   return `<span style="color:${color};font-weight:700;">${v >= 0 ? '+' : ''}${v}%</span>`;
 }
 
-// ── Relative Strength ────────────────────────────────────
+// ══════════════════════════════════════════════════════
+// ── Screener Card System ───────────────────────────────
+
+let _scrCards = {};          // cached raw data per panel type
+let _sparkUID = 0;
+let _scrWatchlist = JSON.parse(localStorage.getItem('apex_watchlist') || '[]');
+
+// ── Sparkline SVG (2-anchor bezier from 50D→20D returns) ──
+function _sparklineSVG(ret20, ret50, w, h) {
+  w = w || 80; h = h || 32;
+  const r20 = ret20 || 0, r50 = ret50 || 0;
+  const range = Math.max(Math.abs(r50), Math.abs(r20), 4) * 1.3;
+  const toY = v => h / 2 - (v / range) * (h / 2 - 3);
+  const pts = [
+    [0,      toY(r50 * 0.8)],
+    [w * .4, toY((r50 + r20) / 2)],
+    [w * .7, toY(r20 * 0.9)],
+    [w,      toY(r20)],
+  ];
+  const color = r20 >= 0 ? '#00e676' : '#ff5252';
+  const lineD = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('');
+  const areaD = lineD + ` L${w},${h} L0,${h}Z`;
+  const uid = 'sp' + (++_sparkUID);
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;flex-shrink:0;overflow:visible;">
+    <defs><linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity=".3"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${areaD}" fill="url(#${uid})"/>
+    <path d="${lineD}" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+// ── AI explanation tags ────────────────────────────────────
+function _scrTags(r, type) {
+  const tags = [];
+  if (type === 'rs') {
+    if (r.rs_grade === 'A+') tags.push(['Outperformer', '#00e676']);
+    else if (r.rs_grade === 'A') tags.push(['Momentum', '#10b981']);
+    if ((r.return_20d || 0) > 8) tags.push(['Strong Trend', '#00e676']);
+    if ((r.return_50d || 0) > 15) tags.push(['Sector Leader', '#818cf8']);
+    if (r.rs_grade === 'B' && (r.return_20d || 0) > 0) tags.push(['Building RS', '#f59e0b']);
+    if ((r.return_20d || 0) < -5) tags.push(['Underperformer', '#ef4444']);
+    if (!tags.length) tags.push(['Neutral', 'var(--txt3)']);
+  } else if (type === '52w') {
+    if (r.is_breakout) tags.push(['Breakout', '#00e676']);
+    if ((r.pct_from_high || 0) >= -1) tags.push(['Near ATH', '#00e676']);
+    else if ((r.pct_from_high || 0) >= -5) tags.push(['Strong', '#10b981']);
+    if ((r.vol_ratio || 0) > 2) tags.push(['Volume Surge', '#f59e0b']);
+    if (!tags.length) tags.push(['Near High', 'var(--txt3)']);
+  } else if (type === 'volume') {
+    if (r.signal === 'Accumulation') tags.push(['Accumulation', '#00e676']);
+    if (r.signal === 'Distribution') tags.push(['Distribution', '#ef4444']);
+    if ((r.vol_ratio || 0) > 3) tags.push(['Heavy Volume', '#f59e0b']);
+    if ((r.change_pct || 0) > 2) tags.push(['Bullish', '#10b981']);
+    if ((r.change_pct || 0) < -2) tags.push(['Bearish', '#ef4444']);
+    if (!tags.length) tags.push(['Neutral', 'var(--txt3)']);
+  } else if (type === 'earnings') {
+    if (r.risk_level === 'High') tags.push(['Avoid Now', '#ef4444']);
+    if ((r.days_away || 99) <= 3) tags.push(['Imminent', '#ef4444']);
+    else if ((r.days_away || 99) <= 7) tags.push(['This Week', '#f59e0b']);
+    if (!tags.length) tags.push(['Monitor', 'var(--txt3)']);
+  }
+  return tags.slice(0, 3).map(([t, c]) =>
+    `<span style="font-size:9px;padding:2px 7px;border-radius:20px;background:${c}22;color:${c};font-weight:600;white-space:nowrap;">${t}</span>`
+  ).join('');
+}
+
+// ── Summary stats strip ────────────────────────────────────
+function _scrStats(rows, type) {
+  if (!rows.length) return '';
+  if (type === 'rs') {
+    const aPlus = rows.filter(r => r.rs_grade === 'A+').length;
+    const aGrade = rows.filter(r => r.rs_grade === 'A+' || r.rs_grade === 'A').length;
+    const avg = (rows.reduce((s, r) => s + (r.return_20d || 0), 0) / rows.length).toFixed(1);
+    const topSector = [...rows.reduce((m, r) => {
+      if (r.rs_grade === 'A+' || r.rs_grade === 'A') m.set(r.sector, (m.get(r.sector) || 0) + 1);
+      return m;
+    }, new Map())].sort((a, b) => b[1] - a[1]).map(([s]) => s)[0] || '—';
+    const avgColor = parseFloat(avg) >= 0 ? '#00e676' : '#ef4444';
+    return `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 12px 12px;">
+      <div style="text-align:center;background:rgba(0,230,118,.08);border-radius:10px;padding:10px 6px;">
+        <div style="font-size:22px;font-weight:800;color:#00e676;">${aPlus}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:2px;">A+ STOCKS</div>
+      </div>
+      <div style="text-align:center;background:rgba(129,140,248,.08);border-radius:10px;padding:10px 6px;">
+        <div style="font-size:22px;font-weight:800;color:#818cf8;">${aGrade}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:2px;">A GRADE</div>
+      </div>
+      <div style="text-align:center;background:var(--s2);border-radius:10px;padding:10px 6px;">
+        <div style="font-size:18px;font-weight:800;color:${avgColor};">${parseFloat(avg)>=0?'+':''}${avg}%</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:2px;">AVG 20D</div>
+      </div>
+      <div style="text-align:center;background:var(--s2);border-radius:10px;padding:8px 4px;">
+        <div style="font-size:11px;font-weight:700;color:#818cf8;word-break:break-word;line-height:1.3;">${topSector}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:2px;">TOP SECTOR</div>
+      </div>
+    </div>`;
+  }
+  if (type === '52w') {
+    const bkts = rows.filter(r => r.is_breakout).length;
+    const near = rows.filter(r => (r.pct_from_high || 0) >= -5).length;
+    return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 12px 12px;">
+      <div style="text-align:center;background:rgba(0,230,118,.08);border-radius:10px;padding:10px 6px;">
+        <div style="font-size:22px;font-weight:800;color:#00e676;">${bkts}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:2px;">BREAKOUTS</div>
+      </div>
+      <div style="text-align:center;background:rgba(129,140,248,.08);border-radius:10px;padding:10px 6px;">
+        <div style="font-size:22px;font-weight:800;color:#818cf8;">${near}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:2px;">WITHIN 5%</div>
+      </div>
+      <div style="text-align:center;background:var(--s2);border-radius:10px;padding:10px 6px;">
+        <div style="font-size:22px;font-weight:800;color:var(--txt);">${rows.length}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:2px;">TOTAL</div>
+      </div>
+    </div>`;
+  }
+  if (type === 'volume') {
+    const acc = rows.filter(r => r.signal === 'Accumulation').length;
+    const dist = rows.filter(r => r.signal === 'Distribution').length;
+    return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 12px 12px;">
+      <div style="text-align:center;background:rgba(0,230,118,.08);border-radius:10px;padding:10px 6px;">
+        <div style="font-size:22px;font-weight:800;color:#00e676;">${acc}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:2px;">ACCUMULATION</div>
+      </div>
+      <div style="text-align:center;background:rgba(239,68,68,.08);border-radius:10px;padding:10px 6px;">
+        <div style="font-size:22px;font-weight:800;color:#ef4444;">${dist}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:2px;">DISTRIBUTION</div>
+      </div>
+      <div style="text-align:center;background:var(--s2);border-radius:10px;padding:10px 6px;">
+        <div style="font-size:22px;font-weight:800;color:var(--txt);">${rows.length}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:2px;">SPIKES</div>
+      </div>
+    </div>`;
+  }
+  return '';
+}
+
+// ── Watchlist helpers ─────────────────────────────────────
+function _scrWatchlistToggle(symbol, btn) {
+  const idx = _scrWatchlist.indexOf(symbol);
+  if (idx === -1) {
+    _scrWatchlist.push(symbol);
+    btn.textContent = '♥'; btn.style.color = 'var(--live)';
+    _toast(`${symbol} added to watchlist`, 'success');
+  } else {
+    _scrWatchlist.splice(idx, 1);
+    btn.textContent = '♡'; btn.style.color = 'var(--txt3)';
+    _toast(`${symbol} removed from watchlist`, 'info');
+  }
+  localStorage.setItem('apex_watchlist', JSON.stringify(_scrWatchlist));
+}
+
+function _scrView(symbol) {
+  scrGo('priceaction', document.querySelector('[data-scr="priceaction"]'));
+  const inp = document.getElementById('pa-sym');
+  if (inp) { inp.value = symbol; loadPriceAction(); }
+}
+function _scrTrade(symbol) {
+  switchTab('execute');
+  const inp = document.getElementById('exec-sym-inp');
+  if (inp) inp.value = symbol;
+}
+
+// ── Card templates ────────────────────────────────────────
+
+function _rsCard(r) {
+  const gc = { 'A+': '#00e676', 'A': '#10b981', 'B': '#818cf8', 'C': '#f59e0b', 'D': '#ef4444', '—': 'var(--txt3)' };
+  const color = gc[r.rs_grade] || 'var(--txt3)';
+  const isTop = r.rs_grade === 'A+';
+  const inWL = _scrWatchlist.includes(r.symbol);
+  const spark = _sparklineSVG(r.return_20d || 0, r.return_50d || 0);
+  const tags = _scrTags(r, 'rs');
+  const border = isTop ? `border-color:${color}55;` : '';
+  const glow = isTop ? `box-shadow:0 0 22px ${color}25,0 2px 10px rgba(0,0,0,.45);` : '';
+
+  return `<div class="scr-card" style="${border}${glow}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:800;color:var(--txt);letter-spacing:.2px;">${r.symbol}</span>
+          ${isTop ? `<span style="font-size:9px;padding:1px 6px;background:${color}22;color:${color};border-radius:4px;font-weight:700;flex-shrink:0;">★ A+</span>` : ''}
+        </div>
+        <div style="font-size:10px;color:var(--txt3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.sector || '—'}</div>
+      </div>
+      <div style="text-align:center;flex-shrink:0;margin-left:8px;">
+        <div style="font-size:28px;font-weight:900;line-height:1;color:${color};${isTop ? `text-shadow:0 0 14px ${color}88;` : ''}">${r.rs_grade}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:1px;">RS ${r.rs_20 ?? '—'}</div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;">
+      <div style="display:flex;gap:14px;">
+        <div>
+          <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">20D</div>
+          <div style="font-size:13px;font-weight:700;">${_retSpan(r.return_20d)}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">50D</div>
+          <div style="font-size:13px;font-weight:700;">${_retSpan(r.return_50d)}</div>
+        </div>
+      </div>
+      ${spark}
+    </div>
+
+    ${tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">${tags}</div>` : ''}
+
+    <div style="display:flex;gap:5px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
+      <button onclick="_scrView('${r.symbol}')" class="scr-action-btn">View</button>
+      <button onclick="_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid var(--accent);color:var(--accent);">Trade</button>
+      <button onclick="_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
+    </div>
+  </div>`;
+}
+
+function _52wCard(r) {
+  const pct = r.pct_from_high || 0;
+  const color = pct >= -2 ? '#00e676' : pct >= -10 ? '#818cf8' : 'var(--txt3)';
+  const inWL = _scrWatchlist.includes(r.symbol);
+  const tags = _scrTags(r, '52w');
+  const glow = r.is_breakout ? `box-shadow:0 0 20px #00e67620,0 2px 8px rgba(0,0,0,.4);border-color:#00e67655;` : '';
+
+  return `<div class="scr-card" style="${glow}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:800;color:var(--txt);">${r.symbol}</span>
+          ${r.is_breakout ? '<span style="font-size:9px;padding:1px 6px;background:rgba(0,230,118,.15);color:#00e676;border-radius:4px;font-weight:700;flex-shrink:0;">BREAKOUT</span>' : ''}
+        </div>
+        <div style="font-size:10px;color:var(--txt3);margin-top:2px;">${r.sector || '—'}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:8px;">
+        <div style="font-size:18px;font-weight:800;color:${color};">${pct >= 0 ? '+' : ''}${pct}%</div>
+        <div style="font-size:9px;color:var(--txt3);">from 52W high</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:14px;margin-bottom:10px;">
+      <div>
+        <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">52W High</div>
+        <div style="font-size:12px;font-weight:700;color:var(--txt2);">₹${(r.high_52w || 0).toLocaleString('en-IN')}</div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">Vol Ratio</div>
+        <div style="font-size:14px;font-weight:800;color:var(--live);">${r.vol_ratio || '—'}x</div>
+      </div>
+    </div>
+
+    ${tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">${tags}</div>` : ''}
+
+    <div style="display:flex;gap:5px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
+      <button onclick="_scrView('${r.symbol}')" class="scr-action-btn">View</button>
+      <button onclick="_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid var(--accent);color:var(--accent);">Trade</button>
+      <button onclick="_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
+    </div>
+  </div>`;
+}
+
+function _volCard(r) {
+  const sigC = { 'Accumulation': '#00e676', 'Distribution': '#ef4444', 'Neutral': 'var(--txt3)' };
+  const color = sigC[r.signal] || 'var(--txt3)';
+  const inWL = _scrWatchlist.includes(r.symbol);
+  const tags = _scrTags(r, 'volume');
+
+  return `<div class="scr-card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+      <div style="flex:1;min-width:0;">
+        <span style="font-size:14px;font-weight:800;color:var(--txt);">${r.symbol}</span>
+        <div style="font-size:10px;color:var(--txt3);margin-top:2px;">${r.sector || '—'}</div>
+      </div>
+      <div style="text-align:center;flex-shrink:0;margin-left:8px;">
+        <div style="font-size:22px;font-weight:900;line-height:1;color:var(--live);">${r.vol_ratio}x</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:1px;">avg vol</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:14px;margin-bottom:10px;">
+      <div>
+        <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">Signal</div>
+        <div style="font-size:12px;font-weight:700;color:${color};">${r.signal}</div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">Change</div>
+        <div style="font-size:13px;font-weight:700;">${_retSpan(r.change_pct)}</div>
+      </div>
+    </div>
+
+    ${tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">${tags}</div>` : ''}
+
+    <div style="display:flex;gap:5px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
+      <button onclick="_scrView('${r.symbol}')" class="scr-action-btn">View</button>
+      <button onclick="_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid var(--accent);color:var(--accent);">Trade</button>
+      <button onclick="_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
+    </div>
+  </div>`;
+}
+
+function _earningsCard(r) {
+  const isHigh = r.risk_level === 'High';
+  const riskC = isHigh ? '#ef4444' : '#f59e0b';
+  const inWL = _scrWatchlist.includes(r.symbol);
+  const tags = _scrTags(r, 'earnings');
+  const glow = isHigh && (r.days_away || 99) <= 5 ? `box-shadow:0 0 18px #ef444420;border-color:#ef444455;` : '';
+
+  return `<div class="scr-card" style="${glow}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+      <div style="flex:1;min-width:0;">
+        <span style="font-size:14px;font-weight:800;color:var(--txt);">${r.symbol}</span>
+        <div style="font-size:10px;color:var(--txt3);margin-top:2px;">${r.sector || '—'}</div>
+      </div>
+      <div style="text-align:center;flex-shrink:0;margin-left:8px;">
+        <div style="font-size:22px;font-weight:900;line-height:1;color:${riskC};">${r.days_away}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:1px;">day${r.days_away !== 1 ? 's' : ''}</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:14px;margin-bottom:10px;">
+      <div>
+        <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">Results On</div>
+        <div style="font-size:12px;font-weight:700;color:var(--txt2);">${r.earnings_date}</div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--txt3);margin-bottom:2px;">Risk</div>
+        <div style="font-size:13px;font-weight:700;color:${riskC};">${r.risk_level}</div>
+      </div>
+    </div>
+
+    ${tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">${tags}</div>` : ''}
+
+    <div style="display:flex;gap:5px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
+      <button onclick="_scrView('${r.symbol}')" class="scr-action-btn" style="flex:1;">View Chart</button>
+      <button onclick="_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
+    </div>
+  </div>`;
+}
+
+// ── In-memory filter application ─────────────────────────
+function scrFilterCards(type) {
+  const data = _scrCards[type] || [];
+  let rows = [...data];
+
+  const sector = document.getElementById('scr-f-sector')?.value || '';
+  if (sector) rows = rows.filter(r => r.sector === sector);
+
+  if (type === 'rs') {
+    const grade = document.getElementById('scr-f-grade')?.value || '';
+    const ret   = document.getElementById('scr-f-return')?.value || '';
+    if (grade === 'A+') rows = rows.filter(r => r.rs_grade === 'A+');
+    else if (grade === 'A') rows = rows.filter(r => r.rs_grade === 'A+' || r.rs_grade === 'A');
+    else if (grade === 'B') rows = rows.filter(r => ['A+','A','B'].includes(r.rs_grade));
+    else if (grade === 'C') rows = rows.filter(r => r.rs_grade === 'C' || r.rs_grade === 'D');
+    if (ret === 'pos') rows = rows.filter(r => (r.return_20d || 0) > 0);
+    else if (ret === '5') rows = rows.filter(r => (r.return_20d || 0) >= 5);
+    else if (ret === '10') rows = rows.filter(r => (r.return_20d || 0) >= 10);
+    else if (ret === 'neg') rows = rows.filter(r => (r.return_20d || 0) < 0);
+  } else if (type === '52w') {
+    const f = document.getElementById('scr-f-52w')?.value || '';
+    if (f === 'breakout') rows = rows.filter(r => r.is_breakout);
+    else if (f === 'near') rows = rows.filter(r => (r.pct_from_high || 0) >= -5);
+    else if (f === 'below10') rows = rows.filter(r => (r.pct_from_high||0) < -5 && (r.pct_from_high||0) >= -10);
+  } else if (type === 'volume') {
+    const sig = document.getElementById('scr-f-signal')?.value || '';
+    const vol = document.getElementById('scr-f-vol')?.value || '';
+    if (sig) rows = rows.filter(r => r.signal === sig);
+    if (vol) rows = rows.filter(r => (r.vol_ratio || 0) >= parseFloat(vol));
+  }
+
+  const gridId = { rs: 'scr-rs-cards', '52w': 'scr-52w-cards', volume: 'scr-volume-cards' }[type];
+  const grid = document.getElementById(gridId);
+  if (!grid) return;
+  const cardFn = { rs: _rsCard, '52w': _52wCard, volume: _volCard }[type];
+  grid.innerHTML = rows.length
+    ? rows.map(cardFn).join('')
+    : '<div class="empty" style="grid-column:1/-1;padding:30px 0;"><div class="empty-title">No matches</div><div class="empty-sub">Adjust the filters above</div></div>';
+}
+
+// ── Sector option builder ─────────────────────────────────
+function _sectorOpts(rows) {
+  const sectors = [...new Set(rows.map(r => r.sector).filter(Boolean))].sort();
+  return '<option value="">All Sectors</option>' +
+    sectors.map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+// ── Relative Strength (redesigned) ────────────────────────
 async function loadRS() {
   const body = document.getElementById('scr-rs-body');
-  const idx = _scrIndex();
-  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Calculating RS scores…</div></div>';
+  body.innerHTML = '<div class="empty" style="padding:30px 0;"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Calculating RS scores…</div></div>';
   try {
+    const idx = _scrIndex();
     const url = idx ? `${API}/api/screener/rs?index=${encodeURIComponent(idx)}` : `${API}/api/screener/rs`;
     const d = await jAuth(url);
-    const rows = (d.results || []).slice(0, 50);
-    const gradeColors = { 'A+':'var(--green)', 'A':'var(--green)', 'B':'var(--data)', 'C':'var(--live)', 'D':'var(--red)', '—':'var(--txt3)' };
-    body.innerHTML = rows.map((r, i) => `
-      <div class="scr-row">
-        <div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span class="scr-sym">${r.symbol}</span>
-            <span class="scr-badge" style="background:var(--data-d);color:var(--data);">${r.sector}</span>
-          </div>
-          <div style="font-size:11px;color:var(--txt3);margin-top:2px;">20D: ${_retSpan(r.return_20d)} &nbsp; 50D: ${_retSpan(r.return_50d)}</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:20px;font-weight:900;color:${gradeColors[r.rs_grade]};">${r.rs_grade}</div>
-          <div style="font-size:10px;color:var(--txt3);">RS ${r.rs_20 != null ? r.rs_20 : '—'}</div>
-        </div>
-      </div>`).join('') || '<div class="empty"><div class="empty-title">No data</div></div>';
+    const rows = (d.results || []).slice(0, 60);
+    _scrCards.rs = rows;
+    const cnt = document.getElementById('scr-rs-count');
+    if (cnt) cnt.textContent = `${rows.length} stocks`;
+    if (!rows.length) {
+      body.innerHTML = '<div class="empty" style="padding:30px 0;"><div class="empty-title">No data</div></div>';
+      return;
+    }
+    body.innerHTML = `
+      ${_scrStats(rows, 'rs')}
+      <div class="scr-filter-bar">
+        <select class="scr-filter-sel" id="scr-f-grade" onchange="scrFilterCards('rs')">
+          <option value="">All Grades</option>
+          <option value="A+">★ A+ Only</option>
+          <option value="A">A &amp; Above</option>
+          <option value="B">B &amp; Above</option>
+          <option value="C">C &amp; Below</option>
+        </select>
+        <select class="scr-filter-sel" id="scr-f-sector" onchange="scrFilterCards('rs')">${_sectorOpts(rows)}</select>
+        <select class="scr-filter-sel" id="scr-f-return" onchange="scrFilterCards('rs')">
+          <option value="">All Returns</option>
+          <option value="pos">Positive 20D</option>
+          <option value="5">+5%+ 20D</option>
+          <option value="10">+10%+ 20D</option>
+          <option value="neg">Negative 20D</option>
+        </select>
+        <span style="font-size:10px;color:var(--txt3);white-space:nowrap;margin-left:auto;flex-shrink:0;">${rows.length} shown</span>
+      </div>
+      <div class="scr-grid" id="scr-rs-cards">${rows.map(_rsCard).join('')}</div>`;
   } catch(e) {
-    body.innerHTML = `<div class="empty"><div class="empty-title">Error: ${e.message}</div></div>`;
+    body.innerHTML = `<div class="empty" style="padding:30px 0;"><div class="empty-title">Error: ${e.message}</div></div>`;
   }
 }
 
-// ── 52W High ─────────────────────────────────────────────
+// ── 52W High (redesigned) ─────────────────────────────────
 async function load52W() {
   const body = document.getElementById('scr-52w-body');
-  const idx = _scrIndex();
-  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Scanning 52-week highs…</div></div>';
+  body.innerHTML = '<div class="empty" style="padding:30px 0;"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Scanning 52-week highs…</div></div>';
   try {
+    const idx = _scrIndex();
     const url = idx ? `${API}/api/screener/52w?index=${encodeURIComponent(idx)}` : `${API}/api/screener/52w`;
     const d = await jAuth(url);
-    const rows = (d.results || []).slice(0, 50);
-    body.innerHTML = rows.map(r => {
-      const breakoutBadge = r.is_breakout
-        ? `<span class="scr-badge" style="background:rgba(16,185,129,.2);color:var(--green);">BREAKOUT</span>`
-        : '';
-      const pct = r.pct_from_high;
-      const pctColor = pct >= -2 ? 'var(--green)' : pct >= -10 ? 'var(--live)' : 'var(--txt3)';
-      return `
-        <div class="scr-row">
-          <div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span class="scr-sym">${r.symbol}</span>${breakoutBadge}
-              <span class="scr-badge" style="background:var(--s3);color:var(--txt3);">${r.sector}</span>
-            </div>
-            <div style="font-size:11px;color:var(--txt3);margin-top:2px;">52W High: ₹${r.high_52w?.toLocaleString('en-IN')} &nbsp; Vol: ${r.vol_ratio}x avg</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:15px;font-weight:800;color:${pctColor};">${pct >= 0 ? '+' : ''}${pct}%</div>
-            <div style="font-size:10px;color:var(--txt3);">from 52W high</div>
-          </div>
-        </div>`;
-    }).join('') || '<div class="empty"><div class="empty-title">No data</div></div>';
+    const rows = (d.results || []).slice(0, 60);
+    _scrCards['52w'] = rows;
+    const cnt = document.getElementById('scr-52w-count');
+    if (cnt) cnt.textContent = `${rows.length} stocks`;
+    if (!rows.length) {
+      body.innerHTML = '<div class="empty" style="padding:30px 0;"><div class="empty-title">No data</div></div>';
+      return;
+    }
+    body.innerHTML = `
+      ${_scrStats(rows, '52w')}
+      <div class="scr-filter-bar">
+        <select class="scr-filter-sel" id="scr-f-sector" onchange="scrFilterCards('52w')">${_sectorOpts(rows)}</select>
+        <select class="scr-filter-sel" id="scr-f-52w" onchange="scrFilterCards('52w')">
+          <option value="">All</option>
+          <option value="breakout">Breakouts Only</option>
+          <option value="near">Within 5%</option>
+          <option value="below10">5–10% Below</option>
+        </select>
+        <span style="font-size:10px;color:var(--txt3);white-space:nowrap;margin-left:auto;flex-shrink:0;">${rows.length} shown</span>
+      </div>
+      <div class="scr-grid" id="scr-52w-cards">${rows.map(_52wCard).join('')}</div>`;
   } catch(e) {
-    body.innerHTML = `<div class="empty"><div class="empty-title">Error: ${e.message}</div></div>`;
+    body.innerHTML = `<div class="empty" style="padding:30px 0;"><div class="empty-title">Error: ${e.message}</div></div>`;
   }
 }
 
-// ── Volume Spikes ────────────────────────────────────────
+// ── Volume Spikes (redesigned) ────────────────────────────
 async function loadVolume() {
   const body = document.getElementById('scr-volume-body');
-  const idx = _scrIndex();
-  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Scanning volume spikes…</div></div>';
+  body.innerHTML = '<div class="empty" style="padding:30px 0;"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Scanning volume spikes…</div></div>';
   try {
+    const idx = _scrIndex();
     const url = idx ? `${API}/api/screener/volume?index=${encodeURIComponent(idx)}` : `${API}/api/screener/volume`;
     const d = await jAuth(url);
     const rows = d.results || [];
-    const sigColors = { 'Accumulation':'var(--green)', 'Distribution':'var(--red)', 'Neutral':'var(--txt3)' };
-    body.innerHTML = rows.map(r => `
-      <div class="scr-row">
-        <div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span class="scr-sym">${r.symbol}</span>
-            <span class="scr-badge" style="color:${sigColors[r.signal]};background:var(--s3);">${r.signal.toUpperCase()}</span>
-          </div>
-          <div style="font-size:11px;color:var(--txt3);margin-top:2px;">${r.sector} &nbsp;·&nbsp; Change: ${_retSpan(r.change_pct)}</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:18px;font-weight:800;color:var(--live);">${r.vol_ratio}x</div>
-          <div style="font-size:10px;color:var(--txt3);">avg volume</div>
-        </div>
-      </div>`).join('') || '<div class="empty"><div class="empty-title">No volume spikes today</div><div class="empty-sub">Market may be in low-volume consolidation</div></div>';
+    _scrCards.volume = rows;
+    const cnt = document.getElementById('scr-vol-count');
+    if (cnt) cnt.textContent = `${rows.length} stocks`;
+    if (!rows.length) {
+      body.innerHTML = '<div class="empty" style="padding:30px 0;"><div class="empty-icon">📊</div><div class="empty-title">No volume spikes today</div><div class="empty-sub">Market may be in low-volume consolidation</div></div>';
+      return;
+    }
+    body.innerHTML = `
+      ${_scrStats(rows, 'volume')}
+      <div class="scr-filter-bar">
+        <select class="scr-filter-sel" id="scr-f-sector" onchange="scrFilterCards('volume')">${_sectorOpts(rows)}</select>
+        <select class="scr-filter-sel" id="scr-f-signal" onchange="scrFilterCards('volume')">
+          <option value="">All Signals</option>
+          <option value="Accumulation">Accumulation</option>
+          <option value="Distribution">Distribution</option>
+          <option value="Neutral">Neutral</option>
+        </select>
+        <select class="scr-filter-sel" id="scr-f-vol" onchange="scrFilterCards('volume')">
+          <option value="">All Vol</option>
+          <option value="2">2x+</option>
+          <option value="3">3x+</option>
+          <option value="5">5x+</option>
+        </select>
+        <span style="font-size:10px;color:var(--txt3);white-space:nowrap;margin-left:auto;flex-shrink:0;">${rows.length} shown</span>
+      </div>
+      <div class="scr-grid" id="scr-volume-cards">${rows.map(_volCard).join('')}</div>`;
   } catch(e) {
-    body.innerHTML = `<div class="empty"><div class="empty-title">Error: ${e.message}</div></div>`;
+    body.innerHTML = `<div class="empty" style="padding:30px 0;"><div class="empty-title">Error: ${e.message}</div></div>`;
   }
 }
 
-// ── Earnings Calendar ────────────────────────────────────
+// ── Earnings Calendar (redesigned) ───────────────────────
 async function loadEarnings() {
   const body = document.getElementById('scr-earnings-body');
-  const idx = _scrIndex();
-  body.innerHTML = '<div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Fetching from Yahoo Finance…</div><div class="empty-sub">Takes ~30–60 seconds</div></div>';
+  body.innerHTML = '<div class="empty" style="padding:30px 0;"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Fetching from Yahoo Finance…</div><div class="empty-sub">Takes ~30–60 seconds</div></div>';
   try {
+    const idx = _scrIndex();
     const url = idx ? `${API}/api/earnings?index=${encodeURIComponent(idx)}` : `${API}/api/earnings`;
     const d = await jAuth(url);
     const rows = d.results || [];
+    const cnt = document.getElementById('scr-earn-count');
     if (!rows.length) {
-      body.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">No earnings in next 21 days</div><div class="empty-sub">Safe to hold positions</div></div>';
+      if (cnt) cnt.textContent = '';
+      body.innerHTML = '<div class="empty" style="padding:30px 0;"><div class="empty-icon">✅</div><div class="empty-title">No earnings in next 21 days</div><div class="empty-sub">Safe to hold positions</div></div>';
       return;
     }
-    body.innerHTML = rows.map(r => {
-      const riskColor = r.risk_level === 'High' ? 'var(--red)' : 'var(--live)';
-      return `
-        <div class="scr-row">
-          <div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span class="scr-sym">${r.symbol}</span>
-              <span class="scr-badge" style="background:var(--s3);color:var(--txt3);">${r.sector}</span>
-            </div>
-            <div style="font-size:11px;color:var(--txt3);margin-top:2px;">Results on ${r.earnings_date}</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:14px;font-weight:800;color:${riskColor};">${r.risk_level} Risk</div>
-            <div style="font-size:10px;color:var(--txt3);">in ${r.days_away} day${r.days_away !== 1 ? 's' : ''}</div>
-          </div>
-        </div>`;
-    }).join('');
+    if (cnt) cnt.textContent = `${rows.length} upcoming`;
+    body.innerHTML = `<div class="scr-grid">${rows.map(_earningsCard).join('')}</div>`;
   } catch(e) {
-    body.innerHTML = `<div class="empty"><div class="empty-title">Error: ${e.message}</div></div>`;
+    body.innerHTML = `<div class="empty" style="padding:30px 0;"><div class="empty-title">Error: ${e.message}</div></div>`;
   }
 }
 
@@ -2717,6 +3174,308 @@ async function adminDeleteUser(userId, username) {
   }
 }
 
+
+// ══════════════════════════════════════════════════════
+// ── Undervalued Screener UI ────────────────────────────
+// ══════════════════════════════════════════════════════
+
+let _uvData = [];          // full result set from last fetch
+let _uvFilterSignal = '';  // active verdict filter
+let _uvFilterSector = '';  // active sector pill
+let _uvPollTimer   = null;
+
+// Verdict config ─────────────────────────────────────────
+const UV_VERDICT = {
+  STRONG_BUY:  { label: 'Strong Buy',  color: '#00e676', bg: 'rgba(0,230,118,.12)',  icon: '🟢' },
+  GOOD_BUY:    { label: 'Good Buy',    color: '#10b981', bg: 'rgba(16,185,129,.12)', icon: '✅' },
+  AI_CAUTION:  { label: 'AI Caution',  color: '#f59e0b', bg: 'rgba(245,158,11,.12)', icon: '⚠️' },
+  WAIT_ENTRY:  { label: 'Wait Entry',  color: '#818cf8', bg: 'rgba(129,140,248,.12)',icon: '⏳' },
+  WAIT_REGIME: { label: 'Wait Bear',   color: '#f59e0b', bg: 'rgba(245,158,11,.12)', icon: '🐻' },
+  VALUE_TRAP:  { label: 'Value Trap',  color: '#ef4444', bg: 'rgba(239,68,68,.12)',  icon: '⚠️' },
+  AVOID:       { label: 'Avoid',       color: '#ef4444', bg: 'rgba(239,68,68,.12)',  icon: '🔴' },
+};
+
+function initUndervalued() {
+  // First load: fetch cached results and show them (no re-scan)
+  _uvFetch(false);
+}
+
+async function uvRefresh() {
+  const btn = document.getElementById('uv-refresh-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
+
+  try {
+    const idx = document.getElementById('uv-index-select')?.value || 'NIFTY 500';
+    await jAuth(`${API}/api/screener/undervalued/refresh?index=${encodeURIComponent(idx)}`, { method: 'POST' });
+    _uvStartPoll();
+  } catch(e) {
+    _toast('Scan error: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Scan'; }
+  }
+}
+
+function _uvStartPoll() {
+  document.getElementById('uv-progress-wrap').style.display = 'block';
+  if (_uvPollTimer) clearInterval(_uvPollTimer);
+  _uvPollTimer = setInterval(async () => {
+    try {
+      const s = await jAuth(`${API}/api/screener/undervalued/status`);
+      const bar   = document.getElementById('uv-progress-bar');
+      const label = document.getElementById('uv-progress-label');
+      const sym   = document.getElementById('uv-progress-sym');
+      const total = s.total || 1;
+      const done  = s.processed || 0;
+      const pct   = Math.round(done / total * 100);
+      if (bar)   bar.style.width = pct + '%';
+      if (label) label.textContent = `${done} / ${total}`;
+      if (sym)   sym.textContent = s.current_symbol || '—';
+
+      if (!s.is_running) {
+        clearInterval(_uvPollTimer);
+        _uvPollTimer = null;
+        document.getElementById('uv-progress-wrap').style.display = 'none';
+        const btn = document.getElementById('uv-refresh-btn');
+        if (btn) { btn.disabled = false; btn.textContent = 'Scan'; }
+        _uvFetch(false);
+      }
+    } catch(e) {}
+  }, 2000);
+}
+
+async function _uvFetch(forceRefresh) {
+  const wrap  = document.getElementById('uv-results-wrap');
+  const empty = document.getElementById('uv-empty');
+  if (wrap) wrap.innerHTML = '<div class="empty" style="padding:30px 0;"><div class="empty-icon" style="animation:spin 1s linear infinite">⏳</div><div class="empty-title">Loading…</div></div>';
+  if (empty) empty.style.display = 'none';
+
+  try {
+    const idx      = document.getElementById('uv-index-select')?.value || 'NIFTY 500';
+    const minScore = document.getElementById('uv-score-filter')?.value || 0;
+    const url = `${API}/api/screener/undervalued?index=${encodeURIComponent(idx)}&min_score=${minScore}`;
+    const d = await jAuth(url);
+
+    if (!d.results || !d.results.length) {
+      if (wrap) wrap.innerHTML = '';
+      if (empty) empty.style.display = '';
+      return;
+    }
+
+    _uvData = d.results;
+    _uvFilterSignal = '';
+    _uvFilterSector = '';
+    _uvRenderStats(d);
+    _uvRenderSectorPills();
+    _uvRenderSignalPills();
+    _uvRenderCards();
+
+    // Show AI analyst
+    const aiWrap = document.getElementById('uv-ai-wrap');
+    if (aiWrap) aiWrap.style.display = 'block';
+
+  } catch(e) {
+    if (wrap) wrap.innerHTML = `<div class="empty" style="padding:30px 0;"><div class="empty-title">Error: ${e.message}</div></div>`;
+  }
+}
+
+function _uvRenderStats(d) {
+  const statsEl = document.getElementById('uv-stats');
+  if (!statsEl) return;
+  statsEl.style.display = 'block';
+
+  const total  = d.count || d.results.length;
+  const deep   = d.results.filter(r => r.buy_signal?.verdict === 'STRONG_BUY').length;
+  const good   = d.results.filter(r => r.buy_signal?.verdict === 'GOOD_BUY').length;
+  const age    = d.cached_at ? (() => {
+    const mins = Math.round((Date.now() - new Date(d.cached_at)) / 60000);
+    return mins < 60 ? `${mins}m ago` : `${Math.round(mins/60)}h ago`;
+  })() : '—';
+
+  const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setEl('uv-stat-total', total);
+  setEl('uv-stat-deep',  deep);
+  setEl('uv-stat-good',  good);
+  setEl('uv-cache-age',  d.regime || '—');
+  // Update cache age label to regime
+  const cacheLabel = statsEl.querySelector('#uv-cache-age + div');
+}
+
+function _uvRenderSectorPills() {
+  const pills = document.getElementById('uv-sector-pills');
+  if (!pills) return;
+  const sectors = [...new Set(_uvData.map(r => r.sector).filter(Boolean))].sort();
+  pills.innerHTML = `
+    <button class="scr-filter-sel${_uvFilterSector===''?' active-pill':''}" onclick="uvFilterSector('')" style="border-radius:20px;">All</button>
+    ${sectors.map(s => `<button class="scr-filter-sel${_uvFilterSector===s?' active-pill':''}" onclick="uvFilterSector('${s}')" style="border-radius:20px;">${s}</button>`).join('')}`;
+}
+
+function uvFilterSector(sector) {
+  _uvFilterSector = sector;
+  _uvRenderSectorPills();
+  _uvRenderCards();
+}
+
+function _uvRenderSignalPills() {
+  const pills = document.getElementById('uv-signal-pills');
+  if (!pills) return;
+  pills.style.display = 'flex';
+  pills.style.gap = '6px';
+  pills.style.flexWrap = 'wrap';
+  pills.style.marginBottom = '10px';
+  const counts = {};
+  _uvData.forEach(r => {
+    const v = r.buy_signal?.verdict || 'AVOID';
+    counts[v] = (counts[v] || 0) + 1;
+  });
+  const order = ['STRONG_BUY','GOOD_BUY','AI_CAUTION','WAIT_ENTRY','WAIT_REGIME','VALUE_TRAP','AVOID'];
+  pills.innerHTML = `<button class="scr-filter-sel${_uvFilterSignal===''?' active-pill':''}" onclick="uvSetSignal('')" style="border-radius:20px;">All Signals</button>` +
+    order.filter(v => counts[v]).map(v => {
+      const cfg = UV_VERDICT[v] || { label: v, color: 'var(--txt3)', bg: 'var(--s2)' };
+      const active = _uvFilterSignal === v;
+      return `<button onclick="uvSetSignal('${v}')"
+        style="border-radius:20px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid ${cfg.color}44;background:${active ? cfg.bg : 'var(--s2)'};color:${cfg.color};">
+        ${cfg.icon} ${cfg.label} <span style="opacity:.7;">(${counts[v]})</span>
+      </button>`;
+    }).join('');
+}
+
+function uvSetSignal(verdict) {
+  _uvFilterSignal = verdict;
+  _uvRenderSignalPills();
+  _uvRenderCards();
+}
+
+function _uvRenderCards() {
+  const wrap = document.getElementById('uv-results-wrap');
+  if (!wrap) return;
+
+  let rows = [..._uvData];
+  if (_uvFilterSignal) rows = rows.filter(r => r.buy_signal?.verdict === _uvFilterSignal);
+  if (_uvFilterSector) rows = rows.filter(r => r.sector === _uvFilterSector);
+
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty" style="padding:30px 0;"><div class="empty-title">No matches</div><div class="empty-sub">Try a different filter</div></div>';
+    return;
+  }
+  wrap.innerHTML = `<div class="scr-grid">${rows.map(_uvCard).join('')}</div>`;
+}
+
+function _uvCard(r) {
+  const bs  = r.buy_signal || {};
+  const v   = bs.verdict || 'AVOID';
+  const cfg = UV_VERDICT[v] || { label: v, color: '#ef4444', bg: 'rgba(239,68,68,.12)', icon: '—' };
+  const conv = bs.conviction || 0;
+  const inWL = _scrWatchlist.includes(r.symbol);
+  const glow = (v === 'STRONG_BUY') ? `box-shadow:0 0 22px ${cfg.color}28;border-color:${cfg.color}44;` : '';
+
+  // Gate indicators
+  const gates = bs.gates || {};
+  const gateHtml = ['g1_quality','g2_technical','g3_regime','g4_ml'].map((k, i) => {
+    const pass = gates[k];
+    const labels = ['Quality','Technical','Regime','AI'];
+    const c = pass === true ? '#00e676' : pass === false ? '#ef4444' : 'var(--txt3)';
+    const icon = pass === true ? '✓' : pass === false ? '✗' : '—';
+    return `<div style="text-align:center;">
+      <div style="font-size:13px;font-weight:700;color:${c};">${icon}</div>
+      <div style="font-size:9px;color:var(--txt3);margin-top:1px;">${labels[i]}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="scr-card" style="${glow}">
+    <!-- Header: symbol + verdict badge -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:800;color:var(--txt);">${r.symbol}</span>
+          <span style="font-size:9px;padding:2px 7px;border-radius:4px;background:${cfg.bg};color:${cfg.color};font-weight:700;flex-shrink:0;">${cfg.icon} ${cfg.label}</span>
+        </div>
+        <div style="font-size:10px;color:var(--txt3);margin-top:2px;">${r.sector || '—'} · ₹${(r.last_price||0).toLocaleString('en-IN')}</div>
+      </div>
+      <div style="text-align:center;flex-shrink:0;margin-left:8px;">
+        <div style="font-size:22px;font-weight:900;line-height:1;color:${cfg.color};">${conv}</div>
+        <div style="font-size:9px;color:var(--txt3);margin-top:1px;">conviction</div>
+      </div>
+    </div>
+
+    <!-- Conviction bar -->
+    <div style="height:4px;background:var(--s3);border-radius:4px;margin-bottom:10px;overflow:hidden;">
+      <div style="height:100%;background:${cfg.color};border-radius:4px;width:${conv}%;transition:width .5s;"></div>
+    </div>
+
+    <!-- Key metrics -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;">
+      <div style="text-align:center;background:var(--s3);border-radius:8px;padding:6px 4px;">
+        <div style="font-size:9px;color:var(--txt3);">Value Score</div>
+        <div style="font-size:15px;font-weight:800;color:${(r.value_score||0)>=70?'#00e676':(r.value_score||0)>=50?'#818cf8':'var(--txt2)'};">${r.value_score || '—'}</div>
+      </div>
+      <div style="text-align:center;background:var(--s3);border-radius:8px;padding:6px 4px;">
+        <div style="font-size:9px;color:var(--txt3);">P/E</div>
+        <div style="font-size:13px;font-weight:700;color:var(--txt2);">${r.pe_ratio != null ? r.pe_ratio : '—'}</div>
+      </div>
+      <div style="text-align:center;background:var(--s3);border-radius:8px;padding:6px 4px;">
+        <div style="font-size:9px;color:var(--txt3);">ROE</div>
+        <div style="font-size:13px;font-weight:700;color:${(r.roe||0)>=15?'#00e676':(r.roe||0)>=10?'#10b981':'var(--txt2)'};">${r.roe != null ? r.roe + '%' : '—'}</div>
+      </div>
+    </div>
+
+    <!-- Gate checks -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px;background:var(--s3);border-radius:8px;margin-bottom:10px;">
+      ${gateHtml}
+    </div>
+
+    <!-- Grade badge -->
+    <div style="font-size:10px;color:var(--txt3);margin-bottom:10px;">
+      Grade: <span style="font-weight:700;color:var(--txt2);">${r.grade || '—'}</span>
+      ${r.eps_growth != null ? ` · EPS Growth: <span style="font-weight:700;color:${(r.eps_growth||0)>0?'#00e676':'#ef4444'};">${r.eps_growth>0?'+':''}${r.eps_growth}%</span>` : ''}
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex;gap:5px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
+      <button onclick="_scrView('${r.symbol}')" class="scr-action-btn">View</button>
+      <button onclick="_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid ${cfg.color};color:${cfg.color};">Trade</button>
+      <button onclick="_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
+    </div>
+  </div>`;
+}
+
+// AI Analyst ─────────────────────────────────────────────
+async function uvAskAI() {
+  const question = document.getElementById('uv-ai-question')?.value?.trim() || '';
+  const btn = document.getElementById('uv-ai-btn');
+  const resp = document.getElementById('uv-ai-response');
+  const text = document.getElementById('uv-ai-text');
+  if (!resp || !text) return;
+
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  resp.style.display = 'block';
+  text.textContent = '';
+
+  try {
+    // Build a compact summary of the top stocks for the AI
+    const top = _uvData.slice(0, 20).map(r => ({
+      symbol: r.symbol, sector: r.sector,
+      value_score: r.value_score, grade: r.grade,
+      pe: r.pe_ratio, pb: r.pb_ratio, roe: r.roe,
+      verdict: r.buy_signal?.verdict, conviction: r.buy_signal?.conviction,
+    }));
+
+    const body = {
+      results:  top,
+      question: question || 'Summarise the top opportunities and risks in this list',
+      top_n:    20,
+      min_score: parseInt(document.getElementById('uv-score-filter')?.value || 0),
+    };
+    const d = await jAuth(`${API}/api/screener/undervalued/ai-analysis`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    text.textContent = d.analysis || '—';
+  } catch(e) {
+    text.textContent = 'Error: ' + e.message;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Analyse'; }
+  }
+}
 
 // ══════════════════════════════════════════════════════
 // HOME TAB

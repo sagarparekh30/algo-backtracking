@@ -77,9 +77,9 @@ class TestEdgeCases:
 
     def test_exact_adv_window_rows_accepted(self):
         """Exactly ADV_WINDOW rows should pass the row-count check."""
-        # ADV: 500_000 × ₹500 = ₹25 Cr/day → passes ₹5 Cr; spread relaxed via max_spread_pct
+        # ADV: 500_000 × ₹500 = ₹25 Cr/day; 0.4% daily range < 5% default threshold
         df = make_df(n=ADV_WINDOW, close=500.0, volume=500_000)
-        r = compute_liquidity(df, max_spread_pct=1.0)
+        r = compute_liquidity(df)
         liquid(r)
 
 
@@ -88,9 +88,9 @@ class TestEdgeCases:
 class TestADV:
 
     def test_passes_above_min_adv(self):
-        # 500_000 shares × ₹500 = ₹25 Cr/day — well above ₹5 Cr default; use wide spread tolerance
+        # 500_000 × ₹500 = ₹25 Cr/day; 0.4% daily range passes 5% default threshold
         df = make_df(close=500.0, volume=500_000)
-        r = compute_liquidity(df, max_spread_pct=1.0)
+        r = compute_liquidity(df)
         liquid(r)
         assert r["adv_inr_cr"] == pytest.approx(25.0, abs=1.0)
 
@@ -102,10 +102,9 @@ class TestADV:
         assert "low liquidity" in r["rejection_reason"]
 
     def test_custom_min_adv(self):
-        # Custom ADV=0.01 Cr, spread=1.0% to isolate ADV check
+        # 500 × 500 = ₹0.025 Cr/day — fails default ₹5 Cr, passes custom 0.01 Cr
         df = make_df(close=500.0, volume=500)
-        r = compute_liquidity(df, min_adv_cr=0.01, max_spread_pct=1.0)
-        # 500 × 500 = 250_000 INR = 0.025 Cr → passes 0.01 threshold
+        r = compute_liquidity(df, min_adv_cr=0.01)
         liquid(r)
 
     def test_adv_shares_computed(self):
@@ -115,30 +114,32 @@ class TestADV:
 
 
 # ── Spread filter ─────────────────────────────────────────────────────────────
+# Spread proxy = 20-day average (high-low)/close.
+# NSE large-caps: ~1-2%.  Default threshold: 5% (flags manipulated/illiquid stocks).
 
 class TestSpread:
 
     def test_narrow_spread_passes(self):
-        # high/low within 0.3% → passes 0.5% threshold
-        df = make_df(close=500.0, volume=500_000, high_pct=0.15, low_pct=0.15)
+        # 1.5% daily range → well below 5% default threshold
+        df = make_df(close=500.0, volume=500_000, high_pct=0.75, low_pct=0.75)
         r = compute_liquidity(df)
         liquid(r)
-        assert r["spread_pct"] == pytest.approx(0.30, abs=0.05)
+        assert r["spread_pct"] == pytest.approx(1.5, abs=0.1)
 
     def test_wide_spread_fails(self):
-        # high/low ±1% → spread = 2% → fails 0.5% threshold
-        df = make_df(close=500.0, volume=500_000, high_pct=1.0, low_pct=1.0)
+        # 8% daily range (±4%) → fails default 5% threshold
+        df = make_df(close=500.0, volume=500_000, high_pct=4.0, low_pct=4.0)
         r = compute_liquidity(df)
         illiquid(r)
         assert "wide spread" in r["rejection_reason"]
 
     def test_custom_spread_threshold(self):
-        df = make_df(close=500.0, volume=500_000, high_pct=0.4, low_pct=0.4)
-        # spread ≈ 0.8% — fails default 0.5%, passes custom 1.0%
-        r_default = compute_liquidity(df, max_spread_pct=0.5)
-        illiquid(r_default)
-        r_custom = compute_liquidity(df, max_spread_pct=1.0)
-        liquid(r_custom)
+        # 3% daily range — fails tight 2.5% threshold, passes relaxed 4% threshold
+        df = make_df(close=500.0, volume=500_000, high_pct=1.5, low_pct=1.5)
+        r_tight = compute_liquidity(df, max_spread_pct=2.5)
+        illiquid(r_tight)
+        r_relax = compute_liquidity(df, max_spread_pct=4.0)
+        liquid(r_relax)
 
 
 # ── Promoter holding filter ───────────────────────────────────────────────────
