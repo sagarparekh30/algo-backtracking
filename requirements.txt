@@ -29,3 +29,6 @@ sqlalchemy>=2.0.0
 python-jose[cryptography]>=3.3.0
 bcrypt>=4.0.0
 python-multipart>=0.0.9
+
+# Telegram notifications
+python-telegram-bot>=20.0

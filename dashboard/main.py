@@ -65,6 +65,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+import sqlalchemy
 
 # Import existing settings
 import sys
@@ -788,7 +789,12 @@ async def get_all_signals(_: dict = Depends(require_user)):
 
 
 @app.get("/api/combined/signals")
-async def combined_signals(trend_period: str = "any"):
+async def combined_signals(
+    trend_period:    str   = "any",
+    account_capital: float = 100_000.0,
+    risk_pct:        float = 1.5,
+    size_mode:       str   = "fixed",    # "fixed" | "kelly"
+):
     """
     Combined signals: strategy setup + ML probability filter + quality score + trend filter.
 
@@ -806,6 +812,7 @@ async def combined_signals(trend_period: str = "any"):
     from ml.model import THRESHOLDS
     from ml.regime import compute_regime
     from ml.quality_score import compute_quality_score
+    from risk.position_sizer import compute_position_size
 
     PERIOD_DAYS = {"1m": 20, "3m": 63, "6m": 126, "1y": 252}
 
@@ -855,10 +862,29 @@ async def combined_signals(trend_period: str = "any"):
 
     engine = get_engine()
 
-    # ── Step 4: Score each symbol with the ML model ──────────────────────
-    # Bulk-fetch all signal symbols in ONE query instead of N round-trips
+    # ── Step 2a: Bulk-fetch candles for all signal symbols ──────────────────
+    # One DB query instead of N round-trips; used by both liquidity filter and ML.
     candle_map = _bulk_fetch_candles(engine, symbols=list(symbol_map.keys()))
 
+    # ── Step 2b: Liquidity pre-filter ───────────────────────────────────────
+    # Drop illiquid stocks before running the expensive ML model.
+    from risk.liquidity_filter import LiquidityFilter
+    _lf = LiquidityFilter()   # uses defaults: ADV ≥ ₹5 Cr, spread ≤ 0.5%, promoter ≤ 75%
+    _illiquid_skipped = 0
+    for sym in list(symbol_map.keys()):
+        df_liq = candle_map.get(sym)
+        if df_liq is None or df_liq.empty:
+            continue
+        liq = _lf.check(df_liq, symbol=sym,
+                         close_price=float(df_liq["close"].iloc[-1]) if not df_liq.empty else 0.0)
+        if not liq["is_liquid"]:
+            del symbol_map[sym]
+            _illiquid_skipped += 1
+            logger.debug(f"Liquidity filter dropped {sym}: {liq['rejection_reason']}")
+    if _illiquid_skipped:
+        logger.info(f"Liquidity filter removed {_illiquid_skipped} illiquid symbols")
+
+    # ── Step 4: Score each symbol with the ML model ──────────────────────
     period_days = PERIOD_DAYS.get(trend_period)   # None means no filter
     results = []
     for sym, info in symbol_map.items():
@@ -920,12 +946,20 @@ async def combined_signals(trend_period: str = "any"):
                     (float(closes.iloc[-1]) / float(closes.iloc[-64]) - 1) * 100, 2
                 )
 
+            # Liquidity detail for this symbol (already passed pre-filter,
+            # so is_liquid=True; we just need the score for quality weighting)
+            liq_detail = _lf.check(
+                df, symbol=sym,
+                close_price=float(df["close"].iloc[-1]),
+            )
+
             qs = compute_quality_score(
                 buy_probability=prob,
                 regime=regime,
                 trend_return_3m=trend_3m,
                 vol_ratio=vol_ratio,
                 strategy_count=strategy_count,
+                liquidity_score=liq_detail["liquidity_score"],
             )
 
             # ── Step 5: Meta Filter gate ────────────────────────────────
@@ -980,6 +1014,22 @@ async def combined_signals(trend_period: str = "any"):
                 "stability_detail":    ml.get("stability_detail"),
                 # Meta filter
                 "meta_filter":         meta_result,
+                # Liquidity
+                "liquidity":           liq_detail,
+                # Position sizing (Step 3)
+                "position_size":       compute_position_size(
+                    account_capital    = account_capital,
+                    entry_price        = float(info["entry"] or ml.get("price") or 0),
+                    stop_loss_price    = float(info["stop_loss"] or 0),
+                    risk_per_trade_pct = risk_pct,
+                    mode               = size_mode,
+                    win_rate           = ml.get("win_rate"),
+                    avg_rr             = round(
+                        ((info.get("target") or 0) - (info.get("entry") or 0)) /
+                        max(((info.get("entry") or 0) - (info.get("stop_loss") or 0)), 0.01),
+                        2
+                    ) if info.get("target") and info.get("entry") and info.get("stop_loss") else None,
+                ),
             })
 
         except Exception as e:
@@ -990,6 +1040,39 @@ async def combined_signals(trend_period: str = "any"):
         key=lambda x: (x["quality_score"], x["buy_probability"]),
         reverse=True,
     )
+
+    # ── Portfolio heat check ─────────────────────────────────────────────
+    # Applied after sort so top-ranked signals are given priority.
+    # Augments each result with "heat_check"; does NOT remove any result —
+    # UI can grey out rejected ones.
+    try:
+        from risk.portfolio_heat import PortfolioHeatChecker
+        heat_checker = PortfolioHeatChecker(account_capital=account_capital)
+        # Build price_map from already-fetched candle data (last 60 closes)
+        price_map = {
+            sym: candle_map[sym]["close"].reset_index(drop=True)
+            for sym in [r["symbol"] for r in results]
+            if sym in candle_map and not candle_map[sym].empty
+        }
+        heat_checker.filter_signals(results, price_map=price_map)
+    except Exception as _he:
+        logger.warning(f"Portfolio heat check failed: {_he}")
+
+    # ── Event risk check ─────────────────────────────────────────────────
+    # Adds "event_risk" key to each result: CLEAR / CAUTION / BLOCK.
+    # BLOCK trades stay in results; UI can display a warning.
+    try:
+        from risk.event_risk import get_event_risk_filter
+        erf = get_event_risk_filter()
+        signal_syms = [r["symbol"] for r in results]
+        ev_map = erf.bulk_check(signal_syms)
+        for r in results:
+            r["event_risk"] = ev_map.get(r["symbol"], {"status": "CLEAR", "events": [], "nearest_event_days": None})
+    except Exception as _eve:
+        logger.warning(f"Event risk check failed: {_eve}")
+        for r in results:
+            if "event_risk" not in r:
+                r["event_risk"] = {"status": "CLEAR", "events": [], "nearest_event_days": None}
 
     # ── AI explanations ──────────────────────────────────────────────────
     # Runs after sort so bullets reference the final ranked position context.
@@ -1019,6 +1102,11 @@ async def combined_signals(trend_period: str = "any"):
         "symbols_with_signals":   len(symbol_map),
         "ml_confirmed":           len(results),
         "total_strategy_signals": total_strategy_signals,
+        "sizing": {
+            "account_capital": account_capital,
+            "risk_pct":        risk_pct,
+            "size_mode":       size_mode,
+        },
     }
 
 
@@ -1104,9 +1192,7 @@ async def _refresh_execute_cache():
         if len(results) > 0 and (prev_count == 0 or len(results) != prev_count):
             try:
                 from alerts.telegram_bot import TelegramAlert
-                TelegramAlert().send_execute_alert(
-                    results, regime, int(buy_thresh * 100)
-                )
+                TelegramAlert().send_new_signals(results, regime)
             except Exception as e:
                 print(f"Telegram execute alert error: {e}")
 
@@ -1450,6 +1536,174 @@ async def ml_stability_snapshot(_: dict = Depends(require_user)):
         "scored_symbols":  len(snap),
         "stability":       snap,
     }
+
+
+@app.get("/api/ml/analytics/weekly")
+async def ml_weekly_analytics(_: dict = Depends(require_admin)):
+    """
+    Weekly performance report: win rates, R:R analysis, model accuracy,
+    regime breakdown, and retraining recommendation.
+    """
+    try:
+        from ml.trade_analytics import TradeAnalytics
+        return TradeAnalytics().weekly_report()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/ml/analytics/retrain-export")
+async def ml_export_retrain_dataset(_: dict = Depends(require_admin)):
+    """
+    Export the closed-trade feature matrix as CSV for model retraining.
+    Returns the file path and row count.
+    """
+    try:
+        from ml.trade_analytics import TradeAnalytics
+        ta   = TradeAnalytics()
+        path = ta.export_retrain_dataset()
+        return {"status": "ok", "csv_path": path}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/ml/strategy-win-rates")
+async def strategy_win_rates(_: dict = Depends(require_user)):
+    """Return per-strategy win rates for the last 90 days (used by UI badges)."""
+    try:
+        from ml.trade_analytics import TradeAnalytics
+        data = TradeAnalytics().win_rate_by_strategy(days=90)
+        # {strategy_id: {win_rate_pct, total_trades}}
+        return {
+            row["strategy"].strip(): {
+                "win_rate_pct":  float(row["win_rate_pct"] or 0),
+                "total_trades":  int(row["total_trades"]   or 0),
+            }
+            for row in data
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── Trade Logger endpoints ────────────────────────────────────────────────────
+
+class TradeLogRequest(BaseModel):
+    symbol:          str
+    entry_price:     float
+    stop_loss:       float   = 0.0
+    target:          float   = 0.0
+    quantity:        int     = 0
+    strategies:      list    = []
+    buy_probability: float   = 0.0
+    quality_score:   float   = 0.0
+    regime:          str     = ""
+    atr_at_entry:    float   = 0.0
+    liquidity_score: int     = 0
+    event_risk_status: str   = "CLEAR"
+    notes:           str     = ""
+    trade_type:      str     = "paper"   # "paper" | "live"
+
+
+@app.post("/api/trades/log")
+async def log_trade(req: TradeLogRequest, user: dict = Depends(require_user)):
+    """Log a new trade from the UI signal card (one-tap logger)."""
+    engine = get_engine()
+    try:
+        import json as _json
+        with engine.begin() as conn:
+            conn.execute(
+                sqlalchemy.text("""
+                    INSERT INTO trade_journal
+                        (symbol, entry_price, stop_loss, target, quantity,
+                         strategy_tags, buy_probability, quality_score,
+                         regime, atr_at_entry, liquidity_score, event_risk_status,
+                         notes, trade_type, strategies_fired, status)
+                    VALUES
+                        (:symbol, :entry, :sl, :target, :qty,
+                         :stags, :prob, :qs,
+                         :regime, :atr, :liq, :evr,
+                         :notes, :ttype, :sfired, 'open')
+                """),
+                {
+                    "symbol":  req.symbol.upper(),
+                    "entry":   req.entry_price,
+                    "sl":      req.stop_loss,
+                    "target":  req.target,
+                    "qty":     req.quantity,
+                    "stags":   ",".join(req.strategies),
+                    "prob":    req.buy_probability,
+                    "qs":      req.quality_score,
+                    "regime":  req.regime,
+                    "atr":     req.atr_at_entry,
+                    "liq":     req.liquidity_score,
+                    "evr":     req.event_risk_status,
+                    "notes":   req.notes,
+                    "ttype":   req.trade_type,
+                    "sfired":  _json.dumps(req.strategies),
+                },
+            )
+        return {"status": "ok", "message": f"Trade logged: {req.symbol}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+class CloseTradeRequest(BaseModel):
+    trade_id:    int
+    exit_price:  float
+    exit_reason: str = "manual"
+
+
+@app.post("/api/trades/close")
+async def close_trade(req: CloseTradeRequest, user: dict = Depends(require_user)):
+    """Close an open trade, compute P&L and log exit."""
+    engine = get_engine()
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                sqlalchemy.text(
+                    "SELECT entry_price, quantity, stop_loss, entry_date FROM trade_journal WHERE id=:id"
+                ),
+                {"id": req.trade_id},
+            ).fetchone()
+            if not row:
+                return {"error": "Trade not found"}
+
+            entry_price, qty, sl, entry_date = row
+            pnl_inr = (req.exit_price - float(entry_price)) * (qty or 1)
+            pnl_pct = round((req.exit_price / float(entry_price) - 1) * 100, 4)
+            status  = "win" if pnl_inr >= 0 else "loss"
+            from datetime import date as _date
+            held = (date.today() - entry_date).days if entry_date else None
+
+            conn.execute(
+                sqlalchemy.text("""
+                    UPDATE trade_journal
+                    SET exit_price  = :ep,
+                        exit_date   = CURRENT_DATE,
+                        pnl         = :pnl,
+                        pnl_pct     = :pnl_pct,
+                        status      = :status,
+                        exit_reason = :reason,
+                        held_days   = :held
+                    WHERE id = :id
+                """),
+                {
+                    "ep":      req.exit_price,
+                    "pnl":     round(pnl_inr, 2),
+                    "pnl_pct": pnl_pct,
+                    "status":  status,
+                    "reason":  req.exit_reason,
+                    "held":    held,
+                    "id":      req.trade_id,
+                },
+            )
+        return {
+            "status":   "ok",
+            "outcome":  status,
+            "pnl_inr":  round(pnl_inr, 2),
+            "pnl_pct":  pnl_pct,
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.get("/api/ml/stability/{symbol}")

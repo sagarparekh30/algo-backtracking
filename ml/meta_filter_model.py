@@ -37,11 +37,19 @@ import os
 import sys
 import json
 import logging
+import warnings
 from datetime import datetime
 from typing import Optional
 
 import numpy as np
 import pandas as pd
+
+warnings.filterwarnings(
+    "ignore",
+    message=".*sklearn.utils.parallel.delayed.*",
+    category=UserWarning,
+    module="sklearn",
+)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # noqa: F401

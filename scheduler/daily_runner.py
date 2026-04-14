@@ -200,9 +200,22 @@ def run_daily_pipeline() -> dict:
         }
         summary["total_signals"] = sum(len(v) for v in all_signals.values())
 
-        # Step 3: Telegram
+        # Step 3: Telegram — morning signals alert
         telegram_sent = _step_send_alerts(all_signals, backfill_result)
         summary["telegram_sent"] = telegram_sent
+
+        # Step 4: Portfolio heat update at 9am IST
+        try:
+            from alerts.telegram_bot import TelegramAlert
+            from risk.portfolio_heat import PortfolioHeatChecker
+            _heat = PortfolioHeatChecker()
+            TelegramAlert().send_portfolio_heat(
+                heat_pct        = _heat.heat_pct(),
+                sector_exposure = _heat.sector_exposure(),
+                open_count      = len(_heat.positions),
+            )
+        except Exception as _he:
+            logger.debug(f"Portfolio heat Telegram failed (non-fatal): {_he}")
 
     except Exception as e:
         logger.error(f"Daily pipeline unexpected error: {e}", exc_info=True)

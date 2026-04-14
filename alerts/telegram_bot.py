@@ -255,6 +255,84 @@ class TelegramAlert:
             logger.error(f"send_execute_alert error: {e}")
             return False
 
+    def send_portfolio_heat(self, heat_pct: float, sector_exposure: dict,
+                             open_count: int = 0) -> bool:
+        """
+        Daily 9am IST portfolio heat summary.
+
+        Args:
+            heat_pct:         Total capital at risk as % of capital.
+            sector_exposure:  {sector: exposure_pct} from PortfolioHeatChecker.
+            open_count:       Number of currently open positions.
+        """
+        try:
+            from datetime import date
+            today   = date.today().strftime("%d %b %Y")
+            heat_emoji = "🟢" if heat_pct < 3 else ("🟡" if heat_pct < 5 else "🔴")
+            lines   = [
+                f"<b>🌡 Portfolio Heat Update — {today}</b>",
+                f"{heat_emoji} Total risk: <b>{heat_pct:.1f}%</b> of capital",
+                f"Open positions: {open_count}",
+                "",
+            ]
+            if sector_exposure:
+                lines.append("<b>Sector Exposure</b>")
+                for sec, pct in sorted(sector_exposure.items(), key=lambda x: -x[1]):
+                    bar = "█" * int(pct / 5)
+                    lines.append(f"  {sec[:12]:<12}  {bar} {pct:.1f}%")
+            return self._post("\n".join(lines))
+        except Exception as e:
+            logger.error(f"send_portfolio_heat error: {e}")
+            return False
+
+    def send_new_signals(self, results: list, regime: str = "Neutral") -> bool:
+        """
+        Post-market signal alert with quality score and top 2 strategies.
+        Identical to send_execute_alert but emphasises quality score and
+        position sizing.
+        """
+        if not results:
+            return False
+        try:
+            from datetime import date
+            today = date.today().strftime("%d %b %Y")
+            regime_emoji = {"Bull": "🟢", "Neutral": "🟡", "Bear": "🔴"}.get(regime, "⚪")
+
+            lines = [
+                f"<b>📊 New Trade Signals — {today}</b>",
+                f"{regime_emoji} {regime} Market · {len(results)} confirmed",
+                "",
+            ]
+
+            for i, r in enumerate(results[:5], 1):
+                sym   = r.get("symbol", "")
+                prob  = int(round(r.get("buy_probability", 0) * 100))
+                qs    = r.get("quality_score", 0)
+                entry = r.get("entry") or r.get("price", 0)
+                sl    = r.get("stop_loss", 0)
+                tgt   = r.get("target") or r.get("price_target", 0)
+                strats = r.get("strategies", [])[:2]
+                ps    = r.get("position_size") or {}
+                shares = ps.get("shares", "—")
+                risk_inr = ps.get("risk_inr", 0)
+                ev_status = (r.get("event_risk") or {}).get("status", "")
+                ev_warn = " ⚠️ EVENT" if ev_status == "BLOCK" else (" 📅" if ev_status == "CAUTION" else "")
+
+                lines.append(f"<b>#{i} {sym}</b>  AI {prob}%  QS {qs}/100{ev_warn}")
+                lines.append(f"  Strategies : {', '.join(strats)}")
+                lines.append(f"  Entry ₹{entry:,.0f} · SL ₹{sl:,.0f} · T ₹{tgt:,.0f}")
+                if shares != "—":
+                    lines.append(f"  Size: {shares} shares · Risk ₹{risk_inr:,.0f}")
+                lines.append("")
+
+            if len(results) > 5:
+                lines.append(f"… +{len(results)-5} more on the dashboard")
+
+            return self._post("\n".join(lines))
+        except Exception as e:
+            logger.error(f"send_new_signals error: {e}")
+            return False
+
     def send_backfill_complete(self, stats: dict) -> bool:
         """
         Send a notification when the data backfill is complete.

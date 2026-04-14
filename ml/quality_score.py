@@ -1,12 +1,13 @@
 """
 Trade Quality Score (0–100)
 
-Combines five dimensions into a single score:
+Combines six dimensions into a single score:
   1. ML probability       (0–40 pts) — core signal strength
   2. Trend strength       (0–20 pts) — stock's own momentum (3M return)
   3. Volume confirmation  (0–15 pts) — vol spike vs 20-day avg
-  4. Sector strength      (0–15 pts) — sector's 1M performance
+  4. Sector strength      (0–10 pts) — sector's 1M performance
   5. Market regime        (0–10 pts) — macro environment bonus
+  6. Liquidity            (0–5 pts)  — ADV / spread / float score
 
 Score → Confidence label:
   75–100 : High
@@ -30,6 +31,7 @@ def compute_quality_score(
     vol_ratio: Optional[float] = None,
     sector_return_1m: Optional[float] = None,
     strategy_count: int = 1,
+    liquidity_score: Optional[int] = None,
 ) -> dict:
     """
     Compute a 0–100 trade quality score.
@@ -41,6 +43,7 @@ def compute_quality_score(
         vol_ratio:        Today's volume / 20-day avg (None = skip)
         sector_return_1m: Sector's 20-day avg return % (None = skip)
         strategy_count:   Number of strategies that fired (bonus multiplier)
+        liquidity_score:  0–100 from risk.liquidity_filter (None = neutral 50)
 
     Returns:
         {"score": int, "confidence": str, "breakdown": dict}
@@ -83,27 +86,32 @@ def compute_quality_score(
     else:
         vol_score = 0
 
-    # ── 4. Sector strength (0–15) ─────────────────────────────────────────
+    # ── 4. Sector strength (0–10) ─────────────────────────────────────────
     if sector_return_1m is None:
-        sector_score = 5   # neutral
+        sector_score = 4   # neutral
     elif sector_return_1m >= 8:
-        sector_score = 15
+        sector_score = 10
     elif sector_return_1m >= 4:
-        sector_score = 11
-    elif sector_return_1m >= 1:
         sector_score = 7
+    elif sector_return_1m >= 1:
+        sector_score = 5
     elif sector_return_1m >= 0:
-        sector_score = 3
+        sector_score = 2
     else:
         sector_score = 0
 
     # ── 5. Market regime bonus (0–10) ─────────────────────────────────────
     regime_score = _REGIME_BONUS.get(regime, 5)
 
+    # ── 6. Liquidity score (0–5) ──────────────────────────────────────────
+    # Maps 0–100 liquidity_score → 0–5 quality points
+    liq_pts = liquidity_score if liquidity_score is not None else 50
+    liq_score = int(round(min(5, liq_pts / 20)))
+
     # ── Multi-strategy bonus (up to +5) ───────────────────────────────────
     strat_bonus = min(5, (strategy_count - 1) * 2)
 
-    total = ml_score + trend_score + vol_score + sector_score + regime_score + strat_bonus
+    total = ml_score + trend_score + vol_score + sector_score + regime_score + liq_score + strat_bonus
     total = min(100, total)
 
     if total >= 75:
@@ -122,6 +130,7 @@ def compute_quality_score(
             "volume":          vol_score,
             "sector":          sector_score,
             "regime":          regime_score,
+            "liquidity":       liq_score,
             "multi_strategy":  strat_bonus,
         },
     }

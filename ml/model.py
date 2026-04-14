@@ -24,10 +24,21 @@ import os
 import sys
 import json
 import logging
+import warnings
 
 import numpy as np
 import pandas as pd
 from datetime import datetime
+
+# sklearn 1.3+ warns when RandomForest uses joblib.delayed internally instead
+# of sklearn.utils.parallel.delayed.  This is a library-internal issue, not
+# our code — suppress it so it doesn't flood Docker logs.
+warnings.filterwarnings(
+    "ignore",
+    message=".*sklearn.utils.parallel.delayed.*",
+    category=UserWarning,
+    module="sklearn",
+)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # noqa: F401

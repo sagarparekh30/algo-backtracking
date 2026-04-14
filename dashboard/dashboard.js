@@ -276,6 +276,39 @@ function _applyRoleUI(role, planType, planExpiry) {
   }
 }
 
+// Restore sizing prefs on page load
+_loadSizingPrefs();
+
+// ── Strategy win rate cache ───────────────────────────────────────────────
+let _stratWinRates = {};
+async function _loadStratWinRates() {
+  if (!getToken()) return;
+  try {
+    const d = await jAuth(`${API}/api/ml/strategy-win-rates`);
+    if (!d.error) _stratWinRates = d;
+  } catch(_) {}
+}
+_loadStratWinRates();
+
+// ── Risk disclaimer modal ─────────────────────────────────────────────────
+(function _showRiskDisclaimer() {
+  const DISC_KEY  = 'apex_disclaimer_last';
+  const WEEK_MS   = 7 * 24 * 3600 * 1000;
+  const last      = parseInt(localStorage.getItem(DISC_KEY) || '0', 10);
+  if (Date.now() - last < WEEK_MS) return;
+  // Show after short delay so app paints first
+  setTimeout(() => {
+    const el = document.getElementById('risk-disclaimer-modal');
+    if (el) el.classList.add('open');
+  }, 800);
+})();
+
+function acceptDisclaimer() {
+  localStorage.setItem('apex_disclaimer_last', Date.now().toString());
+  const el = document.getElementById('risk-disclaimer-modal');
+  if (el) el.classList.remove('open');
+}
+
 // Check existing token on load
 (async function _initAuth() {
   const t = getToken();
@@ -383,7 +416,7 @@ function go(id, el) {
   document.querySelector('.scroll').scrollTo(0, 0);
   if (id === 'home')      { loadHome(); }
   if (id === 'live')      { loadWatchlist(); refreshLive(); }
-  if (id === 'execute')   { loadExecuteRegime(); _updateExecuteBadge(0); _execPrevCount = 0; }
+  if (id === 'execute')   { loadExecuteRegime(); _updateExecuteBadge(0); _execPrevCount = 0; _loadSizingPrefs(); }
   if (id === 'screener')  { scrGo('sector', document.querySelector('.scr-tab-btn[data-scr="sector"]')); loadSectors(); }
   if (id === 'admin')     { loadAdminStats(); loadAdminUsers(); }
   if (id === 'ml')        { checkMLStatus(); }
@@ -1490,6 +1523,58 @@ function setSectorFilter(sector, el) {
   }
 }
 
+// ── Position Sizing helpers ───────────────────────────────────────────────
+
+const SZ_KEY = 'apex_sizing_prefs';
+
+function setSizeMode(mode) {
+  const btnFixed = document.getElementById('sz-mode-fixed');
+  const btnKelly = document.getElementById('sz-mode-kelly');
+  const kellyRow = document.getElementById('sz-kelly-row');
+  if (!btnFixed) return;
+  const ON  = 'background:var(--data);color:#fff;border-color:var(--data);';
+  const OFF = 'background:var(--s3);color:var(--txt3);border-color:var(--border);';
+  if (mode === 'kelly') {
+    btnFixed.style.cssText += OFF;
+    btnKelly.style.cssText += ON;
+    if (kellyRow) kellyRow.style.display = 'grid';
+  } else {
+    btnFixed.style.cssText += ON;
+    btnKelly.style.cssText += OFF;
+    if (kellyRow) kellyRow.style.display = 'none';
+  }
+  saveSizingPrefs();
+}
+
+function saveSizingPrefs() {
+  const capital = document.getElementById('sz-capital')?.value;
+  const risk    = document.getElementById('sz-risk')?.value;
+  const mode    = document.getElementById('sz-mode-kelly')?.classList.contains('active') ? 'kelly' : 'fixed';
+  const wr      = document.getElementById('sz-winrate')?.value;
+  const rr      = document.getElementById('sz-avgrr')?.value;
+  localStorage.setItem(SZ_KEY, JSON.stringify({ capital, risk, mode, wr, rr }));
+}
+
+function _loadSizingPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem(SZ_KEY) || '{}');
+    if (p.capital) { const el = document.getElementById('sz-capital'); if (el) el.value = p.capital; }
+    if (p.risk)    { const el = document.getElementById('sz-risk');    if (el) el.value = p.risk; }
+    if (p.wr)      { const el = document.getElementById('sz-winrate'); if (el) el.value = p.wr; }
+    if (p.rr)      { const el = document.getElementById('sz-avgrr');   if (el) el.value = p.rr; }
+    if (p.mode)    setSizeMode(p.mode);
+  } catch(_) {}
+}
+
+function _getSizingParams() {
+  const capital = parseFloat(document.getElementById('sz-capital')?.value) || 100000;
+  const risk    = parseFloat(document.getElementById('sz-risk')?.value)    || 1.5;
+  const mode    = document.getElementById('sz-mode-kelly')?.classList.contains('active') ? 'kelly' : 'fixed';
+  return { capital, risk, mode };
+}
+
+// ── Execute Run ───────────────────────────────────────────────────────────
+
 async function runExecute() {
   const btn     = document.getElementById('exec-run-btn');
   const body    = document.getElementById('exec-body');
@@ -1516,10 +1601,17 @@ async function runExecute() {
   insight.style.display = 'none';
   document.getElementById('exec-sector-filter').style.display = 'none';
 
-  const periodParam = _execTrendPeriod !== 'any' ? `?trend_period=${_execTrendPeriod}` : '';
+  // Build query params
+  const { capital, risk, mode } = _getSizingParams();
+  const params = new URLSearchParams();
+  if (_execTrendPeriod !== 'any') params.set('trend_period', _execTrendPeriod);
+  params.set('account_capital', capital);
+  params.set('risk_pct', risk);
+  params.set('size_mode', mode);
+  const periodParam = params.toString() ? '?' + params.toString() : '';
   let _regime = 'Neutral';
   try {
-    const d = await jAuth(`${API}/api/combined/signals${periodParam}`);
+    const d = await jAuth(`${API}/api/combined/signals${periodParam}`, {});
 
     // Stats
     set('exec-stat-hits',      d.total_strategy_signals || 0);
@@ -1607,9 +1699,16 @@ async function runExecute() {
       // AI reasoning line
       const aiReason = `<div class="ai-reason">${_buildAIReason(r, _regime)}</div>`;
 
-      const stratTags = (r.strategies || []).map(s =>
-        `<span class="strat-tag">${_stratLabel(s)}</span>`
-      ).join('');
+      const stratTags = (r.strategies || []).map(s => {
+        const wr = _stratWinRates[s];
+        const badge = wr && wr.total_trades >= 5
+          ? ` <span style="font-size:8px;opacity:.75;">${wr.win_rate_pct}%</span>`
+          : '';
+        const title = wr && wr.total_trades >= 5
+          ? `title="${wr.win_rate_pct}% win rate (${wr.total_trades} trades)"`
+          : '';
+        return `<span class="strat-tag" ${title}>${_stratLabel(s)}${badge}</span>`;
+      }).join('');
       const multiTag = r.strategy_count > 1
         ? `<span class="strat-tag" style="background:var(--data-d);color:var(--data);border-color:rgba(99,102,241,.3);">⚡ ${r.strategy_count} strategies</span>`
         : '';
@@ -1744,10 +1843,54 @@ async function runExecute() {
             </div>
             ${expRet}
           </div>
+          ${(() => {
+            const ps = r.position_size;
+            if (!ps) return '';
+            if (ps.error) return `
+              <div style="padding:8px 16px;border-top:0.5px solid var(--border);background:var(--red-d);border-radius:0 0 12px 12px;">
+                <span style="font-size:11px;color:var(--red);">⚠ Cannot size: ${ps.error}</span>
+              </div>`;
+            const fmtInr = v => '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0});
+            const capBadge = ps.capped ? `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:var(--live-d);color:var(--live);border:1px solid rgba(251,191,36,.3);margin-left:4px;">capped</span>` : '';
+            return `
+              <div style="padding:8px 16px;border-top:0.5px solid var(--border);display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+                <div style="text-align:center;">
+                  <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Shares${capBadge}</div>
+                  <div style="font-size:14px;font-weight:700;color:var(--txt1);">${ps.shares}</div>
+                </div>
+                <div style="text-align:center;">
+                  <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Position</div>
+                  <div style="font-size:12px;font-weight:700;color:var(--txt1);">${fmtInr(ps.position_value_inr)}</div>
+                  <div style="font-size:9px;color:var(--txt3);">${ps.pct_of_capital}% of cap</div>
+                </div>
+                <div style="text-align:center;">
+                  <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Max Risk</div>
+                  <div style="font-size:12px;font-weight:700;color:var(--red);">${fmtInr(ps.risk_inr)}</div>
+                </div>
+              </div>`;
+          })()}
+          ${(() => {
+            const ev = r.event_risk;
+            if (!ev || ev.status === 'CLEAR') return '';
+            const isBlock = ev.status === 'BLOCK';
+            const bg    = isBlock ? 'var(--red-d)'  : 'var(--live-d)';
+            const col   = isBlock ? 'var(--red)'    : 'var(--live)';
+            const icon  = isBlock ? '⛔'            : '📅';
+            const nearest = ev.nearest_event_days != null ? ` in ${ev.nearest_event_days}d` : '';
+            const evt   = (ev.events || [])[0] || {};
+            return `<div style="padding:6px 16px;background:${bg};border-top:0.5px solid ${col};">
+              <span style="font-size:11px;color:${col};font-weight:600;">${icon} Event risk: ${evt.purpose || ev.status}${nearest}</span>
+            </div>`;
+          })()}
           <div style="padding:10px 16px 14px;border-top:0.5px solid var(--border);display:flex;align-items:center;gap:8px;">
             <button onclick='openChart("${r.symbol}", ${JSON.stringify({stop_loss:r.stop_loss,target:r.target||r.price_target,buy_probability:r.buy_probability,entry:r.entry||r.price})})'
               style="flex:1;padding:10px 14px;font-size:12px;font-weight:600;background:var(--data-d);color:var(--data);border:1px solid rgba(129,140,248,.2);border-radius:10px;cursor:pointer;">
               📈 View Chart
+            </button>
+            <button onclick='_logTrade(${JSON.stringify({symbol:r.symbol,entry_price:r.entry||r.price,stop_loss:r.stop_loss,target:r.target||r.price_target,strategies:r.strategies,buy_probability:r.buy_probability,quality_score:r.quality_score,regime:r.regime,atr_at_entry:r.atr,liquidity_score:(r.liquidity||{}).liquidity_score||0,event_risk_status:(r.event_risk||{}).status||"CLEAR"})})'
+              style="padding:10px 12px;font-size:12px;font-weight:600;background:var(--green-d);color:var(--green);border:1px solid rgba(52,211,153,.2);border-radius:10px;cursor:pointer;"
+              title="Log this trade to your journal">
+              📓
             </button>
           </div>
         </div>`;
@@ -1763,6 +1906,60 @@ async function runExecute() {
     btn.disabled = false;
     btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg> Find Today\'s Best Trades';
   }
+}
+
+// ══════════════════════════════════════════════════════
+// TRADE LOGGER
+// ══════════════════════════════════════════════════════
+
+async function _logTrade(tradeData) {
+  // Prompt for actual entry price (pre-filled with signal entry)
+  const entry = tradeData.entry_price || 0;
+  const actualEntry = window.prompt(
+    `Log trade: ${tradeData.symbol}\n\nActual entry price (signal: ₹${entry}):`,
+    entry
+  );
+  if (actualEntry === null) return;   // user cancelled
+
+  const qty = window.prompt(`Quantity (shares):`, '0');
+  if (qty === null) return;
+
+  const payload = {
+    ...tradeData,
+    entry_price: parseFloat(actualEntry) || entry,
+    quantity:    parseInt(qty) || 0,
+    trade_type:  'paper',
+  };
+
+  try {
+    const res = await jAuth(`${API}/api/trades/log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.status === 'ok') {
+      _toast(`✅ Trade logged: ${tradeData.symbol}`);
+    } else {
+      _toast(`❌ Log failed: ${res.error || 'unknown error'}`, 'error');
+    }
+  } catch(e) {
+    _toast(`❌ ${e.message}`, 'error');
+  }
+}
+
+function _toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.style.cssText = `
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:${type==='error'?'var(--red-d)':'var(--green-d)'};
+    color:${type==='error'?'var(--red)':'var(--green)'};
+    border:1px solid ${type==='error'?'rgba(248,113,113,.3)':'rgba(52,211,153,.3)'};
+    padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;
+    z-index:9999;pointer-events:none;
+  `;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
 }
 
 // ══════════════════════════════════════════════════════
@@ -2329,6 +2526,51 @@ async function buildPortfolio() {
 // ══════════════════════════════════════════════════════
 // ADMIN PANEL
 // ══════════════════════════════════════════════════════
+
+async function loadWeeklyReport() {
+  const body = document.getElementById('weekly-report-body');
+  if (!body) return;
+  body.innerHTML = '<div class="empty"><div class="empty-title">Loading…</div></div>';
+  try {
+    const d = await jAuth(`${API}/api/ml/analytics/weekly`);
+    if (d.error) { body.innerHTML = `<div class="empty"><div class="empty-title">Error</div><div class="empty-sub">${d.error}</div></div>`; return; }
+
+    const fmtPct = v => v != null ? v + '%' : '—';
+    const driftColor = d.model_drift_score < 20 ? 'var(--green)' : d.model_drift_score < 40 ? 'var(--live)' : 'var(--red)';
+    const retrain = d.retrain_recommended
+      ? `<span style="padding:2px 8px;background:var(--red-d);color:var(--red);border:1px solid rgba(248,113,113,.3);border-radius:6px;font-size:10px;font-weight:600;">⚠ Retraining Recommended</span>`
+      : `<span style="padding:2px 8px;background:var(--green-d);color:var(--green);border:1px solid rgba(52,211,153,.3);border-radius:6px;font-size:10px;font-weight:600;">✓ Model Healthy</span>`;
+
+    const stratRows = (d.strategy_breakdown || []).map(s =>
+      `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid var(--border);">
+        <span style="font-size:12px;color:var(--txt2);">${s.strategy}</span>
+        <span style="font-size:12px;font-weight:700;color:${(s.win_rate_pct||0)>=55?'var(--green)':'var(--txt1)'};">${fmtPct(s.win_rate_pct)} <span style="font-size:9px;color:var(--txt3);">(${s.total_trades||0})</span></span>
+      </div>`
+    ).join('');
+
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
+        <div style="text-align:center;background:var(--s3);border-radius:10px;padding:10px;">
+          <div style="font-size:20px;font-weight:800;color:var(--green);">${fmtPct(d.win_rate_overall)}</div>
+          <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">Win Rate</div>
+        </div>
+        <div style="text-align:center;background:var(--s3);border-radius:10px;padding:10px;">
+          <div style="font-size:20px;font-weight:800;color:var(--data);">${d.total_closed_trades||0}</div>
+          <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">Closed Trades</div>
+        </div>
+        <div style="text-align:center;background:var(--s3);border-radius:10px;padding:10px;">
+          <div style="font-size:20px;font-weight:800;color:${driftColor};">${d.model_drift_score||0}</div>
+          <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">Drift Score</div>
+        </div>
+      </div>
+      <div style="margin-bottom:12px;">${retrain}</div>
+      ${stratRows ? `<div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Strategy Win Rates (90d)</div>${stratRows}` : ''}
+      <div style="font-size:10px;color:var(--txt3);margin-top:10px;">Generated ${d.generated_at || '—'}</div>
+    `;
+  } catch(e) {
+    body.innerHTML = `<div class="empty"><div class="empty-title">Error</div><div class="empty-sub">${e.message}</div></div>`;
+  }
+}
 
 async function loadAdminStats() {
   try {
