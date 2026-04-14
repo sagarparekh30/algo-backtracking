@@ -107,6 +107,7 @@ async function jAuth(url, opts = {}) {
   if (r.status === 401 || r.status === 403) {
     clearToken();
     showLogin();
+    showLoginBtn();
     throw new Error('Session expired — please log in again.');
   }
   if (!r.ok) {
@@ -131,6 +132,15 @@ function showLogin(msg) {
 function hideLogin() {
   document.getElementById('login-overlay').style.display = 'none';
   document.getElementById('login-error').style.display = 'none';
+  const signinBtn = document.getElementById('signin-btn');
+  if (signinBtn) signinBtn.style.display = 'none';
+}
+
+function showLoginBtn() {
+  const signinBtn = document.getElementById('signin-btn');
+  if (signinBtn) signinBtn.style.display = 'inline-block';
+  const tokenChip = document.getElementById('token-chip');
+  if (tokenChip) { tokenChip.querySelector('.chip-dot').style.background = 'var(--red)'; }
 }
 
 async function doLogin() {
@@ -269,7 +279,7 @@ function _applyRoleUI(role, planType, planExpiry) {
 // Check existing token on load
 (async function _initAuth() {
   const t = getToken();
-  if (!t) { return; }  // overlay already visible; no token = stay on login
+  if (!t) { showLoginBtn(); return; }  // no token — show Sign In button in header
   // Token exists — validate silently in background; hide overlay optimistically
   // so returning users land instantly on dashboard
   hideLogin();
@@ -541,7 +551,7 @@ async function runScan() {
             <div class="sig-price">₹${fmtP(s.price)}</div>
             <div class="sig-levels">SL ₹${fmtP(s.stop_loss)}</div>
             <div class="sig-levels">T &nbsp;₹${fmtP(s.target)}</div>
-            <button onclick="openChart('${s.symbol}')" class="btn btn-ghost btn-xs" style="margin-top:7px;">Chart ↗</button>
+            <button onclick='openChart("${s.symbol}",${JSON.stringify({stop_loss:s.stop_loss,target:s.target})})' class="btn btn-ghost btn-xs" style="margin-top:7px;">📈 Chart</button>
           </div>
         </div>`).join('');
     }
@@ -836,9 +846,95 @@ async function removeSym(sym) {
 }
 
 // ── Helpers ────────────────────────────────────────────
-function openChart(sym) {
-  window.open(`https://www.tradingview.com/chart/?symbol=NSE:${sym.replace(/[&-]/g,'_')}`, '_blank');
+// ── In-app chart sheet ───────────────────────────────────────────────────
+
+function openChart(sym, tradeData = {}) {
+  const sheet = document.getElementById('chart-sheet');
+  sheet.classList.add('open');
+
+  // Header info
+  document.getElementById('chart-sym-name').textContent = sym;
+  const sector = (_SECTOR_MAP && _SECTOR_MAP[sym]) || 'Equity';
+  document.getElementById('chart-sym-meta').textContent = sector + ' · NSE';
+
+  // TradingView full-chart link
+  const tvSym = sym.replace(/[&]/g, '_').replace(/-/g, '');
+  document.getElementById('chart-tv-link').href =
+    `https://www.tradingview.com/chart/?symbol=NSE:${tvSym}`;
+
+  // Trade info bar
+  const bar = document.getElementById('chart-trade-bar');
+  const fmt  = v => v != null ? '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0}) : '—';
+  if (tradeData.stop_loss || tradeData.target || tradeData.price_target || tradeData.buy_probability != null) {
+    bar.style.display = 'block';
+    document.getElementById('chart-entry').textContent = fmt(tradeData.entry || tradeData.current_price);
+    document.getElementById('chart-sl').textContent    = fmt(tradeData.stop_loss);
+    document.getElementById('chart-tgt').textContent   = fmt(tradeData.target || tradeData.price_target);
+    const prob = tradeData.buy_probability != null
+      ? Math.round(tradeData.buy_probability * 100) + '%' : '—';
+    const aiEl = document.getElementById('chart-ai');
+    aiEl.textContent  = prob;
+    aiEl.style.color  = _probColor(tradeData.buy_probability || 0);
+  } else {
+    bar.style.display = 'none';
+  }
+
+  // Push a history state so Android back button closes the sheet
+  history.pushState({ chartOpen: true }, '', '');
+
+  _renderTVChart(sym);
 }
+
+function closeChart() {
+  const sheet = document.getElementById('chart-sheet');
+  sheet.classList.remove('open');
+  document.getElementById('tv-widget').innerHTML = '';  // stop any live feeds
+}
+
+function _renderTVChart(sym) {
+  const tvSym     = 'NSE:' + sym.replace(/[&]/g, '_').replace(/-/g, '');
+  const container = document.getElementById('tv-widget');
+  container.innerHTML = '';
+
+  function _doRender() {
+    new TradingView.widget({
+      autosize:            true,
+      symbol:              tvSym,
+      interval:            'D',
+      timezone:            'Asia/Kolkata',
+      theme:               'dark',
+      style:               '1',
+      locale:              'en',
+      toolbar_bg:          '#070C16',
+      backgroundColor:     '#070C16',
+      gridColor:           'rgba(255,255,255,0.04)',
+      enable_publishing:   false,
+      hide_side_toolbar:   false,
+      allow_symbol_change: true,
+      container_id:        'tv-widget',
+      save_image:          false,
+      studies:             ['RSI@tv-basicstudies', 'MACD@tv-basicstudies'],
+    });
+  }
+
+  if (window.TradingView) {
+    _doRender();
+  } else {
+    // Library still loading — poll until ready (max 5 s)
+    let tries = 0;
+    const wait = setInterval(() => {
+      if (window.TradingView) { clearInterval(wait); _doRender(); }
+      if (++tries > 50)        { clearInterval(wait); }
+    }, 100);
+  }
+}
+
+// Close chart sheet on Android back-button press
+window.addEventListener('popstate', e => {
+  if (document.getElementById('chart-sheet').classList.contains('open')) {
+    closeChart();
+  }
+});
 const j = url => fetch(url).then(r => r.json());
 function set(id, v) { const el = document.getElementById(id); if(el) el.textContent = v ?? '—'; }
 function clr(id, c) {
@@ -1130,7 +1226,7 @@ function mlFilter(type) {
     const priceLabel = isLive
       ? `<span style="font-size:9px;font-weight:700;color:var(--green);margin-left:3px;">●LIVE</span>`
       : `<span style="font-size:9px;color:var(--txt3);margin-left:3px;">(last close)</span>`;
-    return `<div class="signal-item" style="cursor:pointer;" onclick="openChart('${p.symbol}')">
+    return `<div class="signal-item" style="cursor:pointer;" onclick='openChart("${p.symbol}",{stop_loss:${p.stop_loss||null},target:${p.target||null}})'>
       <div style="flex:1;min-width:0;">
         <div class="sig-name">${p.symbol}</div>
         <div class="sig-meta">₹${fmtP(p.price)}${priceLabel} · ${p.confidence || ''} · Target ${target} ${retPct}</div>
@@ -1649,9 +1745,9 @@ async function runExecute() {
             ${expRet}
           </div>
           <div style="padding:10px 16px 14px;border-top:0.5px solid var(--border);display:flex;align-items:center;gap:8px;">
-            <button onclick="openChart('${r.symbol}')"
-              style="padding:9px 14px;font-size:12px;font-weight:500;background:var(--s3);color:#444;border:0.5px solid #ddd;border-radius:9px;cursor:pointer;">
-              Chart ↗
+            <button onclick='openChart("${r.symbol}", ${JSON.stringify({stop_loss:r.stop_loss,target:r.target||r.price_target,buy_probability:r.buy_probability,entry:r.entry||r.price})})'
+              style="flex:1;padding:10px 14px;font-size:12px;font-weight:600;background:var(--data-d);color:var(--data);border:1px solid rgba(129,140,248,.2);border-radius:10px;cursor:pointer;">
+              📈 View Chart
             </button>
           </div>
         </div>`;
@@ -2420,21 +2516,44 @@ async function loadHome() {
     document.getElementById('hm-h-data-val').textContent = dataOk ? rowsLabel + ' records' : 'Run a sync first';
   } catch(e) {}
 
-  // 2. Market regime (pre-fetched in parallel)
+  // 2. Market Pulse (regime + actionable verdict)
   try {
     const r = regimeRes.status === 'fulfilled' ? regimeRes.value : {};
     const regime = r.regime || 'Unknown';
-    const colors = { Bull: 'var(--green)', Neutral: 'var(--live)', Bear: 'var(--red)' };
+    const vol    = r.volatility_label || 'Normal';
+
+    const regimeColor = { Bull: 'var(--green)', Neutral: 'var(--live)', Bear: 'var(--red)' };
+    const volColor    = { High: 'var(--red)',   Normal:  'var(--live)', Low:  'var(--green)' };
+
+    // Regime pill
     const dot = document.getElementById('hm-regime-dot');
-    dot.style.background = colors[regime] || 'var(--txt3)';
-    dot.style.boxShadow = `0 0 8px ${colors[regime] || 'var(--txt3)'}`;
+    dot.style.background  = regimeColor[regime] || 'var(--txt3)';
+    dot.style.boxShadow   = `0 0 8px ${regimeColor[regime] || 'var(--txt3)'}`;
     document.getElementById('hm-regime-txt').textContent = regime + ' Market';
+
+    // Breadth % — plain English
     const breadth = r.breadth_pct || 0;
     document.getElementById('hm-breadth-pct').textContent = breadth + '%';
-    document.getElementById('hm-breadth-bar').style.width = Math.min(breadth, 100) + '%';
-    const thresh = { Bull: '55%', Neutral: '60%', Bear: '65%' };
-    document.getElementById('hm-ai-thresh').textContent = thresh[regime] || '60%';
-    document.getElementById('hm-volatility').textContent = r.volatility_label || '—';
+
+    // Volatility — colored
+    const volEl = document.getElementById('hm-volatility');
+    volEl.textContent  = vol;
+    volEl.style.color  = volColor[vol] || 'rgba(255,255,255,.85)';
+
+    // One actionable verdict for the trader
+    const verdicts = {
+      'Bull+Low':      '🟢 Strong calm market — good conditions for swing trades',
+      'Bull+Normal':   '🟢 Market is bullish — focus on momentum & breakout setups',
+      'Bull+High':     '🟡 Bullish but volatile — size down, use tighter stop losses',
+      'Neutral+Low':   '🟡 Quiet market — wait for clear breakout signals before entering',
+      'Neutral+Normal':'🟡 Mixed signals — only take high-conviction setups today',
+      'Neutral+High':  '🟠 Choppy conditions — reduce position sizes, avoid overtrading',
+      'Bear+Low':      '🔴 Weak market — avoid new long positions, protect your capital',
+      'Bear+Normal':   '🔴 Bearish conditions — cash is a position, stay defensive',
+      'Bear+High':     '🔴 Dangerous market — do not trade, wait for conditions to improve',
+    };
+    const verdictEl = document.getElementById('hm-verdict');
+    if (verdictEl) verdictEl.textContent = verdicts[`${regime}+${vol}`] || '—';
   } catch(e) {}
 
   // 3. AI Model health (pre-fetched in parallel)
@@ -2465,20 +2584,35 @@ function renderHomePicks(results) {
   const top3 = results.slice(0, 3);
   const rankColors = ['var(--data)',   'var(--green)',  'var(--live)'];
   const rankBgs    = ['var(--data-d)', 'var(--green-d)','var(--live-d)'];
+
   picks.innerHTML = top3.map((r, i) => {
-    const prob = Math.round((r.buy_probability || 0) * 100);
-    const color = _probColor(r.buy_probability || 0);
-    const fmt = v => v != null ? '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0}) : '—';
-    const rr = r.risk_reward ? r.risk_reward.toFixed(1) + 'R' : '—';
-    return `<div class="home-pick" onclick="go('execute',document.querySelector('[data-tab=execute]'))">
+    const prob    = Math.round((r.buy_probability || 0) * 100);
+    const color   = _probColor(r.buy_probability || 0);
+    const fmt     = v => v != null ? '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0}) : '—';
+    const rr      = r.risk_reward ? r.risk_reward.toFixed(1) + 'R' : '—';
+    const strats  = r.strategies || [];
+    const topStrat = strats[0] ? strats[0].replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) : '';
+
+    // RR ≥ 2.5 = Swing trade (hold days–weeks), else Short-term (hold 1–3 days)
+    const rrNum    = r.risk_reward || 0;
+    const tradeType = rrNum >= 2.5 ? 'Swing' : 'Short-term';
+    const typeColor = rrNum >= 2.5 ? 'var(--green)' : 'var(--live)';
+    const typeBg    = rrNum >= 2.5 ? 'var(--green-d)' : 'var(--live-d)';
+
+    const tradeJson = JSON.stringify(r).replace(/"/g, '&quot;');
+    return `<div class="home-pick" style="cursor:pointer;" onclick='openChart("${r.symbol}", ${JSON.stringify({stop_loss:r.stop_loss,target:r.target||r.price_target,buy_probability:r.buy_probability,entry:r.entry||r.current_price})})'>
       <div class="home-pick-rank" style="background:${rankBgs[i]};color:${rankColors[i]};">#${i+1}</div>
       <div class="home-pick-body">
-        <div class="home-pick-sym">${r.symbol}</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <div class="home-pick-sym">${r.symbol}</div>
+          <span style="font-size:9px;font-weight:600;padding:2px 7px;background:${typeBg};color:${typeColor};border-radius:4px;">${tradeType}</span>
+        </div>
         <div class="home-pick-meta">SL ${fmt(r.stop_loss)} · T ${fmt(r.target || r.price_target)} · RR ${rr}</div>
+        ${topStrat ? `<div style="font-size:9px;color:var(--txt3);margin-top:2px;">${topStrat}</div>` : ''}
       </div>
       <div class="home-pick-right">
         <div class="home-pick-prob" style="color:${color};">${prob}%</div>
-        <div style="font-size:10px;color:var(--txt3);">AI score</div>
+        <div style="font-size:10px;color:var(--txt3);">Chart →</div>
       </div>
     </div>`;
   }).join('');

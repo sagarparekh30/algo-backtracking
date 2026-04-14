@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
   <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/></noscript>
+  <!-- TradingView chart library — loaded once, reused for every symbol -->
+  <script src="https://s3.tradingview.com/tv.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1110,9 +1112,134 @@
       text-transform: uppercase; letter-spacing: .8px;
       padding: 12px 16px 6px;
     }
+
+    /* ═══════════════════════════════════════════
+       CHART SHEET — full-screen in-app chart
+    ═══════════════════════════════════════════ */
+    #chart-sheet {
+      position: fixed; inset: 0; z-index: 300;
+      background: #070C16;
+      flex-direction: column;
+      display: none;
+    }
+    #chart-sheet.open { display: flex; }
+    .chart-hdr {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--s1);
+    }
+    .chart-back-btn {
+      width: 36px; height: 36px; border: none;
+      background: var(--s2); border-radius: 10px;
+      color: var(--txt); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .chart-trade-bar {
+      display: none;
+      padding: 10px 14px;
+      background: var(--s2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .chart-trade-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+    .chart-trade-cell { text-align: center; }
+    .chart-trade-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--txt3); margin-bottom: 3px; }
+    .chart-trade-val { font-size: 13px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+    #tv-widget { flex: 1; min-height: 0; }
+
+    /* ═══════════════════════════════════════════
+       RESPONSIVE — mobile fixes
+    ═══════════════════════════════════════════ */
+
+    /* All tables scroll horizontally on small screens */
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* Minimum touch target for all interactive elements */
+    button, .nav-btn, .home-shortcut, .home-pick, .comb-card { -webkit-tap-highlight-color: transparent; }
+
+    @media (max-width: 480px) {
+      /* Header: hide clock on very small phones */
+      .hdr-clock { display: none; }
+
+      /* Reduce hero padding */
+      .home-hero { padding: 20px 16px 18px; }
+
+      /* Execute trade cells: 2 per row on tiny phones */
+      .comb-trade-grid { grid-template-columns: 1fr 1fr; }
+
+      /* Chart trade bar: 2x2 on small phones */
+      .chart-trade-grid { grid-template-columns: 1fr 1fr; row-gap: 10px; }
+
+      /* Cards: reduce padding */
+      .card-p { padding: 12px; }
+      .page { padding: 10px 10px; gap: 10px; }
+
+      /* Screener filters: stack vertically */
+      .uv-filter-row { flex-wrap: wrap; gap: 6px !important; }
+
+      /* Nav labels: smaller */
+      .nav-btn { font-size: 8px; }
+    }
+
+    @media (max-width: 360px) {
+      /* Smallest phones: tighten further */
+      .home-shortcuts { grid-template-columns: 1fr 1fr; gap: 6px; }
+      .chart-trade-grid { grid-template-columns: 1fr 1fr; }
+      .hdr { padding: 0 10px; }
+    }
   </style>
 </head>
 <body>
+
+<!-- ══════════════════════════════════ CHART SHEET -->
+<div id="chart-sheet">
+  <!-- Header -->
+  <div class="chart-hdr">
+    <button class="chart-back-btn" onclick="closeChart()" title="Back">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+    </button>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:16px;font-weight:700;letter-spacing:-.2px;" id="chart-sym-name">—</div>
+      <div style="font-size:10px;color:var(--txt3);margin-top:1px;" id="chart-sym-meta">—</div>
+    </div>
+    <a id="chart-tv-link" href="#" target="_blank" rel="noopener"
+      style="font-size:11px;font-weight:600;padding:7px 13px;background:var(--data-d);color:var(--data);border-radius:9px;text-decoration:none;white-space:nowrap;border:1px solid rgba(129,140,248,.2);">
+      Full Chart ↗
+    </a>
+  </div>
+
+  <!-- Trade info strip (visible only when trade data is present) -->
+  <div class="chart-trade-bar" id="chart-trade-bar">
+    <div class="chart-trade-grid">
+      <div class="chart-trade-cell">
+        <div class="chart-trade-lbl">Entry</div>
+        <div class="chart-trade-val" id="chart-entry">—</div>
+      </div>
+      <div class="chart-trade-cell">
+        <div class="chart-trade-lbl" style="color:var(--red);">Stop Loss</div>
+        <div class="chart-trade-val" style="color:var(--red);" id="chart-sl">—</div>
+      </div>
+      <div class="chart-trade-cell">
+        <div class="chart-trade-lbl" style="color:var(--green);">Target</div>
+        <div class="chart-trade-val" style="color:var(--green);" id="chart-tgt">—</div>
+      </div>
+      <div class="chart-trade-cell">
+        <div class="chart-trade-lbl">AI Score</div>
+        <div class="chart-trade-val" id="chart-ai">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TradingView widget renders here -->
+  <div id="tv-widget"></div>
+</div>
 
 <!-- ══════════════════════════════════ LOGIN MODAL -->
 <div id="login-overlay" style="
@@ -1156,10 +1283,11 @@
       <span class="chip-dot" id="mkt-chip-dot" style="background:var(--txt3)"></span>
       <span id="mkt-chip-txt">NSE</span>
     </div>
-    <div id="token-chip" class="chip chip-green">
+    <div id="token-chip" class="chip chip-green" style="cursor:pointer;" onclick="if(!getToken())showLogin();" title="Authentication status">
       <span class="chip-dot" style="background:var(--green)"></span>
       <span>Auth</span>
     </div>
+    <button id="signin-btn" onclick="showLogin()" style="display:none;font-size:11px;font-weight:700;padding:4px 12px;background:linear-gradient(135deg,#F59E0B,#D97706);color:#0A0F1A;border:none;border-radius:8px;cursor:pointer;letter-spacing:.3px;">Sign In</button>
     <span id="plan-info-chip" style="display:none;"></span>
     <span id="admin-badge" style="display:none;font-size:11px;font-weight:700;padding:3px 10px;background:var(--s2);color:var(--txt2);border-radius:999px;cursor:pointer;border:0.5px solid var(--border);" onclick="openMoreSheet()" title="Account & sign out"></span>
   </div>
@@ -1171,42 +1299,30 @@
   <!-- ───────────── TAB: HOME ───────────── -->
   <div id="tab-home" class="tab active">
 
-    <!-- Hero: Market Regime -->
+    <!-- Hero: Market Pulse -->
     <div class="home-hero">
-      <div class="home-hero-label">Market Condition</div>
+      <div class="home-hero-label">Market Pulse</div>
       <div id="hm-regime-pill" class="home-regime-pill">
         <div class="home-regime-dot" id="hm-regime-dot" style="background:var(--txt3);"></div>
-        <span id="hm-regime-txt">Loading…</span>
+        <span id="hm-regime-txt">Checking…</span>
       </div>
 
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
-        <span style="font-size:11px;color:rgba(255,255,255,.45);">Market Breadth — % stocks above SMA50</span>
-        <span id="hm-breadth-pct" style="font-size:13px;font-weight:700;color:rgba(255,255,255,.7);">—%</span>
-      </div>
-      <div class="breadth-bar-track">
-        <div class="breadth-bar-fill" id="hm-breadth-bar" style="width:0%;"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-bottom:18px;">
-        <span style="font-size:10px;color:rgba(255,255,255,.3);">Bear ← 0%</span>
-        <span style="font-size:10px;color:rgba(255,255,255,.3);">50% → Bull</span>
-      </div>
+      <!-- Actionable verdict — changes based on regime + volatility -->
+      <div id="hm-verdict" style="font-size:12px;line-height:1.6;color:rgba(255,255,255,.5);margin:10px 0 16px;min-height:18px;">—</div>
 
-      <div class="home-stat-grid">
-        <div class="home-stat">
-          <div class="home-stat-val" id="hm-ai-thresh">—%</div>
-          <div class="home-stat-lbl">AI Threshold</div>
+      <!-- Two plain-English stats -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div style="background:rgba(255,255,255,.06);border-radius:10px;padding:11px 13px;">
+          <div style="font-size:22px;font-weight:700;color:rgba(255,255,255,.88);" id="hm-breadth-pct">—</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:3px;">stocks trending up</div>
         </div>
-        <div class="home-stat">
-          <div class="home-stat-val" id="hm-volatility">—</div>
-          <div class="home-stat-lbl">Volatility</div>
-        </div>
-        <div class="home-stat">
-          <div class="home-stat-val" id="hm-db-rows" style="font-size:16px;">—</div>
-          <div class="home-stat-lbl">DB Records</div>
+        <div style="background:rgba(255,255,255,.06);border-radius:10px;padding:11px 13px;">
+          <div style="font-size:22px;font-weight:700;" id="hm-volatility">—</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:3px;">market volatility</div>
         </div>
       </div>
 
-      <div style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:5px;">
+      <div style="font-size:10px;color:rgba(255,255,255,.25);">
         <span id="hm-updated">Updated: —</span>
       </div>
     </div>
