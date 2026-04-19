@@ -10,6 +10,7 @@ import numpy as np
 import os
 import sys
 import logging
+import time as _time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import load_env  # noqa: F401
@@ -24,6 +25,11 @@ from strategies.indicators import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Module-level cache for get_all_signals — 15-minute TTL
+_all_signals_cache: dict | None = None
+_all_signals_cache_ts: float = 0.0
+_ALL_SIGNALS_TTL = 900.0   # 15 minutes
 
 STRATEGY_DESCRIPTIONS = {
     # ── Moving Average ──────────────────────────────────────────────────
@@ -149,15 +155,62 @@ class StrategyManager:
             logger.error(f"Strategy scan error ({strategy_id}): {e}")
         return signals
 
-    def get_all_signals(self) -> dict:
-        """Run all strategies and return combined results."""
+    def get_all_signals(self, force: bool = False) -> dict:
+        """Run all strategies and return combined results.
+
+        Fetches candle data once, then runs every strategy in-memory —
+        avoids N separate DB round-trips (one per strategy).
+        Results are cached for 15 minutes (configurable via _ALL_SIGNALS_TTL).
+        """
+        global _all_signals_cache, _all_signals_cache_ts
+        now = _time.monotonic()
+        if not force and _all_signals_cache and (now - _all_signals_cache_ts) < _ALL_SIGNALS_TTL:
+            return _all_signals_cache
+
+        # ── Fetch once ────────────────────────────────────────────────────
+        try:
+            engine = get_engine()
+            df_all = pd.read_sql(
+                f"""
+                SELECT symbol, trade_date, open, high, low, close, volume
+                FROM {self.table_name}
+                WHERE trade_date >= CURRENT_DATE - INTERVAL '{self._LOOKBACK_DAYS} days'
+                ORDER BY symbol, trade_date ASC
+                """,
+                engine,
+            )
+        except Exception as e:
+            logger.error(f"get_all_signals: DB fetch failed: {e}")
+            return {sid: [] for sid in STRATEGY_DESCRIPTIONS}
+
+        if df_all.empty:
+            return {sid: [] for sid in STRATEGY_DESCRIPTIONS}
+
+        # Pre-group by symbol so each strategy just iterates the map
+        symbol_groups = {
+            sym: grp.reset_index(drop=True)
+            for sym, grp in df_all.groupby("symbol", sort=False)
+        }
+
+        # ── Run each strategy over the cached data ────────────────────────
         results = {}
         for strategy_id in STRATEGY_DESCRIPTIONS:
-            try:
-                results[strategy_id] = self.get_signals(strategy_id)
-            except Exception as e:
-                logger.error(f"get_all_signals error for {strategy_id}: {e}")
+            strategy_fn = self._get_strategy_fn(strategy_id)
+            if strategy_fn is None:
                 results[strategy_id] = []
+                continue
+            signals = []
+            for symbol, df in symbol_groups.items():
+                try:
+                    sig = strategy_fn(df, symbol)
+                    if sig:
+                        signals.append(sig)
+                except Exception as e:
+                    logger.error(f"get_all_signals error for {symbol}/{strategy_id}: {e}")
+            results[strategy_id] = signals
+
+        _all_signals_cache = results
+        _all_signals_cache_ts = _time.monotonic()
         return results
 
     # ── Dispatcher ─────────────────────────────────────────────────────

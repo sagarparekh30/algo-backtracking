@@ -211,7 +211,7 @@ function _showAdminBadge(username) {
 }
 
 // Tabs restricted to admin only
-const ADMIN_ONLY_TABS = ['execute', 'ml', 'data', 'admin'];
+const ADMIN_ONLY_TABS = ['execute', 'data', 'admin'];
 
 function _applyRoleUI(role, planType, planExpiry) {
   const isAdmin = role === 'admin';
@@ -222,8 +222,12 @@ function _applyRoleUI(role, planType, planExpiry) {
     if (el) el.style.display = visible ? 'flex' : 'none';
   };
   show('nav-execute-btn',   isAdmin);
-  show('nav-ml-btn',        isAdmin);
+  show('nav-ml-btn',        true);
   show('nav-admin-btn',     isAdmin);
+
+  // ML tab: hide training section from customers
+  const el = document.getElementById('ml-train-section');
+  if (el) el.style.display = isAdmin ? '' : 'none';
 
   // ── More sheet buttons ───────────────────────────────────────────────
   const showBlock = (id, visible) => {
@@ -414,12 +418,15 @@ function go(id, el) {
   document.getElementById('tab-' + id).classList.add('active');
   if (el) el.classList.add('active');
   document.querySelector('.scroll').scrollTo(0, 0);
+  if (id !== 'intraday')  { _stopIntraAutoRefresh(); }
   if (id === 'home')      { loadHome(); }
   if (id === 'live')      { loadWatchlist(); refreshLive(); }
   if (id === 'execute')   { loadExecuteRegime(); _updateExecuteBadge(0); _execPrevCount = 0; _loadSizingPrefs(); }
   if (id === 'screener')  { scrGo('sector', document.querySelector('.scr-tab-btn[data-scr="sector"]')); loadSectors(); }
   if (id === 'admin')     { loadAdminStats(); loadAdminUsers(); }
   if (id === 'ml')        { checkMLStatus(); }
+  if (id === 'chat')      { window.initChat(); }
+  if (id === 'intraday')  { loadIntraday(); _startIntraAutoRefresh(); }
 }
 
 function _showAccessDenied() {
@@ -993,7 +1000,7 @@ async function checkMLStatus() {
       document.getElementById('ml-results-card').style.display = 'block';
       document.getElementById('ml-analytics-card').style.display = 'block';
       document.getElementById('ml-regime-card').style.display = 'block';
-      document.getElementById('ml-data-card').style.display = 'block';
+      if (getRole() === 'admin') document.getElementById('ml-data-card').style.display = 'block';
       if (d.meta && d.meta.auc_roc) renderMLMeta(d.meta);
       loadMLAnalytics();
       loadRegime();
@@ -3745,3 +3752,432 @@ _visibleInterval(refreshStatus, 30000);       // was 5s — status is cached 60s
 _visibleInterval(refreshScheduler, 30000);    // was 15s
 _visibleInterval(() => { if (document.getElementById('tab-live').classList.contains('active')) refreshLive(); }, 3000);
 checkMLStatus();
+
+// ═══════════════════════════════════════════════════════════════════════
+// INTRADAY SCANNER
+// ═══════════════════════════════════════════════════════════════════════
+
+let _intraData      = [];
+let _intraFilter    = 'all';
+let _intraAutoTimer     = null;
+let _intraCountdownTimer = null;
+let _intraNextRefresh    = 0;
+const _INTRA_REFRESH_MS  = 5 * 60 * 1000;  // 5 minutes
+
+function _startIntraAutoRefresh() {
+  _stopIntraAutoRefresh();
+  _intraNextRefresh = Date.now() + _INTRA_REFRESH_MS;
+
+  // Main refresh interval
+  _intraAutoTimer = setInterval(() => {
+    const tab = document.getElementById('tab-intraday');
+    if (tab && tab.classList.contains('active')) {
+      _intraNextRefresh = Date.now() + _INTRA_REFRESH_MS;
+      loadIntraday();
+    }
+  }, _INTRA_REFRESH_MS);
+
+  // Countdown tick every second
+  _intraCountdownTimer = setInterval(() => {
+    const el = document.getElementById('intra-countdown');
+    if (!el) return;
+    const rem = Math.max(0, _intraNextRefresh - Date.now());
+    const m = Math.floor(rem / 60000);
+    const s = Math.floor((rem % 60000) / 1000);
+    el.textContent = `· auto in ${m}:${String(s).padStart(2, '0')}`;
+  }, 1000);
+}
+
+function _stopIntraAutoRefresh() {
+  if (_intraAutoTimer)      { clearInterval(_intraAutoTimer);      _intraAutoTimer = null; }
+  if (_intraCountdownTimer) { clearInterval(_intraCountdownTimer); _intraCountdownTimer = null; }
+  const el = document.getElementById('intra-countdown');
+  if (el) el.textContent = '';
+}
+
+const SETUP_CFG = {
+  ORB_BREAKOUT:       { color: '#FBBF24', bg: 'rgba(251,191,36,.12)',  icon: '⚡' },
+  GAP_UP:             { color: '#34D399', bg: 'rgba(52,211,153,.12)',  icon: '↑' },
+  GAP_DOWN_REVERSAL:  { color: '#818CF8', bg: 'rgba(129,140,248,.12)', icon: '↓' },
+  MOMENTUM:           { color: '#10b981', bg: 'rgba(16,185,129,.12)',  icon: '🚀' },
+  BREAKOUT:           { color: '#f59e0b', bg: 'rgba(245,158,11,.12)',  icon: '📈' },
+  VWAP_BOUNCE:        { color: '#60a5fa', bg: 'rgba(96,165,250,.12)',  icon: '〰' },
+  REVERSAL:           { color: '#c084fc', bg: 'rgba(192,132,252,.12)', icon: '↩' },
+};
+
+async function loadIntraday(forceRefresh) {
+  const cards = document.getElementById('intra-cards');
+  if (!cards) return;
+
+  const _h = () => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (getToken() || '') });
+
+  if (forceRefresh) {
+    await fetch('/api/intraday/refresh', { method: 'POST', headers: _h() }).catch(() => {});
+    // Reset the auto-refresh countdown after a manual refresh
+    _intraNextRefresh = Date.now() + _INTRA_REFRESH_MS;
+  }
+
+  cards.innerHTML = `<div class="empty"><div class="empty-icon" style="background:var(--live-d);">⚡</div><div class="empty-title">Scanning stocks…</div><div class="empty-sub">Building today's intraday setups</div></div>`;
+
+  try {
+    const res = await fetch('/api/intraday/signals?limit=50', { headers: _h() });
+    const d = await res.json();
+    if (d.error) {
+      cards.innerHTML = `<div class="empty"><div class="empty-title">Error</div><div class="empty-sub">${d.error}</div></div>`;
+      return;
+    }
+
+    _intraData = d.results || [];
+    document.getElementById('intra-total').textContent = _intraData.length;
+
+    // Stats strip
+    const by = d.by_setup || {};
+    const orbCount = (by['ORB_BREAKOUT'] || 0);
+    const gapCount = (by['GAP_UP'] || 0) + (by['GAP_DOWN_REVERSAL'] || 0);
+    const momCount = (by['MOMENTUM'] || 0) + (by['BREAKOUT'] || 0);
+    const revCount = (by['REVERSAL'] || 0) + (by['VWAP_BOUNCE'] || 0);
+    document.getElementById('intra-s-orb').textContent = orbCount;
+    document.getElementById('intra-s-gap').textContent = gapCount;
+    document.getElementById('intra-s-mom').textContent = momCount;
+    document.getElementById('intra-s-rev').textContent = revCount;
+
+    // Regime chip
+    const regimeChip = document.getElementById('intra-regime-chip');
+    if (regimeChip) {
+      const r = d.regime || 'Neutral';
+      regimeChip.textContent = r;
+      regimeChip.className = 'chip ' + (r === 'Bull' ? 'chip-green' : r === 'Bear' ? 'chip-red' : 'chip-gray');
+    }
+    const genAt = document.getElementById('intra-gen-at');
+    if (genAt) genAt.textContent = d.generated_at ? 'at ' + d.generated_at.slice(11,16) : '';
+
+    _renderIntraCards();
+  } catch (e) {
+    cards.innerHTML = `<div class="empty"><div class="empty-title">Failed to load</div><div class="empty-sub">${e.message}</div></div>`;
+  }
+}
+
+function intraFilter(type, el) {
+  _intraFilter = type;
+  document.querySelectorAll('.intra-filter-pill').forEach(p => p.classList.remove('active'));
+  if (el) el.classList.add('active');
+  _renderIntraCards();
+}
+
+function _renderIntraCards() {
+  const cards = document.getElementById('intra-cards');
+  if (!cards) return;
+
+  const rows = _intraFilter === 'all'
+    ? _intraData
+    : _intraData.filter(r => r.setup_type === _intraFilter);
+
+  if (!rows.length) {
+    cards.innerHTML = `<div class="empty"><div class="empty-title">No setups</div><div class="empty-sub">No ${_intraFilter === 'all' ? '' : _intraFilter + ' '}setups found today</div></div>`;
+    return;
+  }
+
+  cards.innerHTML = rows.map(_intraCard).join('');
+}
+
+function _intraCard(r) {
+  const cfg    = SETUP_CFG[r.setup_type] || { color: '#94A3B8', bg: 'rgba(148,163,184,.1)', icon: '◆' };
+  const conf   = r.confidence || 0;
+  const confColor = conf >= 70 ? '#34D399' : conf >= 50 ? '#FBBF24' : '#94A3B8';
+  const rr     = r.risk_reward ? `R:R ${r.risk_reward}:1` : '';
+  const mlStr  = r.ml_prob != null ? ` · ML ${r.ml_prob}%` : '';
+  const atrStr = r.atr_pct ? ` · ATR ${r.atr_pct}%` : '';
+
+  const t2Row = r.target2 ? `
+    <div class="intra-level">
+      <div class="intra-level-lbl">Target 2</div>
+      <div class="intra-level-val" style="color:#34D399;">₹${r.target2}</div>
+    </div>` : '';
+
+  const rationale = (r.rationale || []).map(pt =>
+    `<div class="intra-rationale-item"><span style="color:var(--sig);flex-shrink:0;">▸</span><span>${pt}</span></div>`
+  ).join('');
+
+  return `
+  <div class="intra-card">
+    <div class="intra-header">
+      <div style="flex:1;min-width:0;">
+        <div class="intra-sym">${r.symbol}</div>
+        <div class="intra-company">${r.company_name || ''} · ${r.sector || '—'}</div>
+      </div>
+      <div>
+        <div class="intra-badge" style="background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.color}33;">
+          ${cfg.icon} ${r.setup_label || r.setup_type}
+        </div>
+        <div style="text-align:right;font-size:10px;color:var(--txt3);margin-top:3px;">${r.timeframe || ''}</div>
+      </div>
+    </div>
+
+    <div class="intra-price-row">
+      <span class="intra-price">₹${r.last_price}</span>
+      <span style="font-size:11px;color:var(--txt3);">${atrStr}${mlStr}</span>
+    </div>
+
+    <div class="intra-levels">
+      <div class="intra-level">
+        <div class="intra-level-lbl">Entry</div>
+        <div class="intra-level-val" style="color:var(--txt1);">₹${r.entry}</div>
+      </div>
+      <div class="intra-level">
+        <div class="intra-level-lbl">Target 1</div>
+        <div class="intra-level-val" style="color:#34D399;">₹${r.target1}</div>
+      </div>
+      <div class="intra-level">
+        <div class="intra-level-lbl">Stop Loss</div>
+        <div class="intra-level-val" style="color:#F87171;">₹${r.stop_loss}</div>
+      </div>
+    </div>
+
+    ${r.target2 ? `<div style="text-align:center;padding:4px 0 2px;background:rgba(52,211,153,.04);border-top:1px solid rgba(52,211,153,.1);font-size:11px;color:#34D399;font-weight:600;">Extended Target ₹${r.target2}</div>` : ''}
+
+    <div class="intra-rationale">${rationale}</div>
+
+    <div class="intra-footer">
+      <span class="intra-rr">${rr}</span>
+      <div style="display:flex;align-items:center;gap:6px;flex:1;margin:0 8px;">
+        <div class="intra-conf-bar">
+          <div class="intra-conf-fill" style="width:${conf}%;background:${confColor};"></div>
+        </div>
+        <span style="font-size:10px;font-weight:700;color:${confColor};flex-shrink:0;">${conf}%</span>
+      </div>
+      <span style="font-size:10px;color:var(--txt3);">confidence</span>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// AI CHATBOT
+// ═══════════════════════════════════════════════════════════════════════
+
+(function () {
+  'use strict';
+
+  let _chatHistory  = [];    // [{role, content}]
+  let _chatStreaming = false;
+  let _chatInitDone = false;
+
+  // ── Init ───────────────────────────────────────────────────────────────
+  window.initChat = function () {
+    if (_chatInitDone) return;
+    _chatInitDone = true;
+    const inp = document.getElementById('chat-input');
+    if (inp) inp.addEventListener('input', () => {
+      document.getElementById('chat-send-btn').disabled = inp.value.trim() === '' || _chatStreaming;
+    });
+  };
+
+  // ── Send helpers ───────────────────────────────────────────────────────
+  window.chatSendInput = function () {
+    const inp = document.getElementById('chat-input');
+    const msg = inp ? inp.value.trim() : '';
+    if (!msg || _chatStreaming) return;
+    inp.value = '';
+    inp.style.height = '';
+    document.getElementById('chat-send-btn').disabled = true;
+    chatSend(msg);
+  };
+
+  window.chatSend = function (msg) {
+    if (!msg || _chatStreaming) return;
+    // Switch to chat tab if not already there
+    const chatTab = document.querySelector('[data-tab=chat]');
+    if (chatTab && !chatTab.classList.contains('active')) {
+      window.go('chat', chatTab);
+      window.initChat();
+    }
+    _doSend(msg);
+  };
+
+  window.chatKeydown = function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      window.chatSendInput();
+    }
+  };
+
+  window.chatAutoResize = function (el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 110) + 'px';
+    document.getElementById('chat-send-btn').disabled = el.value.trim() === '' || _chatStreaming;
+  };
+
+  // ── Core send / stream ─────────────────────────────────────────────────
+  async function _doSend(msg) {
+    _chatStreaming = true;
+    document.getElementById('chat-send-btn').disabled = true;
+
+    // Hide welcome, hide chips after first message
+    const welcome = document.getElementById('chat-welcome');
+    if (welcome) welcome.style.display = 'none';
+    const chips = document.getElementById('chat-quick-row');
+    if (chips) chips.style.display = 'none';
+
+    // Append user bubble
+    _appendBubble('user', _escHtml(msg));
+    _chatHistory.push({ role: 'user', content: msg });
+
+    // Show typing indicator
+    const typingId = 'typing-' + Date.now();
+    _appendTyping(typingId);
+    _scrollChat();
+
+    try {
+      const resp = await fetch('/api/chat', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (getToken() || '') },
+        body:    JSON.stringify({ message: msg, history: _chatHistory.slice(-10) }),
+      });
+
+      if (!resp.ok) {
+        _removeTyping(typingId);
+        _appendBubble('assistant', '**Error:** ' + resp.status + ' — could not reach the API.');
+        _chatStreaming = false;
+        _enableInput();
+        return;
+      }
+
+      // Remove typing, add empty assistant bubble to stream into
+      _removeTyping(typingId);
+      const bubbleId = 'cb-' + Date.now();
+      _appendBubble('assistant', '', bubbleId);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantText = '';
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') break;
+
+          // Unescape newlines
+          const chunk = data.replace(/\\n/g, '\n');
+
+          if (chunk.startsWith('__TOOL_CALL__:')) {
+            const toolName = chunk.slice(14).trim();
+            _appendToolCall(toolName);
+            continue;
+          }
+
+          assistantText += chunk;
+          const el = document.getElementById(bubbleId);
+          if (el) el.innerHTML = _mdToHtml(assistantText);
+          _scrollChat();
+        }
+      }
+
+      // Save to history
+      if (assistantText) {
+        _chatHistory.push({ role: 'assistant', content: assistantText });
+      }
+
+    } catch (err) {
+      _removeTyping(typingId);
+      _appendBubble('assistant', '**Network error:** ' + err.message);
+    }
+
+    _chatStreaming = false;
+    _enableInput();
+    _scrollChat();
+  }
+
+  // ── DOM helpers ────────────────────────────────────────────────────────
+  function _appendBubble(role, html, id) {
+    const msgs = document.getElementById('chat-messages');
+    if (!msgs) return;
+    const div = document.createElement('div');
+    div.className = 'chat-bubble ' + role;
+    if (id) div.id = id;
+    div.innerHTML = html ? _mdToHtml(html) : '';
+    msgs.appendChild(div);
+    _scrollChat();
+  }
+
+  function _appendTyping(id) {
+    const msgs = document.getElementById('chat-messages');
+    if (!msgs) return;
+    const div = document.createElement('div');
+    div.className = 'chat-typing';
+    div.id = id;
+    div.innerHTML = '<span></span><span></span><span></span>';
+    msgs.appendChild(div);
+  }
+
+  function _removeTyping(id) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  }
+
+  function _appendToolCall(toolName) {
+    const msgs = document.getElementById('chat-messages');
+    if (!msgs) return;
+    const labels = {
+      'get_buy_recommendations': '🔍 Fetching buy recommendations…',
+      'get_stock_analysis':      '📊 Analysing stock…',
+      'get_market_overview':     '🌐 Loading market overview…',
+      'get_screener_results':    '📈 Running screener…',
+      'search_stocks':           '🔎 Searching stocks…',
+    };
+    const div = document.createElement('div');
+    div.className = 'chat-bubble tool-call';
+    div.innerHTML = `<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" style="flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>${labels[toolName] || '⚙️ ' + toolName}`;
+    msgs.appendChild(div);
+    _scrollChat();
+  }
+
+  function _scrollChat() {
+    const msgs = document.getElementById('chat-messages');
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function _enableInput() {
+    const inp = document.getElementById('chat-input');
+    const btn = document.getElementById('chat-send-btn');
+    if (inp) { inp.disabled = false; inp.focus(); }
+    if (btn) btn.disabled = !inp || inp.value.trim() === '';
+  }
+
+  // ── Markdown renderer (minimal) ────────────────────────────────────────
+  function _mdToHtml(md) {
+    let s = _escHtml(md);
+    // Headings
+    s = s.replace(/^### (.+)$/gm, '<div style="font-size:12px;font-weight:700;color:var(--txt1);margin:8px 0 3px">$1</div>');
+    s = s.replace(/^## (.+)$/gm,  '<div style="font-size:13px;font-weight:700;color:var(--txt1);margin:10px 0 4px">$1</div>');
+    // Bold
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic
+    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Inline code
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Blockquote
+    s = s.replace(/^&gt; (.+)$/gm, '<div style="border-left:2px solid var(--txt3);padding-left:8px;color:var(--txt3);font-size:11px;margin:4px 0">$1</div>');
+    // Horizontal rule
+    s = s.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0">');
+    // Bullet lists
+    s = s.replace(/^[•\-\*] (.+)$/gm, '<div style="display:flex;gap:6px;margin:2px 0"><span style="color:var(--sig);flex-shrink:0">▸</span><span>$1</span></div>');
+    // Numbered lists
+    s = s.replace(/^(\d+)\. (.+)$/gm, '<div style="display:flex;gap:6px;margin:2px 0"><span style="color:var(--data);flex-shrink:0;min-width:16px">$1.</span><span>$2</span></div>');
+    // Line breaks
+    s = s.replace(/\n\n/g, '<br><br>');
+    s = s.replace(/\n/g, '<br>');
+    return s;
+  }
+
+  function _escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+})();

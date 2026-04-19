@@ -46,23 +46,26 @@ def compute_regime() -> dict:
             as_of_date      : str   — most recent trade date in DB
     """
     try:
-        engine  = get_engine()
-        symbols = pd.read_sql(
-            f"SELECT DISTINCT symbol FROM {TABLE_NAME}", engine
-        )["symbol"].tolist()
+        engine = get_engine()
+        # Single bulk query — last 300 trading days for all symbols at once.
+        # Replaces 2092 individual per-symbol queries.
+        df_all = pd.read_sql(
+            f"""
+            SELECT symbol, trade_date, high, low, close
+            FROM {TABLE_NAME}
+            WHERE trade_date >= CURRENT_DATE - INTERVAL '420 days'
+            ORDER BY symbol, trade_date ASC
+            """,
+            engine,
+        )
 
         above, below = 0, 0
         atr_ratios = []
         as_of_date = "N/A"
 
-        for sym in symbols:
+        for sym, df in df_all.groupby("symbol", sort=False):
             try:
-                df = pd.read_sql(
-                    f"SELECT trade_date, high, low, close FROM {TABLE_NAME} "
-                    f"WHERE symbol = %(sym)s ORDER BY trade_date DESC LIMIT 300",
-                    engine, params={"sym": sym},
-                )
-                df = df.iloc[::-1].reset_index(drop=True)  # reverse to oldest→newest
+                df = df.reset_index(drop=True)
                 if len(df) < 55:
                     continue
 

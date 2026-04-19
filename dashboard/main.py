@@ -220,6 +220,32 @@ def _prewarm_caches():
         _regime_cache_ts = _time.monotonic()
     except Exception:
         pass
+    try:
+        global _predict_all_cache, _predict_all_cache_ts
+        predictor = get_ml_predictor()
+        if predictor.clf is not None:
+            regime = _regime_cache.get("regime", "Neutral") if _regime_cache else "Neutral"
+            results = predictor.predict_all(regime=regime)
+            _predict_all_cache = {
+                "results": results,
+                "count": len(results),
+                "regime": _regime_cache or {},
+                "live_count": 0,
+                "horizons_available": {
+                    "3d": predictor.clf_3d is not None,
+                    "5d": predictor.clf_5d is not None,
+                    "10d": predictor.clf_10d is not None,
+                },
+            }
+            _predict_all_cache_ts = _time.monotonic()
+    except Exception:
+        pass
+    try:
+        # Pre-warm strategy scan cache (runs all 50 strategies once on startup)
+        manager = StrategyManager()
+        manager.get_all_signals()
+    except Exception:
+        pass
 
 
 def _run_db_migrations():
@@ -402,6 +428,10 @@ _predict_all_cache: dict = {}
 _predict_all_cache_ts: float = 0.0
 _PREDICT_ALL_TTL = 120.0    # ml/predict/all — cache 2 min
 
+_combined_signals_cache: dict | None = None
+_combined_signals_cache_ts: float = 0.0
+_COMBINED_SIGNALS_TTL = 300.0   # combined/signals — cache 5 min
+
 def get_db_stats():
     """Fetch database health metrics — cached for 60 s to avoid COUNT(*) on every request."""
     global _db_stats_cache_ts
@@ -576,7 +606,7 @@ async def get_signals(strategy: str = "golden_rsi", _: dict = Depends(require_us
     """Returns swing trading signals using the selected strategy."""
     try:
         manager = StrategyManager()
-        signals = manager.get_signals(strategy)
+        signals = await asyncio.to_thread(manager.get_signals, strategy)
         return signals
     except Exception as e:
         print(f"Signal Error: {e}")
@@ -808,6 +838,15 @@ async def combined_signals(
 
     trend_period values: any | 1m | 3m | 6m | 1y
     """
+    global _regime_cache, _regime_cache_ts, _combined_signals_cache, _combined_signals_cache_ts
+
+    # ── Serve from cache if fresh (default params only) ──────────────────
+    _now = _time.monotonic()
+    if (trend_period == "any" and
+        _combined_signals_cache and
+        (_now - _combined_signals_cache_ts) < _COMBINED_SIGNALS_TTL):
+        return _combined_signals_cache
+
     import pandas as pd
     from ml.model import THRESHOLDS
     from ml.regime import compute_regime
@@ -816,20 +855,26 @@ async def combined_signals(
 
     PERIOD_DAYS = {"1m": 20, "3m": 63, "6m": 126, "1y": 252}
 
-    # ── Step 1: Market regime ───────────────────────────────────────────
+    # ── Step 1: Market regime (use in-process cache if fresh) ───────────
     try:
-        regime_data = compute_regime()
-        regime      = regime_data.get("regime", "Neutral")
+        now_mono = _time.monotonic()
+        if _regime_cache and (now_mono - _regime_cache_ts) < _REGIME_TTL:
+            regime_data = _regime_cache
+        else:
+            regime_data = await asyncio.to_thread(compute_regime)
+            _regime_cache    = regime_data
+            _regime_cache_ts = now_mono
+        regime = regime_data.get("regime", "Neutral")
     except Exception:
         regime_data = {}
         regime      = "Neutral"
 
     buy_thresh, avoid_thresh = THRESHOLDS.get(regime, THRESHOLDS["Neutral"])
 
-    # ── Step 2: Run all strategies ──────────────────────────────────────
+    # ── Step 2: Run all strategies (off event loop — CPU/IO bound) ──────
     try:
         manager     = StrategyManager()
-        all_signals = manager.get_all_signals()   # {strategy_id: [signal, ...]}
+        all_signals = await asyncio.to_thread(manager.get_all_signals)
     except Exception as e:
         return {"error": f"Strategy scan failed: {e}", "results": []}
 
@@ -864,7 +909,7 @@ async def combined_signals(
 
     # ── Step 2a: Bulk-fetch candles for all signal symbols ──────────────────
     # One DB query instead of N round-trips; used by both liquidity filter and ML.
-    candle_map = _bulk_fetch_candles(engine, symbols=list(symbol_map.keys()))
+    candle_map = await asyncio.to_thread(_bulk_fetch_candles, engine, list(symbol_map.keys()))
 
     # ── Step 2b: Liquidity pre-filter ───────────────────────────────────────
     # Drop illiquid stocks before running the expensive ML model.
@@ -1094,7 +1139,7 @@ async def combined_signals(
     execute_cache.buy_threshold = buy_thresh
     execute_cache.last_checked  = datetime.now()
 
-    return {
+    payload = {
         "results":                results,
         "count":                  len(results),
         "regime":                 regime_data,
@@ -1108,6 +1153,10 @@ async def combined_signals(
             "size_mode":       size_mode,
         },
     }
+    if trend_period == "any":
+        _combined_signals_cache    = payload
+        _combined_signals_cache_ts = _time.monotonic()
+    return payload
 
 
 async def _refresh_execute_cache():
@@ -1491,10 +1540,14 @@ async def ml_predict_all(_: dict = Depends(require_user)):
         if predictor.clf is None:
             return {"error": "Model not trained yet — POST /api/ml/train first", "results": []}
 
-        regime_data = compute_regime()
-        regime      = regime_data.get("regime", "Neutral")
-        results     = predictor.predict_all(regime=regime)
-        results     = _overlay_live_prices(results)
+        def _run():
+            regime_data = compute_regime()
+            regime      = regime_data.get("regime", "Neutral")
+            results     = predictor.predict_all(regime=regime)
+            return regime_data, regime, results
+
+        regime_data, regime, results = await asyncio.to_thread(_run)
+        results = _overlay_live_prices(results)
 
         live_count = sum(1 for r in results if r.get("price_source") == "live")
         payload = {
@@ -1889,7 +1942,7 @@ async def ml_regime(_: dict = Depends(require_user)):
         return _regime_cache
     try:
         from ml.regime import compute_regime
-        _regime_cache = compute_regime()
+        _regime_cache = await asyncio.to_thread(compute_regime)
         _regime_cache_ts = now
         return _regime_cache
     except Exception as e:
@@ -2415,6 +2468,98 @@ async def index_symbols(index_name: str):
 # -------------------------------------------------------
 # Screener endpoints
 # -------------------------------------------------------
+# Intraday Scanner
+# -------------------------------------------------------
+
+_intraday_cache      = None
+_intraday_cache_ts   = 0.0
+_INTRADAY_CACHE_TTL  = 600.0   # 10 minutes
+
+@app.get("/api/intraday/signals")
+async def intraday_signals(
+    _r:    dict = Depends(require_user),
+    index: str  = None,
+    limit: int  = 30,
+):
+    """
+    Return today's intraday trade setups (ORB, Gap Play, Momentum, etc.)
+    Cached 10 min — re-runs when cache expires or ?refresh=1 passed.
+    """
+    global _intraday_cache, _intraday_cache_ts
+    import time as _t
+
+    now = _t.monotonic()
+    if _intraday_cache and (now - _intraday_cache_ts) < _INTRADAY_CACHE_TTL:
+        payload = _intraday_cache
+        if limit:
+            payload = {**payload, "results": payload["results"][:limit]}
+        return payload
+
+    try:
+        from strategies.intraday_scanner import intraday_scan
+        from ml.regime import compute_regime
+
+        symbols = None
+        if index:
+            from config.nse_indices import get_index_symbols
+            symbols = get_index_symbols(index) or None
+
+        # Use cached predict_all if available, otherwise compute off the event loop
+        ml_probs: dict = {}
+        regime = "Neutral"
+        try:
+            predictor = get_ml_predictor()
+            if predictor.clf is not None:
+                if _predict_all_cache and (_time.monotonic() - _predict_all_cache_ts) < _PREDICT_ALL_TTL:
+                    cached_results = _predict_all_cache.get("results", [])
+                    regime = _predict_all_cache.get("regime", {}).get("regime", "Neutral")
+                else:
+                    regime_data = await asyncio.to_thread(compute_regime)
+                    regime = regime_data.get("regime", "Neutral")
+                    cached_results = await asyncio.to_thread(predictor.predict_all, regime)
+                for r in cached_results:
+                    sym = r.get("symbol", "")
+                    if sym:
+                        ml_probs[sym] = r.get("buy_probability") or r.get("prob_5d", 0)
+        except Exception as e:
+            logger.warning(f"Intraday: ML probs unavailable: {e}")
+
+        results = await asyncio.to_thread(intraday_scan, symbols, ml_probs)
+
+        # Summary counts
+        by_type = {}
+        for r in results:
+            st = r.get("setup_type", "OTHER")
+            by_type[st] = by_type.get(st, 0) + 1
+
+        payload = {
+            "results":      results,
+            "total":        len(results),
+            "regime":       regime,
+            "by_setup":     by_type,
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "index":        index or "All",
+        }
+        _intraday_cache    = payload
+        _intraday_cache_ts = now
+        if limit:
+            payload = {**payload, "results": payload["results"][:limit]}
+        return payload
+    except Exception as e:
+        logger.error(f"Intraday signals error: {e}", exc_info=True)
+        return {"error": str(e), "results": []}
+
+
+@app.post("/api/intraday/refresh")
+async def intraday_refresh(_r: dict = Depends(require_user)):
+    """Invalidate intraday cache so next GET fetches fresh results."""
+    global _intraday_cache, _intraday_cache_ts
+    _intraday_cache    = None
+    _intraday_cache_ts = 0.0
+    return {"status": "cache_cleared"}
+
+
+# -------------------------------------------------------
 
 @app.get("/api/screener/rs")
 async def screener_rs(_r: dict = Depends(require_user), index: str = None):
@@ -2426,7 +2571,8 @@ async def screener_rs(_r: dict = Depends(require_user), index: str = None):
     if index:
         from config.nse_indices import get_index_symbols
         symbols = get_index_symbols(index) or None
-    return {"results": relative_strength_scan(symbols=symbols), "index": index or "NIFTY 100"}
+    results = await asyncio.to_thread(relative_strength_scan, symbols)
+    return {"results": results, "index": index or "NIFTY 100"}
 
 
 @app.get("/api/screener/52w")
@@ -2437,7 +2583,8 @@ async def screener_52w(_r: dict = Depends(require_user), index: str = None):
     if index:
         from config.nse_indices import get_index_symbols
         symbols = get_index_symbols(index) or None
-    return {"results": fiftytwo_week_scan(symbols=symbols), "index": index or "NIFTY 100"}
+    results = await asyncio.to_thread(fiftytwo_week_scan, symbols)
+    return {"results": results, "index": index or "NIFTY 100"}
 
 
 @app.get("/api/screener/volume")
@@ -2449,14 +2596,15 @@ async def screener_volume(_r: dict = Depends(require_user), min_multiplier: floa
     if index:
         from config.nse_indices import get_index_symbols
         symbols = get_index_symbols(index) or None
-    return {"results": volume_spike_scan(min_multiplier, symbols=symbols), "index": index or "NIFTY 100"}
+    results = await asyncio.to_thread(volume_spike_scan, min_multiplier, symbols)
+    return {"results": results, "index": index or "NIFTY 100"}
 
 
 @app.get("/api/sector/heatmap")
 async def sector_heatmap(_: dict = Depends(require_user)):
     """Sector performance heatmap — 1D/1W/1M/3M returns by sector."""
     from strategies.screener import sector_heatmap as _heatmap
-    return {"sectors": _heatmap()}
+    return {"sectors": await asyncio.to_thread(_heatmap)}
 
 
 @app.get("/api/earnings")
@@ -2467,7 +2615,8 @@ async def earnings_calendar(days_ahead: int = 21, index: str = None):
     if index:
         from config.nse_indices import get_index_symbols
         symbols = get_index_symbols(index) or None
-    return {"results": _cal(days_ahead, symbols=symbols), "days_ahead": days_ahead, "index": index or "NIFTY 100"}
+    results = await asyncio.to_thread(_cal, days_ahead, symbols)
+    return {"results": results, "days_ahead": days_ahead, "index": index or "NIFTY 100"}
 
 
 # -------------------------------------------------------
@@ -2731,6 +2880,58 @@ async def screener_ai_analysis(
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# -------------------------------------------------------
+# AI Chat Endpoint
+# -------------------------------------------------------
+
+class ChatRequest(BaseModel):
+    message:  str
+    history:  list = []   # [{role: "user"|"assistant", content: str}]
+
+
+@app.post("/api/chat")
+async def chat_stream(
+    body: ChatRequest,
+    _r: dict = Depends(require_user),
+):
+    """
+    Stream Claude's response for the AI chatbot.
+
+    Body:
+      message  (str)  — the user's latest message
+      history  (list) — prior conversation turns [{role, content}]
+
+    Returns text/event-stream.
+    Each SSE event is one of:
+      data: <text chunk>
+      data: __TOOL_CALL__:<tool_name>
+      data: [DONE]
+    """
+    from ml.chat_agent import stream_chat
+    from fastapi.responses import StreamingResponse as _StreamingResponse
+
+    def generate():
+        try:
+            for chunk in stream_chat(
+                messages=body.history,
+                user_message=body.message,
+            ):
+                escaped = chunk.replace("\n", "\\n")
+                yield f"data: {escaped}\n\n"
+        except Exception as e:
+            yield f"data: **Error:** {str(e).replace(chr(10), ' ')}\\n\\n\n\n"
+        yield "data: [DONE]\n\n"
+
+    return _StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":    "no-cache",
             "X-Accel-Buffering": "no",
         },
     )

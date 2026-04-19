@@ -32,3 +32,5 @@ python-multipart>=0.0.9
 
 # Telegram notifications
 python-telegram-bot>=20.0
+
+# (No external AI API needed — chatbot uses on-device ML model)

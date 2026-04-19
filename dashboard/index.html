@@ -372,6 +372,188 @@
     }
     .scr-action-btn:hover { background: var(--s2); }
     .active-pill { background: var(--sig-d) !important; color: var(--sig) !important; border-color: rgba(52,211,153,.3) !important; }
+
+    /* ── Intraday ── */
+    .intra-card {
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 14px; margin-bottom: 10px; overflow: hidden;
+      transition: transform .15s;
+    }
+    .intra-card:active { transform: scale(.99); }
+    .intra-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px 8px;
+    }
+    .intra-sym { font-size: 16px; font-weight: 700; color: var(--txt1); }
+    .intra-company { font-size: 10px; color: var(--txt3); margin-top: 1px; }
+    .intra-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 99px; font-size: 10px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .intra-price-row {
+      display: flex; align-items: baseline; gap: 8px;
+      padding: 0 14px 10px;
+    }
+    .intra-price { font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .intra-levels {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1px; background: var(--border); border-top: 1px solid var(--border);
+    }
+    .intra-level {
+      background: var(--s1); padding: 9px 10px; text-align: center;
+    }
+    .intra-level-lbl { font-size: 9px; font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: .4px; }
+    .intra-level-val { font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+    .intra-rationale {
+      padding: 10px 14px; border-top: 1px solid var(--border);
+    }
+    .intra-rationale-item {
+      font-size: 11px; color: var(--txt2); line-height: 1.5;
+      display: flex; gap: 6px; margin-bottom: 3px;
+    }
+    .intra-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 14px 12px; gap: 8px;
+    }
+    .intra-rr {
+      font-size: 11px; font-weight: 700; padding: 4px 10px;
+      background: var(--s3); border-radius: 8px; color: var(--txt2);
+    }
+    .intra-conf-bar {
+      flex: 1; height: 4px; background: var(--s3); border-radius: 99px; overflow: hidden;
+    }
+    .intra-conf-fill { height: 100%; border-radius: 99px; }
+    .intra-filter-row {
+      display: flex; gap: 6px; padding: 8px 14px;
+      overflow-x: auto; border-bottom: 1px solid var(--border);
+    }
+    .intra-filter-row::-webkit-scrollbar { display: none; }
+    .intra-filter-pill {
+      white-space: nowrap; flex-shrink: 0;
+      background: var(--s2); border: 1px solid var(--border2);
+      border-radius: 99px; padding: 5px 12px;
+      font-size: 11px; font-weight: 600; color: var(--txt2); cursor: pointer;
+      transition: all .15s;
+    }
+    .intra-filter-pill.active { background: var(--live-d); color: var(--live); border-color: rgba(251,191,36,.35); }
+    .intra-stats-row {
+      display: grid; grid-template-columns: repeat(4,1fr);
+      gap: 1px; background: var(--border); border-bottom: 1px solid var(--border);
+    }
+    .intra-stat { background: var(--s1); padding: 10px 8px; text-align: center; }
+    .intra-stat-val { font-size: 16px; font-weight: 700; color: var(--txt1); font-family:'JetBrains Mono',monospace; }
+    .intra-stat-lbl { font-size: 9px; color: var(--txt3); margin-top: 2px; text-transform: uppercase; letter-spacing:.4px; }
+
+    /* ── AI Chat ── */
+    .chat-wrap {
+      display: flex; flex-direction: column;
+      height: calc(100dvh - var(--hdr-h) - var(--nav-h) - 52px);
+      background: var(--bg);
+    }
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 12px 14px 4px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .chat-messages::-webkit-scrollbar { width: 2px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 99px; }
+    .chat-bubble {
+      max-width: 88%; padding: 11px 14px;
+      border-radius: 16px; font-size: 13px; line-height: 1.6;
+      word-break: break-word;
+    }
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, #1e3a5f, #162d4a);
+      border: 1px solid rgba(129,140,248,.25);
+      color: var(--txt1);
+      border-bottom-right-radius: 4px;
+    }
+    .chat-bubble.assistant {
+      align-self: flex-start;
+      background: var(--s2);
+      border: 1px solid var(--border);
+      color: var(--txt);
+      border-bottom-left-radius: 4px;
+    }
+    .chat-bubble.assistant strong { color: var(--txt1); }
+    .chat-bubble.assistant code {
+      background: var(--s3); padding: 1px 5px;
+      border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--sig);
+    }
+    .chat-bubble.tool-call {
+      align-self: flex-start;
+      background: rgba(129,140,248,.06);
+      border: 1px dashed rgba(129,140,248,.25);
+      color: var(--data);
+      font-size: 11px; padding: 7px 12px;
+      border-radius: 10px; display: flex; align-items: center; gap: 6px;
+    }
+    .chat-typing {
+      align-self: flex-start;
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 16px; border-bottom-left-radius: 4px;
+      padding: 11px 16px; display: flex; gap: 4px; align-items: center;
+    }
+    .chat-typing span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--txt3); display: inline-block;
+      animation: chatDot 1.2s infinite ease-in-out;
+    }
+    .chat-typing span:nth-child(2) { animation-delay: .2s; }
+    .chat-typing span:nth-child(3) { animation-delay: .4s; }
+    @keyframes chatDot {
+      0%, 80%, 100% { transform: scale(.7); opacity: .4; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+    .chat-input-row {
+      display: flex; gap: 8px; padding: 10px 14px 12px;
+      background: var(--s1); border-top: 1px solid var(--border);
+      align-items: flex-end;
+    }
+    .chat-input {
+      flex: 1; background: var(--s2); border: 1px solid var(--border2);
+      border-radius: 14px; padding: 10px 14px; color: var(--txt1);
+      font-size: 13px; font-family: 'Inter', sans-serif;
+      resize: none; outline: none; min-height: 42px; max-height: 110px;
+      line-height: 1.5;
+    }
+    .chat-input:focus { border-color: rgba(129,140,248,.4); }
+    .chat-input::placeholder { color: var(--txt3); }
+    .chat-send-btn {
+      width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+      background: var(--data); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity .15s, transform .1s;
+    }
+    .chat-send-btn:disabled { opacity: .35; cursor: default; }
+    .chat-send-btn:not(:disabled):active { transform: scale(.93); }
+    .chat-quick-row {
+      display: flex; gap: 6px; padding: 8px 14px 0;
+      overflow-x: auto; flex-shrink: 0;
+    }
+    .chat-quick-row::-webkit-scrollbar { display: none; }
+    .chat-chip {
+      white-space: nowrap; flex-shrink: 0;
+      background: var(--s2); border: 1px solid var(--border2);
+      border-radius: 99px; padding: 5px 12px;
+      font-size: 11px; font-weight: 500; color: var(--txt2);
+      cursor: pointer; transition: background .15s, color .15s;
+    }
+    .chat-chip:hover { background: var(--data-d); color: var(--data); border-color: rgba(129,140,248,.3); }
+    .chat-welcome {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 12px; padding: 32px 24px;
+      text-align: center; opacity: .85;
+    }
+    .chat-welcome-icon {
+      width: 64px; height: 64px; border-radius: 20px;
+      background: linear-gradient(135deg, rgba(129,140,248,.15), rgba(52,211,153,.1));
+      border: 1px solid rgba(129,140,248,.25);
+      display: flex; align-items: center; justify-content: center;
+    }
+
     .sector-tile {
       padding: 14px; border-radius: 12px; margin-bottom: 8px;
       background: var(--s2); border: 1px solid var(--border);
@@ -2175,21 +2357,23 @@
             </div>
           </div>
 
-          <div id="ml-train-info" style="font-size:11px;color:var(--txt3);padding-left:2px;">
-            Trains on all 99 symbols · 26 technical indicator features · 2-5 min
+          <div id="ml-train-section">
+            <div id="ml-train-info" style="font-size:11px;color:var(--txt3);padding-left:2px;">
+              Trains on all 99 symbols · 26 technical indicator features · 2-5 min
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button class="btn btn-full" id="ml-train-btn" onclick="trainModel()"
+                style="background:linear-gradient(135deg,#6366F1,#4F46E5);color:#fff;padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 4px 16px rgba(99,102,241,0.3);">
+                <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/></svg>
+                Train Model
+              </button>
+            </div>
           </div>
 
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-full" id="ml-train-btn" onclick="trainModel()"
-              style="background:linear-gradient(135deg,#6366F1,#4F46E5);color:#fff;padding:11px 20px;border-radius:12px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 4px 16px rgba(99,102,241,0.3);">
-              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/></svg>
-              Train Model
-            </button>
-            <button class="btn btn-ghost btn-full" id="ml-predict-btn" onclick="runPredictions()" style="display:none;">
-              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              Score All 99
-            </button>
-          </div>
+          <button class="btn btn-ghost btn-full" id="ml-predict-btn" onclick="runPredictions()" style="display:none;">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            Score All 99
+          </button>
         </div>
       </div>
 
@@ -2382,6 +2566,125 @@
       </div>
 
 
+    </div>
+  </div>
+
+  <!-- ───────────── TAB: INTRADAY ───────────── -->
+  <div id="tab-intraday" class="tab" data-tab="intraday">
+    <div class="tab-banner" style="--banner-from:#1a0a00;--banner-to:#100600;">
+      <div>
+        <div class="tab-banner-title">Intraday</div>
+        <div class="tab-banner-sub">Daily setups · ORB · Gap · Momentum · Breakout</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;color:rgba(255,255,255,.9);" id="intra-total">—</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px;">SETUPS</div>
+      </div>
+    </div>
+
+    <div class="page">
+      <!-- Stats strip -->
+      <div class="intra-stats-row" id="intra-stats-row">
+        <div class="intra-stat"><div class="intra-stat-val" id="intra-s-orb">—</div><div class="intra-stat-lbl">ORB</div></div>
+        <div class="intra-stat"><div class="intra-stat-val" id="intra-s-gap">—</div><div class="intra-stat-lbl">Gap</div></div>
+        <div class="intra-stat"><div class="intra-stat-val" id="intra-s-mom">—</div><div class="intra-stat-lbl">Momentum</div></div>
+        <div class="intra-stat"><div class="intra-stat-val" id="intra-s-rev">—</div><div class="intra-stat-lbl">Reversal</div></div>
+      </div>
+
+      <!-- Filter pills -->
+      <div class="intra-filter-row" id="intra-filter-row">
+        <div class="intra-filter-pill active" onclick="intraFilter('all',this)">All</div>
+        <div class="intra-filter-pill" onclick="intraFilter('ORB_BREAKOUT',this)">ORB Breakout</div>
+        <div class="intra-filter-pill" onclick="intraFilter('GAP_UP',this)">Gap Up</div>
+        <div class="intra-filter-pill" onclick="intraFilter('GAP_DOWN_REVERSAL',this)">Gap Down Rev.</div>
+        <div class="intra-filter-pill" onclick="intraFilter('MOMENTUM',this)">Momentum</div>
+        <div class="intra-filter-pill" onclick="intraFilter('BREAKOUT',this)">Breakout</div>
+        <div class="intra-filter-pill" onclick="intraFilter('REVERSAL',this)">Reversal</div>
+        <div class="intra-filter-pill" onclick="intraFilter('VWAP_BOUNCE',this)">VWAP Bounce</div>
+      </div>
+
+      <!-- Regime + refresh bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px 4px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:var(--txt3);">Regime:</span>
+          <span class="chip chip-gray" id="intra-regime-chip" style="font-size:10px;padding:3px 8px;">—</span>
+          <span style="font-size:10px;color:var(--txt3);" id="intra-gen-at"></span>
+          <span style="font-size:10px;color:var(--txt3);" id="intra-countdown"></span>
+        </div>
+        <button onclick="loadIntraday(true)"
+          style="display:flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:5px 12px;color:var(--txt2);font-size:11px;font-weight:600;cursor:pointer;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+          Refresh
+        </button>
+      </div>
+
+      <!-- Cards body -->
+      <div id="intra-cards" style="padding:4px 14px 12px;">
+        <div class="empty">
+          <div class="empty-icon" style="background:var(--live-d);">⚡</div>
+          <div class="empty-title">Loading intraday setups…</div>
+          <div class="empty-sub">Scanning 300+ stocks for today's opportunities</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── TAB: CHAT ───────────── -->
+  <div id="tab-chat" class="tab" data-tab="chat">
+    <div class="tab-banner" style="--banner-from:#0f1a35;--banner-to:#0a1225;">
+      <div>
+        <div class="tab-banner-title">APEX AI</div>
+        <div class="tab-banner-sub">Ask anything · stock picks · ML-powered analysis</div>
+      </div>
+      <svg width="36" height="36" fill="none" stroke="rgba(129,140,248,.5)" viewBox="0 0 24 24" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
+      </svg>
+    </div>
+
+    <div class="chat-wrap" id="chat-wrap">
+      <!-- Quick suggestion chips (hidden once chat starts) -->
+      <div class="chat-quick-row" id="chat-quick-row">
+        <button class="chat-chip" onclick="chatSend('What stocks should I buy today?')">📈 What should I buy?</button>
+        <button class="chat-chip" onclick="chatSend('Show me the top Nifty 50 picks')">🏆 Top Nifty 50</button>
+        <button class="chat-chip" onclick="chatSend('What is the current market regime?')">🌐 Market overview</button>
+        <button class="chat-chip" onclick="chatSend('Show me Strong Buy signals')">🟢 Strong Buy signals</button>
+        <button class="chat-chip" onclick="chatSend('Best IT sector stocks to buy')">💻 IT stocks</button>
+        <button class="chat-chip" onclick="chatSend('Show me volume spike breakouts')">🔊 Volume breakouts</button>
+        <button class="chat-chip" onclick="chatSend('Low debt high ROE stocks')">💎 Quality stocks</button>
+      </div>
+
+      <!-- Messages area -->
+      <div class="chat-messages" id="chat-messages">
+        <!-- Welcome state -->
+        <div class="chat-welcome" id="chat-welcome">
+          <div class="chat-welcome-icon">
+            <svg width="32" height="32" fill="none" stroke="rgba(129,140,248,.8)" viewBox="0 0 24 24" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
+            </svg>
+          </div>
+          <div style="font-size:16px;font-weight:700;color:var(--txt1);">APEX AI</div>
+          <div style="font-size:12px;color:var(--txt3);max-width:260px;line-height:1.5;">
+            Your AI-powered stock analyst. I have access to live ML predictions, screener results, and market data for NSE stocks.
+          </div>
+        </div>
+      </div>
+
+      <!-- Input bar -->
+      <div class="chat-input-row">
+        <textarea
+          id="chat-input"
+          class="chat-input"
+          placeholder="Ask about stocks, sectors, buy signals…"
+          rows="1"
+          onkeydown="chatKeydown(event)"
+          oninput="chatAutoResize(this)"
+        ></textarea>
+        <button class="chat-send-btn" id="chat-send-btn" onclick="chatSendInput()" disabled>
+          <svg width="18" height="18" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2921,9 +3224,9 @@
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
     Screener
   </button>
-  <button class="nav-btn" data-tab="ml" onclick="go('ml',this)" id="nav-ml-btn">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/></svg>
-    AI
+  <button class="nav-btn" data-tab="intraday" onclick="go('intraday',this)" id="nav-intraday-btn">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+    Intraday
   </button>
   <button class="nav-btn" onclick="openMoreSheet()">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A.75.75 0 014.5 5.25h15a.75.75 0 010 1.5h-15A.75.75 0 013.75 6zM3.75 12A.75.75 0 014.5 11.25h15a.75.75 0 010 1.5h-15A.75.75 0 013.75 12zM3.75 18A.75.75 0 014.5 17.25h15a.75.75 0 010 1.5h-15A.75.75 0 013.75 18z"/></svg>
@@ -2969,6 +3272,16 @@
         style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:16px 8px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:14px;cursor:pointer;">
         <svg width="22" height="22" fill="none" stroke="#FBBF24" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
         <span style="font-size:11px;font-weight:600;color:#E2E8F0;">Live</span>
+      </button>
+      <button id="nav-ml-btn" onclick="closeMoreSheet();go('ml',document.querySelector('[data-tab=ml]'))"
+        style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:16px 8px;background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.2);border-radius:14px;cursor:pointer;">
+        <svg width="22" height="22" fill="none" stroke="#818CF8" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.5-1.175.33M5 14.5l-1.175.33"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#E2E8F0;">AI / ML</span>
+      </button>
+      <button onclick="closeMoreSheet();go('chat',document.querySelector('[data-tab=chat]'));initChat();"
+        style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:16px 8px;background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.2);border-radius:14px;cursor:pointer;">
+        <svg width="22" height="22" fill="none" stroke="#818CF8" viewBox="0 0 24 24" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/></svg>
+        <span style="font-size:11px;font-weight:600;color:#E2E8F0;">AI Chat</span>
       </button>
       <button id="nav-admin-btn" onclick="closeMoreSheet();go('admin',document.querySelector('[data-tab=admin]'))"
         style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:16px 8px;background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.2);border-radius:14px;cursor:pointer;">

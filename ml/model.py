@@ -556,17 +556,22 @@ class MLPredictor:
 
         results = []
         try:
-            engine  = get_engine()
-            symbols = pd.read_sql(
-                f"SELECT DISTINCT symbol FROM {TABLE_NAME}", engine
-            )["symbol"].tolist()
+            engine = get_engine()
+            # Single bulk query with last 730 days — replaces N+1 per-symbol queries.
+            df_all = pd.read_sql(
+                f"""
+                SELECT symbol, trade_date, open, high, low, close, volume
+                FROM {TABLE_NAME}
+                WHERE trade_date >= CURRENT_DATE - INTERVAL '730 days'
+                ORDER BY symbol, trade_date ASC
+                """,
+                engine,
+            )
+            if df_all.empty:
+                return []
 
-            for sym in symbols:
-                df = pd.read_sql(
-                    f"SELECT trade_date, open, high, low, close, volume "
-                    f"FROM {TABLE_NAME} WHERE symbol = %(sym)s ORDER BY trade_date ASC",
-                    engine, params={"sym": sym},
-                )
+            for sym, df in df_all.groupby("symbol", sort=False):
+                df = df.reset_index(drop=True)
                 if len(df) >= MIN_ROWS:
                     r = self.predict_symbol(df, sym, regime=regime)
                     if "error" not in r:
