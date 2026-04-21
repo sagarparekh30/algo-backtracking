@@ -14,7 +14,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     /* ═══════════════════════════════════════════
-       DESIGN TOKENS — APEX DARK PREMIUM
+       DESIGN TOKENS — TRADEGENIE DARK PREMIUM
     ═══════════════════════════════════════════ */
     :root {
       --bg:      #070C16;
@@ -1467,7 +1467,7 @@
     padding:36px 32px;width:320px;max-width:90vw;box-shadow:0 24px 80px rgba(0,0,0,.6);">
     <div style="text-align:center;margin-bottom:28px;">
       <div style="font-size:32px;margin-bottom:12px;filter:drop-shadow(0 0 16px rgba(245,158,11,0.5));">⚡</div>
-      <div style="font-size:20px;font-weight:800;letter-spacing:3px;background:linear-gradient(135deg,#F59E0B,#FBBF24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">APEX</div>
+      <div style="font-size:20px;font-weight:800;letter-spacing:3px;background:linear-gradient(135deg,#F59E0B,#FBBF24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">TradeGenie</div>
       <div style="font-size:12px;color:rgba(255,255,255,.4);margin-top:6px;font-weight:500;">Sign in to continue</div>
     </div>
     <div id="login-error" style="display:none;background:rgba(248,113,113,0.12);color:#F87171;border:1px solid rgba(248,113,113,0.25);border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
@@ -1492,7 +1492,7 @@
 
 <!-- ══════════════════════════════════ HEADER -->
 <header class="hdr">
-  <div class="logo">APEX</div>
+  <div class="logo">TradeGenie</div>
   <div class="hdr-right">
     <span class="hdr-clock" id="hdr-clock">--:--:--</span>
     <div id="mkt-chip" class="chip chip-gray">
@@ -2746,7 +2746,7 @@
   <div id="tab-chat" class="tab" data-tab="chat">
     <div class="tab-banner" style="--banner-from:#0f1a35;--banner-to:#0a1225;">
       <div>
-        <div class="tab-banner-title">APEX AI</div>
+        <div class="tab-banner-title">TradeGenie AI</div>
         <div class="tab-banner-sub">Ask anything · stock picks · ML-powered analysis</div>
       </div>
       <svg width="36" height="36" fill="none" stroke="rgba(129,140,248,.5)" viewBox="0 0 24 24" stroke-width="1.5">
@@ -2775,7 +2775,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
             </svg>
           </div>
-          <div style="font-size:16px;font-weight:700;color:var(--txt1);">APEX AI</div>
+          <div style="font-size:16px;font-weight:700;color:var(--txt1);">TradeGenie AI</div>
           <div style="font-size:12px;color:var(--txt3);max-width:260px;line-height:1.5;">
             Your AI-powered stock analyst. I have access to live ML predictions, screener results, and market data for NSE stocks.
           </div>
@@ -3079,7 +3079,7 @@
           <div class="card card-p">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
               <span style="font-size:18px;">✦</span>
-              <span style="font-size:13px;font-weight:700;color:var(--txt);">APEX AI Analyst</span>
+              <span style="font-size:13px;font-weight:700;color:var(--txt);">TradeGenie AI Analyst</span>
               <span style="font-size:10px;color:var(--txt3);margin-left:auto;">Rule-based · No API key needed</span>
             </div>
             <!-- Question input -->
@@ -3466,7 +3466,7 @@
 
   // ── Load results (from cache) ─────────────────────────────────────────
   async function uvLoad(showEmpty) {
-    const tok = (localStorage.getItem('apex_token') || '');
+    const tok = (localStorage.getItem('tradegenie_token') || '');
     const minScore = +document.getElementById('uv-score-filter').value;
     const index    = document.getElementById('uv-index-select').value;
 
@@ -3491,7 +3491,7 @@
 
   // ── Trigger scan ──────────────────────────────────────────────────────
   window.uvRefresh = async function () {
-    const tok   = (localStorage.getItem('apex_token') || '');
+    const tok   = (localStorage.getItem('tradegenie_token') || '');
     const index = document.getElementById('uv-index-select').value;
     const btn   = document.getElementById('uv-refresh-btn');
 
@@ -3529,7 +3529,7 @@
   }
 
   async function uvPollStatus() {
-    const tok = (localStorage.getItem('apex_token') || '');
+    const tok = (localStorage.getItem('tradegenie_token') || '');
     try {
       const r = await fetch('/api/screener/undervalued/status', {
         headers: { Authorization: 'Bearer ' + tok },
@@ -3847,7 +3847,7 @@
     }
 
     try {
-      const token  = localStorage.getItem('apex_token') || '';
+      const token  = localStorage.getItem('tradegenie_token') || '';
       const resp   = await fetch('/api/screener/undervalued/ai-analysis', {
         method:  'POST',
         headers: {

@@ -77,7 +77,7 @@ from db.connection import get_conn, get_engine
 from strategies.swing_executor import StrategyManager, STRATEGY_DESCRIPTIONS
 from dashboard.auth import require_admin, require_user
 
-app = FastAPI(title="Trading HQ Dashboard")
+app = FastAPI(title="TradeGenie")
 
 # Serve dashboard static assets (dashboard.js, etc.)
 _dashboard_dir = os.path.dirname(os.path.abspath(__file__))

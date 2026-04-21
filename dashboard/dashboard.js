@@ -5,7 +5,7 @@ let prevPx = {};
 // AUTH
 // ══════════════════════════════════════════════════════
 
-const AUTH_KEY = 'apex_token';
+const AUTH_KEY = 'tradegenie_token';
 
 // ── Symbol Autocomplete ──────────────────────────────────────────────────────
 // Usage: attachSymbolSearch('input-id', 'list-id', onSelectCallback)
@@ -91,7 +91,7 @@ function initSymbolSearch() {
 
 function getToken() { return localStorage.getItem(AUTH_KEY); }
 function setToken(t) { localStorage.setItem(AUTH_KEY, t); }
-function clearToken() { localStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_KEY + '_role'); localStorage.removeItem('apex_username'); }
+function clearToken() { localStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_KEY + '_role'); localStorage.removeItem('tradegenie_username'); }
 function getRole()  { return localStorage.getItem(AUTH_KEY + '_role') || 'user'; }
 function setRole(r) { localStorage.setItem(AUTH_KEY + '_role', r); }
 
@@ -165,7 +165,7 @@ async function doLogin() {
     const d = await res.json();
     setToken(d.access_token);
     setRole(d.role || 'user');
-    localStorage.setItem('apex_username', d.username || user);
+    localStorage.setItem('tradegenie_username', d.username || user);
     document.getElementById('login-pass').value = '';
     hideLogin();
     _showAdminBadge(d.username || user);
@@ -296,7 +296,7 @@ _loadStratWinRates();
 
 // ── Risk disclaimer modal ─────────────────────────────────────────────────
 (function _showRiskDisclaimer() {
-  const DISC_KEY  = 'apex_disclaimer_last';
+  const DISC_KEY  = 'tradegenie_disclaimer_last';
   const WEEK_MS   = 7 * 24 * 3600 * 1000;
   const last      = parseInt(localStorage.getItem(DISC_KEY) || '0', 10);
   if (Date.now() - last < WEEK_MS) return;
@@ -308,7 +308,7 @@ _loadStratWinRates();
 })();
 
 function acceptDisclaimer() {
-  localStorage.setItem('apex_disclaimer_last', Date.now().toString());
+  localStorage.setItem('tradegenie_disclaimer_last', Date.now().toString());
   const el = document.getElementById('risk-disclaimer-modal');
   if (el) el.classList.remove('open');
 }
@@ -320,7 +320,7 @@ function acceptDisclaimer() {
   // Token exists — validate silently in background; hide overlay optimistically
   // so returning users land instantly on dashboard
   hideLogin();
-  _showAdminBadge(localStorage.getItem('apex_username') || '');
+  _showAdminBadge(localStorage.getItem('tradegenie_username') || '');
   _applyRoleUI(getRole(), null, null);
   try {
     const res = await fetch(`${API}/api/auth/me`, { headers: { 'Authorization': 'Bearer ' + t } });
@@ -1597,7 +1597,7 @@ function setSectorFilter(sector, el) {
 
 // ── Position Sizing helpers ───────────────────────────────────────────────
 
-const SZ_KEY = 'apex_sizing_prefs';
+const SZ_KEY = 'tradegenie_sizing_prefs';
 
 function setSizeMode(mode) {
   const btnFixed = document.getElementById('sz-mode-fixed');
@@ -2209,7 +2209,7 @@ function _retSpan(v) {
 
 let _scrCards = {};          // cached raw data per panel type
 let _sparkUID = 0;
-let _scrWatchlist = JSON.parse(localStorage.getItem('apex_watchlist') || '[]');
+let _scrWatchlist = JSON.parse(localStorage.getItem('tradegenie_watchlist') || '[]');
 
 // ── Sparkline SVG (2-anchor bezier from 50D→20D returns) ──
 function _sparklineSVG(ret20, ret50, w, h) {
@@ -2354,7 +2354,7 @@ function _scrWatchlistToggle(symbol, btn) {
     btn.textContent = '♡'; btn.style.color = 'var(--txt3)';
     _toast(`${symbol} removed from watchlist`, 'info');
   }
-  localStorage.setItem('apex_watchlist', JSON.stringify(_scrWatchlist));
+  localStorage.setItem('tradegenie_watchlist', JSON.stringify(_scrWatchlist));
 }
 
 function _scrView(symbol) {
@@ -2759,10 +2759,10 @@ function _sendBrowserNotification(count, symbols, regime) {
     ? `${count} trade${count > 1 ? 's' : ''} ready: ${topStr}${count > 3 ? ' & more' : ''} · ${regime} market`
     : `${count} high-conviction trade${count > 1 ? 's' : ''} ready · ${regime} market`;
   try {
-    const n = new Notification('⚡ APEX — New Trades Ready', {
+    const n = new Notification('⚡ TradeGenie — New Trades Ready', {
       body,
       icon: '/favicon.ico',
-      tag: 'apex-execute',   // replaces previous notification instead of stacking
+      tag: 'tradegenie-execute',   // replaces previous notification instead of stacking
       renotify: count !== _execPrevCount,
     });
     n.onclick = () => {
