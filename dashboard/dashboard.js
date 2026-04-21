@@ -426,7 +426,8 @@ function go(id, el) {
   if (id === 'admin')     { loadAdminStats(); loadAdminUsers(); }
   if (id === 'ml')        { checkMLStatus(); }
   if (id === 'chat')      { window.initChat(); }
-  if (id === 'intraday')  { loadIntraday(); _startIntraAutoRefresh(); }
+  if (id === 'intraday')   { loadIntraday(); _startIntraAutoRefresh(); }
+  if (id === 'positional') { loadPositional(); loadSwing(); }
 }
 
 function _showAccessDenied() {
@@ -3821,6 +3822,14 @@ async function loadIntraday(forceRefresh) {
 
   try {
     const res = await fetch('/api/intraday/signals?limit=50', { headers: _h() });
+    if (!res.ok) {
+      if (res.status === 401) {
+        cards.innerHTML = `<div class="empty"><div class="empty-title">Session Expired</div><div class="empty-sub">Please log in again</div></div>`;
+      } else {
+        cards.innerHTML = `<div class="empty"><div class="empty-title">Error ${res.status}</div><div class="empty-sub">Could not load intraday data</div></div>`;
+      }
+      return;
+    }
     const d = await res.json();
     if (d.error) {
       cards.innerHTML = `<div class="empty"><div class="empty-title">Error</div><div class="empty-sub">${d.error}</div></div>`;
@@ -3946,6 +3955,311 @@ function _intraCard(r) {
         <span style="font-size:10px;font-weight:700;color:${confColor};flex-shrink:0;">${conf}%</span>
       </div>
       <span style="font-size:10px;color:var(--txt3);">confidence</span>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// POSITIONAL SCANNER
+// ═══════════════════════════════════════════════════════════════════════
+
+let _posData   = [];
+let _posFilter = 'all';
+
+const POS_CFG = {
+  CONSOLIDATION_BREAKOUT: { color: '#34D399', bg: 'rgba(52,211,153,.12)',  icon: '⬆' },
+  FUNDAMENTAL_TECHNICAL:  { color: '#818CF8', bg: 'rgba(129,140,248,.12)', icon: '★' },
+  SECTOR_ROTATION:        { color: '#FBBF24', bg: 'rgba(251,191,36,.12)',  icon: '↗' },
+};
+
+async function loadPositional(forceRefresh) {
+  const cards = document.getElementById('pos-cards');
+  if (!cards) return;
+
+  const _h = () => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (getToken() || '') });
+
+  if (forceRefresh) {
+    await fetch('/api/positional/refresh', { method: 'POST', headers: _h() }).catch(() => {});
+  }
+
+  cards.innerHTML = `<div class="empty"><div class="empty-icon" style="background:rgba(52,211,153,.12);">📈</div><div class="empty-title">Scanning stocks…</div><div class="empty-sub">Building 1-month+ positional setups</div></div>`;
+
+  try {
+    const d = await jAuth('/api/positional/signals');
+    if (d.error) {
+      cards.innerHTML = `<div class="empty"><div class="empty-title">Error</div><div class="empty-sub">${d.error}</div></div>`;
+      return;
+    }
+
+    _posData = d.results || [];
+    document.getElementById('pos-total').textContent = _posData.length;
+
+    const by = d.by_type || {};
+    document.getElementById('pos-s-breakout').textContent = by['CONSOLIDATION_BREAKOUT'] || 0;
+    document.getElementById('pos-s-quality').textContent  = by['FUNDAMENTAL_TECHNICAL']  || 0;
+    document.getElementById('pos-s-sector').textContent   = by['SECTOR_ROTATION']        || 0;
+
+    const rc = document.getElementById('pos-regime-chip');
+    if (rc) {
+      const r = d.regime || 'Neutral';
+      rc.textContent = r;
+      rc.className   = 'chip ' + (r === 'Bull' ? 'chip-green' : r === 'Bear' ? 'chip-red' : 'chip-gray');
+    }
+    const ga = document.getElementById('pos-gen-at');
+    if (ga) ga.textContent = d.generated_at ? 'at ' + d.generated_at.slice(11,16) : '';
+
+    // Top sector chips
+    const secRow = document.getElementById('pos-sectors-row');
+    if (secRow && d.top_sectors && d.top_sectors.length) {
+      const perf = d.sector_perf || {};
+      secRow.innerHTML = '<span style="font-size:10px;color:var(--txt3);margin-right:2px;">Top sectors:</span>' +
+        d.top_sectors.map(s => {
+          const ret = perf[s] != null ? ` +${perf[s].toFixed(1)}%` : '';
+          return `<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:5px;background:rgba(52,211,153,.1);color:#34D399;border:1px solid rgba(52,211,153,.2);">${s}${ret}</span>`;
+        }).join('');
+    }
+
+    _renderPositionalCards();
+  } catch(e) {
+    cards.innerHTML = `<div class="empty"><div class="empty-title">Failed to load</div><div class="empty-sub">${e.message}</div></div>`;
+  }
+}
+
+function posFilter(type, el) {
+  _posFilter = type;
+  document.querySelectorAll('#pos-filter-row .intra-filter-pill').forEach(p => p.classList.remove('active'));
+  if (el) el.classList.add('active');
+  _renderPositionalCards();
+}
+
+function _renderPositionalCards() {
+  const cards = document.getElementById('pos-cards');
+  if (!cards) return;
+
+  const rows = _posFilter === 'all' ? _posData : _posData.filter(r => r.setup_type === _posFilter);
+  if (!rows.length) {
+    cards.innerHTML = `<div class="empty"><div class="empty-title">No setups</div><div class="empty-sub">No ${_posFilter === 'all' ? '' : _posFilter.replace(/_/g,' ') + ' '}setups found</div></div>`;
+    return;
+  }
+  cards.innerHTML = rows.map(_posCard).join('');
+}
+
+function _posCard(r, i) {
+  const cfg   = POS_CFG[r.setup_type] || { color: '#94A3B8', bg: 'rgba(148,163,184,.1)', icon: '◆' };
+  const price = r.price   != null ? '₹' + r.price   : '—';
+  const sl    = r.stop_loss != null ? '₹' + r.stop_loss : '—';
+  const tgt   = r.target  != null ? '₹' + r.target  : '—';
+  const rr    = r.risk_reward != null ? `R:R ${r.risk_reward}:1` : '';
+  const score = r.score   != null ? r.score : 0;
+  const scoreColor = score >= 75 ? '#34D399' : score >= 55 ? '#FBBF24' : '#94A3B8';
+
+  const capBadge = r.market_cap
+    ? `<span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:4px;background:rgba(129,140,248,.12);color:#818CF8;border:1px solid rgba(129,140,248,.2);">${r.market_cap}</span>` : '';
+
+  const rationale = (r.rationale || []).map(pt =>
+    `<div class="intra-rationale-item"><span style="color:var(--green);flex-shrink:0;">▸</span><span>${pt}</span></div>`
+  ).join('');
+
+  const rsiColor = r.rsi >= 60 ? '#34D399' : r.rsi >= 45 ? '#FBBF24' : '#94A3B8';
+
+  const rsExtra = r.rs_vs_sector != null
+    ? `<span style="font-size:10px;color:#FBBF24;">RS +${r.rs_vs_sector}%</span>` : '';
+
+  return `
+  <div class="intra-card">
+    <div class="intra-header">
+      <div style="flex:1;min-width:0;">
+        <div class="intra-sym">${r.symbol}</div>
+        <div class="intra-company">${r.company_name || ''} · ${r.sector || '—'}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <div class="intra-badge" style="background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.color}33;">
+          ${cfg.icon} ${r.setup_label || r.setup_type}
+        </div>
+        ${capBadge}
+      </div>
+    </div>
+
+    <div class="intra-price-row">
+      <span class="intra-price">${price}</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        ${rsExtra}
+        <span style="font-size:10px;color:var(--txt3);">Hold: ${r.holding || '1M+'}</span>
+      </div>
+    </div>
+
+    <div class="intra-levels">
+      <div class="intra-level">
+        <div class="intra-level-lbl">Target</div>
+        <div class="intra-level-val" style="color:#34D399;">${tgt}</div>
+      </div>
+      <div class="intra-level">
+        <div class="intra-level-lbl">Stop Loss</div>
+        <div class="intra-level-val" style="color:#F87171;">${sl}</div>
+      </div>
+    </div>
+
+    <div class="intra-rationale">${rationale}</div>
+
+    <div class="intra-footer">
+      <span class="intra-rr">${rr}</span>
+      <div style="display:flex;align-items:center;gap:6px;flex:1;margin:0 8px;">
+        <div class="intra-conf-bar">
+          <div class="intra-conf-fill" style="width:${score}%;background:${scoreColor};"></div>
+        </div>
+        <span style="font-size:10px;font-weight:700;color:${scoreColor};flex-shrink:0;">${score}</span>
+      </div>
+      <span style="font-size:10px;color:var(--txt3);">RSI <span style="color:${rsiColor};">${r.rsi != null ? r.rsi : '—'}</span></span>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SWING SCANNER
+// ═══════════════════════════════════════════════════════════════════════
+
+let _swingData   = [];
+let _swingFilter = 'all';
+
+const SWING_CFG = {
+  MA_CROSSOVER:    { color: '#818CF8', bg: 'rgba(129,140,248,.12)', icon: '✕' },
+  TREND_FOLLOWING: { color: '#34D399', bg: 'rgba(52,211,153,.12)',  icon: '↗' },
+  SR_BOUNCE:       { color: '#FBBF24', bg: 'rgba(251,191,36,.12)',  icon: '↩' },
+};
+
+async function loadSwing(forceRefresh) {
+  const cards = document.getElementById('swing-cards');
+  if (!cards) return;
+
+  if (forceRefresh) {
+    await fetch('/api/swing/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (getToken() || '') } }).catch(() => {});
+  }
+
+  cards.innerHTML = `<div class="empty"><div class="empty-icon" style="background:rgba(129,140,248,.12);">📊</div><div class="empty-title">Scanning stocks…</div><div class="empty-sub">Building swing trading setups</div></div>`;
+
+  try {
+    const d = await jAuth('/api/swing/signals');
+    if (d.error) {
+      cards.innerHTML = `<div class="empty"><div class="empty-title">Error</div><div class="empty-sub">${d.error}</div></div>`;
+      return;
+    }
+
+    _swingData = d.results || [];
+    document.getElementById('swing-total').textContent = _swingData.length;
+
+    const by = d.by_type || {};
+    document.getElementById('swing-s-cross').textContent = by['MA_CROSSOVER']    || 0;
+    document.getElementById('swing-s-trend').textContent = by['TREND_FOLLOWING'] || 0;
+    document.getElementById('swing-s-sr').textContent    = by['SR_BOUNCE']       || 0;
+
+    const rc = document.getElementById('swing-regime-chip');
+    if (rc) {
+      const r = d.regime || 'Neutral';
+      rc.textContent = r;
+      rc.className   = 'chip ' + (r === 'Bull' ? 'chip-green' : r === 'Bear' ? 'chip-red' : 'chip-gray');
+    }
+    const ga = document.getElementById('swing-gen-at');
+    if (ga) ga.textContent = d.generated_at ? 'at ' + d.generated_at.slice(11,16) : '';
+
+    _renderSwingCards();
+  } catch(e) {
+    cards.innerHTML = `<div class="empty"><div class="empty-title">Failed to load</div><div class="empty-sub">${e.message}</div></div>`;
+  }
+}
+
+function swingFilter(type, el) {
+  _swingFilter = type;
+  document.querySelectorAll('#swing-filter-row .intra-filter-pill').forEach(p => p.classList.remove('active'));
+  if (el) el.classList.add('active');
+  _renderSwingCards();
+}
+
+function _renderSwingCards() {
+  const cards = document.getElementById('swing-cards');
+  if (!cards) return;
+
+  const rows = _swingFilter === 'all' ? _swingData : _swingData.filter(r => r.setup_type === _swingFilter);
+  if (!rows.length) {
+    cards.innerHTML = `<div class="empty"><div class="empty-title">No setups</div><div class="empty-sub">No ${_swingFilter === 'all' ? '' : _swingFilter.replace(/_/g,' ')+' '}swing setups found</div></div>`;
+    return;
+  }
+  cards.innerHTML = rows.map(_swingCard).join('');
+}
+
+function _swingCard(r) {
+  const cfg   = SWING_CFG[r.setup_type] || { color: '#94A3B8', bg: 'rgba(148,163,184,.1)', icon: '◆' };
+  const price = r.price     != null ? '₹' + r.price     : '—';
+  const sl    = r.stop_loss != null ? '₹' + r.stop_loss : '—';
+  const tgt   = r.target    != null ? '₹' + r.target    : '—';
+  const rr    = r.risk_reward != null ? `R:R ${r.risk_reward}:1` : '';
+  const score = r.score != null ? r.score : 0;
+  const scoreColor = score >= 75 ? '#34D399' : score >= 55 ? '#818CF8' : '#94A3B8';
+  const rsiColor   = r.rsi >= 60 ? '#34D399' : r.rsi >= 48 ? '#FBBF24' : '#94A3B8';
+
+  const extraLine = (() => {
+    if (r.setup_type === 'MA_CROSSOVER' && r.ema20 && r.ema50) {
+      return `<div style="display:flex;gap:8px;padding:0 0 6px;font-size:10px;color:var(--txt3);">
+        <span>EMA20 <span style="color:#818CF8;font-weight:600;">₹${r.ema20}</span></span>
+        <span>EMA50 <span style="color:var(--txt2);font-weight:600;">₹${r.ema50}</span></span>
+      </div>`;
+    }
+    if (r.setup_type === 'SR_BOUNCE' && r.support) {
+      return `<div style="padding:0 0 6px;font-size:10px;color:var(--txt3);">Support zone <span style="color:#FBBF24;font-weight:600;">₹${r.support}</span></div>`;
+    }
+    if (r.setup_type === 'TREND_FOLLOWING' && r.ema20) {
+      return `<div style="padding:0 0 6px;font-size:10px;color:var(--txt3);">Riding EMA20 <span style="color:#34D399;font-weight:600;">₹${r.ema20}</span></div>`;
+    }
+    return '';
+  })();
+
+  const rationale = (r.rationale || []).map(pt =>
+    `<div class="intra-rationale-item"><span style="color:#818CF8;flex-shrink:0;">▸</span><span>${pt}</span></div>`
+  ).join('');
+
+  return `
+  <div class="intra-card" style="border-color:rgba(129,140,248,.15);">
+    <div class="intra-header">
+      <div style="flex:1;min-width:0;">
+        <div class="intra-sym">${r.symbol}</div>
+        <div class="intra-company">${r.company_name || ''} · ${r.sector || '—'}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <div class="intra-badge" style="background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.color}33;">
+          ${cfg.icon} ${r.setup_label || r.setup_type}
+        </div>
+        <div style="font-size:9px;color:var(--txt3);">${r.holding || '1–3 weeks'}</div>
+      </div>
+    </div>
+
+    <div class="intra-price-row">
+      <span class="intra-price">${price}</span>
+      <span style="font-size:10px;color:var(--txt3);">hold ${r.holding || '1–3 wks'}</span>
+    </div>
+
+    ${extraLine}
+
+    <div class="intra-levels">
+      <div class="intra-level">
+        <div class="intra-level-lbl">Target</div>
+        <div class="intra-level-val" style="color:#34D399;">${tgt}</div>
+      </div>
+      <div class="intra-level">
+        <div class="intra-level-lbl">Stop Loss</div>
+        <div class="intra-level-val" style="color:#F87171;">${sl}</div>
+      </div>
+    </div>
+
+    <div class="intra-rationale">${rationale}</div>
+
+    <div class="intra-footer">
+      <span class="intra-rr" style="color:${cfg.color};">${rr}</span>
+      <div style="display:flex;align-items:center;gap:6px;flex:1;margin:0 8px;">
+        <div class="intra-conf-bar">
+          <div class="intra-conf-fill" style="width:${score}%;background:${scoreColor};"></div>
+        </div>
+        <span style="font-size:10px;font-weight:700;color:${scoreColor};flex-shrink:0;">${score}</span>
+      </div>
+      <span style="font-size:10px;color:var(--txt3);">RSI <span style="color:${rsiColor};font-weight:600;">${r.rsi != null ? r.rsi : '—'}</span></span>
     </div>
   </div>`;
 }

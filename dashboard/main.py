@@ -2560,6 +2560,121 @@ async def intraday_refresh(_r: dict = Depends(require_user)):
 
 
 # -------------------------------------------------------
+# Positional Scanner
+# -------------------------------------------------------
+
+_positional_cache: dict | None = None
+_positional_cache_ts: float    = 0.0
+_POSITIONAL_CACHE_TTL          = 900.0   # 15 minutes
+
+
+@app.get("/api/positional/signals")
+async def positional_signals(_r: dict = Depends(require_user)):
+    """
+    Positional / Short-Term (1 month+) trade setups.
+    Detectors: consolidation breakout, quality dip (fundamental+technical),
+    sector rotation leaders.  Cached 15 min.
+    """
+    global _positional_cache, _positional_cache_ts
+    import time as _t
+
+    now = _t.monotonic()
+    if _positional_cache and (now - _positional_cache_ts) < _POSITIONAL_CACHE_TTL:
+        return _positional_cache
+
+    try:
+        from strategies.positional_scanner import positional_scan
+        from ml.regime import compute_regime
+
+        regime_data = {}
+        try:
+            global _regime_cache, _regime_cache_ts
+            if _regime_cache and (_t.monotonic() - _regime_cache_ts) < 1800:
+                regime_data = _regime_cache
+            else:
+                regime_data = await asyncio.to_thread(compute_regime)
+        except Exception:
+            pass
+
+        data = await asyncio.to_thread(positional_scan)
+        data["regime"]       = regime_data.get("regime", "Neutral")
+        data["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        _positional_cache    = _sanitize(data)
+        _positional_cache_ts = now
+        return _positional_cache
+    except Exception as e:
+        logger.error(f"Positional signals error: {e}", exc_info=True)
+        return {"error": str(e), "results": [], "total": 0}
+
+
+@app.post("/api/positional/refresh")
+async def positional_refresh(_r: dict = Depends(require_user)):
+    """Invalidate positional cache."""
+    global _positional_cache, _positional_cache_ts
+    _positional_cache    = None
+    _positional_cache_ts = 0.0
+    return {"status": "cache_cleared"}
+
+
+# -------------------------------------------------------
+# Swing Scanner (1 week – few weeks)
+# -------------------------------------------------------
+
+_swing_cache: dict | None = None
+_swing_cache_ts: float    = 0.0
+_SWING_CACHE_TTL          = 900.0   # 15 minutes
+
+
+@app.get("/api/swing/signals")
+async def swing_signals(_r: dict = Depends(require_user)):
+    """
+    Swing trade setups (1 week – few weeks).
+    Detectors: MA crossover (20/50 EMA), trend following (HH-HL), S/R bounce.
+    Cached 15 min.
+    """
+    global _swing_cache, _swing_cache_ts
+    import time as _t
+
+    now = _t.monotonic()
+    if _swing_cache and (now - _swing_cache_ts) < _SWING_CACHE_TTL:
+        return _swing_cache
+
+    try:
+        from strategies.swing_positional_scanner import swing_scan
+        from ml.regime import compute_regime
+
+        regime_data = {}
+        try:
+            if _regime_cache and (_t.monotonic() - _regime_cache_ts) < 1800:
+                regime_data = _regime_cache
+            else:
+                regime_data = await asyncio.to_thread(compute_regime)
+        except Exception:
+            pass
+
+        data = await asyncio.to_thread(swing_scan)
+        data["regime"]       = regime_data.get("regime", "Neutral")
+        data["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        _swing_cache    = _sanitize(data)
+        _swing_cache_ts = now
+        return _swing_cache
+    except Exception as e:
+        logger.error(f"Swing signals error: {e}", exc_info=True)
+        return {"error": str(e), "results": [], "total": 0}
+
+
+@app.post("/api/swing/refresh")
+async def swing_refresh(_r: dict = Depends(require_user)):
+    """Invalidate swing cache."""
+    global _swing_cache, _swing_cache_ts
+    _swing_cache    = None
+    _swing_cache_ts = 0.0
+    return {"status": "cache_cleared"}
+
+
+# -------------------------------------------------------
 
 @app.get("/api/screener/rs")
 async def screener_rs(_r: dict = Depends(require_user), index: str = None):
