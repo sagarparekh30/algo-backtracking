@@ -117,6 +117,8 @@ async def startup_event():
     # Auto-train if DB has data but model file is missing or never trained
     import threading
     threading.Thread(target=_auto_train_if_needed, name="auto-train-check", daemon=True).start()
+    # Startup data sync: fetch missing candles + retrain if data is stale
+    threading.Thread(target=_startup_data_sync, name="startup-data-sync", daemon=True).start()
     # Pre-warm slow caches so first user request is fast
     threading.Thread(target=_prewarm_caches, name="cache-prewarm", daemon=True).start()
 
@@ -160,6 +162,131 @@ def _auto_train_if_needed():
 
     except Exception as e:
         logger.error(f"[AutoTrain] Startup check failed: {e}")
+
+
+def _startup_data_sync():
+    """
+    On every startup:
+      1. Check how many trading days of data are missing.
+      2. If stale (>= 1 trading day behind), fetch missing candles via yfinance.
+      3. After fetch → retrain the ML model so all signals use fresh data.
+      4. Invalidate all in-memory caches.
+
+    Runs in a background thread — does NOT block the FastAPI server.
+    Skips if a bootstrap is already running.
+    """
+    import time as _t
+    from datetime import date, timedelta
+
+    _t.sleep(10)   # wait for DB pool + bootstrap check to settle
+
+    try:
+        # Skip if bootstrap is already fetching data
+        from scheduler.bootstrap import state as _bs_state
+        if _bs_state.running:
+            logger.info("[DataSync] Bootstrap running — skipping startup sync.")
+            return
+
+        # ── Check staleness ──────────────────────────────────────────────
+        from db.connection import get_conn
+        from config.settings import TABLE_NAME
+
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT MAX(trade_date) FROM {TABLE_NAME}")
+            row = cur.fetchone()
+        conn.close()
+
+        latest_date = row[0] if row and row[0] else None
+        if latest_date is None:
+            logger.info("[DataSync] No data in DB — skipping sync (bootstrap will handle).")
+            return
+
+        today = date.today()
+
+        # Count missing trading days (Mon–Fri only, rough estimate)
+        days_behind = 0
+        check = latest_date + timedelta(days=1) if hasattr(latest_date, 'year') else date.fromisoformat(str(latest_date)) + timedelta(days=1)
+        while check <= today:
+            if check.weekday() < 5:   # Mon–Fri
+                days_behind += 1
+            check += timedelta(days=1)
+
+        logger.info(f"[DataSync] Latest DB date: {latest_date} | Days behind: {days_behind}")
+
+        if days_behind == 0:
+            logger.info("[DataSync] Data is up to date — no sync needed.")
+            return
+
+        # ── Fetch missing data via yfinance ──────────────────────────────
+        logger.info(f"[DataSync] Fetching {days_behind} missing trading day(s) from yfinance…")
+
+        try:
+            from fetcher.yfinance_fetcher import run_yfinance_backfill
+            from config.nse_indices import fetch_nse_all_symbols
+
+            all_symbols = fetch_nse_all_symbols()
+            # Fetch from 5 days before latest to catch any gaps/corrections
+            start_date = (latest_date - timedelta(days=5)).isoformat() if hasattr(latest_date, 'isoformat') else str(latest_date)
+
+            logger.info(f"[DataSync] yfinance fetch: {len(all_symbols)} symbols from {start_date}")
+            result = run_yfinance_backfill(
+                symbols=all_symbols,
+                start_date=start_date,
+                workers=4,
+            )
+            new_candles = result.get("total_new_candles", 0)
+            failed      = result.get("failed", 0)
+            logger.info(f"[DataSync] Fetch complete — new candles: {new_candles}, failed: {failed}")
+
+        except Exception as e:
+            logger.error(f"[DataSync] yfinance fetch failed: {e}", exc_info=True)
+            return
+
+        # ── Retrain ML model on fresh data ───────────────────────────────
+        if new_candles > 0:
+            logger.info("[DataSync] New data fetched — retraining ML model…")
+            try:
+                from ml.model import MLPredictor
+                predictor = MLPredictor()
+                meta = predictor.train()
+                horizons = meta.get("horizons", {})
+                first_h  = next(iter(horizons.values()), {}) if horizons else {}
+                auc      = first_h.get("auc_roc") or meta.get("auc_roc")
+                logger.info(f"[DataSync] ML retrain complete. AUC={auc} symbols={meta.get('symbols_used')}")
+
+                # Reload the in-process predictor singleton
+                reload_ml_predictor()
+
+            except Exception as e:
+                logger.error(f"[DataSync] ML retrain failed: {e}", exc_info=True)
+
+            # ── Invalidate all signal caches so next request uses fresh data
+            global _combined_signals_cache, _combined_signals_cache_ts
+            global _predict_all_cache, _predict_all_cache_ts
+            global _regime_cache, _regime_cache_ts
+            global _intraday_cache, _intraday_cache_ts
+            global _positional_cache, _positional_cache_ts
+            global _swing_cache, _swing_cache_ts
+
+            _combined_signals_cache    = None;  _combined_signals_cache_ts  = 0.0
+            _predict_all_cache         = None;  _predict_all_cache_ts       = 0.0
+            _regime_cache              = None;  _regime_cache_ts            = 0.0
+            _intraday_cache            = None;  _intraday_cache_ts          = 0.0
+            _positional_cache          = None;  _positional_cache_ts        = 0.0
+            _swing_cache               = None;  _swing_cache_ts             = 0.0
+
+            logger.info("[DataSync] All signal caches cleared — fresh data active.")
+
+            # Re-warm the most expensive caches in the background
+            _t.sleep(2)
+            _prewarm_caches()
+
+        else:
+            logger.info("[DataSync] No new candles fetched — skipping retrain.")
+
+    except Exception as e:
+        logger.error(f"[DataSync] Startup sync failed: {e}", exc_info=True)
 
 
 def _prewarm_caches():

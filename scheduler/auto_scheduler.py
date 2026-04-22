@@ -175,80 +175,91 @@ def _run_execute_alert():
 
 def _job_daily_data_update():
     """
-    Incremental data fetch job — runs after market close every weekday.
-    Calls the backfill script as a subprocess (same as the dashboard button).
+    Daily data fetch — runs after market close every weekday (4 PM IST).
+
+    Pipeline:
+      1. yfinance incremental fetch (last 7 days) — always works, no token needed
+      2. Fyers incremental fetch (today only) — runs only if Fyers token is valid
+      3. Retrain ML model on fresh data
+      4. Send Telegram trade alert
     """
     if _state.data_update_running:
-        logger.warning("Daily data update already running — skipping.")
+        logger.warning("[Scheduler] Daily data update already running — skipping.")
         return
 
     _state.data_update_running = True
     started = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
     logger.info(f"[Scheduler] Daily data update started at {started}")
 
+    total_candles = 0
+    success = False
+
     try:
-        base_dir     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        backfill_script = os.path.join(base_dir, "fetcher", "backfill_fyers_equity.py")
+        # ── Step 1: yfinance incremental (primary — always runs) ─────────
+        yf_result = _run_yfinance_incremental()
+        yf_candles = yf_result.get("total_new_candles", 0) if isinstance(yf_result, dict) else 0
+        total_candles += yf_candles
+        logger.info(f"[Scheduler] yfinance incremental: {yf_candles} new candles")
 
-        result = subprocess.run(
-            [sys.executable, backfill_script],
-            capture_output=True,
-            text=True,
-            timeout=3600,   # 1 hour max
-            cwd=base_dir,
-        )
+        # ── Step 2: Fyers (supplementary — only if token available) ──────
+        try:
+            import json as _json
+            token_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "auth", "token.json"
+            )
+            if os.path.exists(token_path):
+                with open(token_path) as _f:
+                    _tok = _json.load(_f)
+                from datetime import datetime as _dt
+                exp = _dt.fromisoformat(_tok.get("expires_at", "2000-01-01"))
+                if exp > _dt.now():
+                    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    backfill_script = os.path.join(base_dir, "fetcher", "backfill_fyers_equity.py")
+                    result = subprocess.run(
+                        [sys.executable, backfill_script],
+                        capture_output=True, text=True, timeout=3600, cwd=base_dir,
+                    )
+                    for line in (result.stdout + result.stderr).splitlines():
+                        if "Total candles inserted:" in line:
+                            try:
+                                total_candles += int(line.split(":")[-1].strip())
+                            except ValueError:
+                                pass
+                    logger.info(f"[Scheduler] Fyers fetch done. returncode={result.returncode}")
+                else:
+                    logger.info("[Scheduler] Fyers token expired — skipping Fyers fetch.")
+            else:
+                logger.info("[Scheduler] No Fyers token — skipping Fyers fetch.")
+        except Exception as e:
+            logger.warning(f"[Scheduler] Fyers fetch skipped: {e}")
 
-        total_candles = 0
-        for line in (result.stdout + result.stderr).splitlines():
-            if "Total candles inserted:" in line:
-                try:
-                    total_candles = int(line.split(":")[-1].strip())
-                except ValueError:
-                    pass
-
-        success = result.returncode == 0
+        success = True
         _state.last_data_update = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
         _state.last_data_result = {
-            "success":       success,
+            "success":       True,
             "total_candles": total_candles,
             "started_at":    started,
             "completed_at":  _state.last_data_update,
         }
-        logger.info(f"[Scheduler] Daily data update done. candles={total_candles} success={success}")
+        logger.info(f"[Scheduler] Daily data update done. total_candles={total_candles}")
 
-        # After Fyers fetch: run yfinance supplement → retrain ML → send alert
-        if success:
-            import threading
+        # ── Step 3: Retrain ML + alert ────────────────────────────────────
+        import threading
 
-            def _post_fetch_pipeline():
-                # Step 1: yfinance incremental (fills gaps, keeps 30yr data fresh)
-                try:
-                    _run_yfinance_incremental()
-                except Exception as e:
-                    logger.error(f"[Scheduler] yfinance incremental failed: {e}")
+        def _post_fetch_pipeline():
+            _job_daily_ml_retrain()
+            try:
+                _run_execute_alert()
+            except Exception as e:
+                logger.error(f"[Scheduler] Execute alert error: {e}")
 
-                # Step 2: retrain ML on the now-updated full dataset
-                _job_daily_ml_retrain()
+        threading.Thread(target=_post_fetch_pipeline, name="post-fetch-pipeline", daemon=True).start()
+        logger.info("[Scheduler] Post-fetch pipeline started: retrain → alert")
 
-                # Step 3: Telegram trade alert
-                try:
-                    _run_execute_alert()
-                except Exception as e:
-                    logger.error(f"[Scheduler] Execute alert error: {e}")
-
-            threading.Thread(
-                target=_post_fetch_pipeline,
-                name="post-fetch-pipeline",
-                daemon=True,
-            ).start()
-            logger.info("[Scheduler] Post-fetch pipeline started: yfinance → retrain → alert")
-
-    except subprocess.TimeoutExpired:
-        _state.last_data_result = {"success": False, "error": "Timed out after 1 hour"}
-        logger.error("[Scheduler] Daily data update timed out.")
     except Exception as e:
-        _state.last_data_result = {"success": False, "error": str(e)}
-        logger.error(f"[Scheduler] Daily data update error: {e}")
+        _state.last_data_result = {"success": False, "error": str(e), "started_at": started}
+        logger.error(f"[Scheduler] Daily data update error: {e}", exc_info=True)
     finally:
         _state.data_update_running = False
 

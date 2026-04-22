@@ -427,7 +427,7 @@ function go(id, el) {
   if (id === 'ml')        { checkMLStatus(); }
   if (id === 'chat')      { window.initChat(); }
   if (id === 'intraday')   { loadIntraday(); _startIntraAutoRefresh(); }
-  if (id === 'positional') { loadPositional(); loadSwing(); }
+  if (id === 'positional') { psGo('pos'); }
 }
 
 function _showAccessDenied() {
@@ -3960,6 +3960,48 @@ function _intraCard(r) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// POSITIONAL + SWING INNER TAB SWITCHER
+// ═══════════════════════════════════════════════════════════════════════
+
+let _psActive = 'pos';
+
+function psGo(id) {
+  _psActive = id;
+
+  const posPanel   = document.getElementById('ps-panel-pos');
+  const swingPanel = document.getElementById('ps-panel-swing');
+  const posBtn     = document.getElementById('ps-tab-btn-pos');
+  const swingBtn   = document.getElementById('ps-tab-btn-swing');
+
+  if (!posPanel || !swingPanel) return;
+
+  if (id === 'pos') {
+    posPanel.style.display     = 'block';
+    swingPanel.style.display   = 'none';
+    posBtn.style.background    = 'var(--green)';
+    posBtn.style.color         = '#fff';
+    posBtn.style.boxShadow     = '0 2px 8px rgba(52,211,153,.3)';
+    swingBtn.style.background  = 'transparent';
+    swingBtn.style.color       = 'var(--txt3)';
+    swingBtn.style.boxShadow   = 'none';
+    if (_posData.length === 0) loadPositional();
+  } else {
+    posPanel.style.display     = 'none';
+    swingPanel.style.display   = 'block';
+    swingBtn.style.background  = '#818CF8';
+    swingBtn.style.color       = '#fff';
+    swingBtn.style.boxShadow   = '0 2px 8px rgba(129,140,248,.3)';
+    posBtn.style.background    = 'transparent';
+    posBtn.style.color         = 'var(--txt3)';
+    posBtn.style.boxShadow     = 'none';
+    if (_swingData.length === 0) loadSwing();
+    else _renderSwingCards();
+  }
+
+  document.querySelector('.scroll').scrollTo(0, 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // POSITIONAL SCANNER
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -4160,6 +4202,8 @@ async function loadSwing(forceRefresh) {
     }
     const ga = document.getElementById('swing-gen-at');
     if (ga) ga.textContent = d.generated_at ? 'at ' + d.generated_at.slice(11,16) : '';
+    const ga2 = document.getElementById('swing-gen-at-2');
+    if (ga2) ga2.textContent = d.generated_at ? '· at ' + d.generated_at.slice(11,16) : '';
 
     _renderSwingCards();
   } catch(e) {
