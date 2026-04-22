@@ -2642,19 +2642,19 @@
       </div>
     </div>
 
-    <div class="page">
+    <!-- ── Inner tab switcher (outside .page so no flex/overflow can clip it) ── -->
+    <div id="ps-tab-switcher" style="display:flex;gap:0;margin:10px 14px 4px;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:4px;">
+      <button id="ps-tab-btn-pos"
+        style="flex:1;padding:9px 0;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;transition:all .2s;background:var(--green);color:#fff;box-shadow:0 2px 8px rgba(52,211,153,.3);-webkit-tap-highlight-color:rgba(0,0,0,0);touch-action:manipulation;">
+        📈 Positional
+      </button>
+      <button id="ps-tab-btn-swing"
+        style="flex:1;padding:9px 0;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;transition:all .2s;background:rgba(255,255,255,0.04);color:var(--txt3);-webkit-tap-highlight-color:rgba(0,0,0,0);touch-action:manipulation;">
+        📊 Swing
+      </button>
+    </div>
 
-      <!-- ── Inner tab switcher ───────────────────────────────────── -->
-      <div style="display:flex;gap:0;margin:10px 14px 12px;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:4px;">
-        <button id="ps-tab-btn-pos" onclick="psGo('pos')"
-          style="flex:1;padding:9px 0;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;transition:all .2s;background:var(--green);color:#fff;box-shadow:0 2px 8px rgba(52,211,153,.3);">
-          📈 Positional
-        </button>
-        <button id="ps-tab-btn-swing" onclick="psGo('swing')"
-          style="flex:1;padding:9px 0;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;transition:all .2s;background:transparent;color:var(--txt3);">
-          📊 Swing
-        </button>
-      </div>
+    <div class="page">
 
       <!-- ══════════ POSITIONAL PANEL ══════════ -->
       <div id="ps-panel-pos">

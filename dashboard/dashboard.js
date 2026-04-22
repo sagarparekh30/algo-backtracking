@@ -3973,7 +3973,7 @@ function psGo(id) {
   const posBtn     = document.getElementById('ps-tab-btn-pos');
   const swingBtn   = document.getElementById('ps-tab-btn-swing');
 
-  if (!posPanel || !swingPanel) return;
+  if (!posPanel || !swingPanel || !posBtn || !swingBtn) return;
 
   if (id === 'pos') {
     posPanel.style.display     = 'block';
@@ -3981,7 +3981,7 @@ function psGo(id) {
     posBtn.style.background    = 'var(--green)';
     posBtn.style.color         = '#fff';
     posBtn.style.boxShadow     = '0 2px 8px rgba(52,211,153,.3)';
-    swingBtn.style.background  = 'transparent';
+    swingBtn.style.background  = 'rgba(255,255,255,0.04)';
     swingBtn.style.color       = 'var(--txt3)';
     swingBtn.style.boxShadow   = 'none';
     if (_posData.length === 0) loadPositional();
@@ -3991,15 +3991,33 @@ function psGo(id) {
     swingBtn.style.background  = '#818CF8';
     swingBtn.style.color       = '#fff';
     swingBtn.style.boxShadow   = '0 2px 8px rgba(129,140,248,.3)';
-    posBtn.style.background    = 'transparent';
+    posBtn.style.background    = 'rgba(255,255,255,0.04)';
     posBtn.style.color         = 'var(--txt3)';
     posBtn.style.boxShadow     = 'none';
     if (_swingData.length === 0) loadSwing();
     else _renderSwingCards();
   }
 
-  document.querySelector('.scroll').scrollTo(0, 0);
+  document.querySelector('.scroll')?.scrollTo(0, 0);
 }
+
+window.psGo = psGo;
+
+// Wire up inner tab buttons via addEventListener (belt-and-suspenders)
+// Script is at bottom of body so DOM is already parsed — attach immediately
+(function () {
+  function _attachPsButtons() {
+    const btnPos   = document.getElementById('ps-tab-btn-pos');
+    const btnSwing = document.getElementById('ps-tab-btn-swing');
+    if (btnPos)   { btnPos.addEventListener('click',  function () { psGo('pos'); }); }
+    if (btnSwing) { btnSwing.addEventListener('click', function () { psGo('swing'); }); }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _attachPsButtons);
+  } else {
+    _attachPsButtons();
+  }
+}());
 
 // ═══════════════════════════════════════════════════════════════════════
 // POSITIONAL SCANNER
