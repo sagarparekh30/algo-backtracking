@@ -17,31 +17,30 @@ from email.mime.multipart import MIMEMultipart
 
 logger = logging.getLogger(__name__)
 
-SMTP_HOST      = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT      = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER      = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD  = os.getenv("SMTP_PASSWORD", "")
-FROM_NAME      = os.getenv("EMAIL_FROM_NAME", "Apex Trading")
-
-
 def _send(to_email: str, subject: str, html_body: str) -> bool:
     """Low-level send. Returns True on success, False on failure."""
-    if not SMTP_USER or not SMTP_PASSWORD:
+    smtp_host  = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port  = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user  = os.getenv("SMTP_USER", "")
+    smtp_pass  = os.getenv("SMTP_PASSWORD", "")
+    from_name  = os.getenv("EMAIL_FROM_NAME", "TradeGenie")
+
+    if not smtp_user or not smtp_pass:
         logger.warning("Email not configured — skipping send to %s", to_email)
         return False
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = f"{FROM_NAME} <{SMTP_USER}>"
+    msg["From"]    = f"{from_name} <{smtp_user}>"
     msg["To"]      = to_email
     msg.attach(MIMEText(html_body, "html"))
 
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
             server.ehlo()
             server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_USER, to_email, msg.as_string())
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, to_email, msg.as_string())
         logger.info("Email sent to %s — %s", to_email, subject)
         return True
     except Exception as e:

@@ -847,7 +847,7 @@ function renderPrices(prices) {
     if (prev) cls = p.ltp > prev.ltp ? 'fup' : p.ltp < prev.ltp ? 'fdown' : '';
     prevPx[sym] = p;
     const cp = (p.change_pct || 0).toFixed(2);
-    return `<tr class="${cls}" id="pr-${sym}">
+    return `<tr class="${cls}" id="pr-${sym}" style="cursor:pointer;" onclick="openChart('${sym}')">
       <td style="font-weight:700;">${sym}</td>
       <td class="mono" style="font-weight:600;">₹${fmtP(p.ltp)}</td>
       <td style="font-weight:600;color:${up?'var(--green)':'var(--red)'};">${up?'▲':'▼'} ${Math.abs(cp)}%</td>
@@ -2380,7 +2380,7 @@ function _rsCard(r) {
   const border = isTop ? `border-color:${color}55;` : '';
   const glow = isTop ? `box-shadow:0 0 22px ${color}25,0 2px 10px rgba(0,0,0,.45);` : '';
 
-  return `<div class="scr-card" style="${border}${glow}">
+  return `<div class="scr-card" style="${border}${glow}cursor:pointer;" onclick="openChart('${r.symbol}')">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
@@ -2412,9 +2412,9 @@ function _rsCard(r) {
     ${tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">${tags}</div>` : ''}
 
     <div style="display:flex;gap:5px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
-      <button onclick="_scrView('${r.symbol}')" class="scr-action-btn">View</button>
-      <button onclick="_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid var(--accent);color:var(--accent);">Trade</button>
-      <button onclick="_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
+      <button onclick="event.stopPropagation();_scrView('${r.symbol}')" class="scr-action-btn">View</button>
+      <button onclick="event.stopPropagation();_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid var(--accent);color:var(--accent);">Trade</button>
+      <button onclick="event.stopPropagation();_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
     </div>
   </div>`;
 }
@@ -2426,7 +2426,7 @@ function _52wCard(r) {
   const tags = _scrTags(r, '52w');
   const glow = r.is_breakout ? `box-shadow:0 0 20px #00e67620,0 2px 8px rgba(0,0,0,.4);border-color:#00e67655;` : '';
 
-  return `<div class="scr-card" style="${glow}">
+  return `<div class="scr-card" style="${glow}cursor:pointer;" onclick="openChart('${r.symbol}')">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
@@ -2455,9 +2455,9 @@ function _52wCard(r) {
     ${tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">${tags}</div>` : ''}
 
     <div style="display:flex;gap:5px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
-      <button onclick="_scrView('${r.symbol}')" class="scr-action-btn">View</button>
-      <button onclick="_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid var(--accent);color:var(--accent);">Trade</button>
-      <button onclick="_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
+      <button onclick="event.stopPropagation();_scrView('${r.symbol}')" class="scr-action-btn">View</button>
+      <button onclick="event.stopPropagation();_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid var(--accent);color:var(--accent);">Trade</button>
+      <button onclick="event.stopPropagation();_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
     </div>
   </div>`;
 }
@@ -2468,7 +2468,7 @@ function _volCard(r) {
   const inWL = _scrWatchlist.includes(r.symbol);
   const tags = _scrTags(r, 'volume');
 
-  return `<div class="scr-card">
+  return `<div class="scr-card" style="cursor:pointer;" onclick="openChart('${r.symbol}')">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
       <div style="flex:1;min-width:0;">
         <span style="font-size:14px;font-weight:800;color:var(--txt);">${r.symbol}</span>
@@ -2494,9 +2494,9 @@ function _volCard(r) {
     ${tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">${tags}</div>` : ''}
 
     <div style="display:flex;gap:5px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
-      <button onclick="_scrView('${r.symbol}')" class="scr-action-btn">View</button>
-      <button onclick="_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid var(--accent);color:var(--accent);">Trade</button>
-      <button onclick="_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
+      <button onclick="event.stopPropagation();_scrView('${r.symbol}')" class="scr-action-btn">View</button>
+      <button onclick="event.stopPropagation();_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid var(--accent);color:var(--accent);">Trade</button>
+      <button onclick="event.stopPropagation();_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
     </div>
   </div>`;
 }
@@ -2508,7 +2508,7 @@ function _earningsCard(r) {
   const tags = _scrTags(r, 'earnings');
   const glow = isHigh && (r.days_away || 99) <= 5 ? `box-shadow:0 0 18px #ef444420;border-color:#ef444455;` : '';
 
-  return `<div class="scr-card" style="${glow}">
+  return `<div class="scr-card" style="${glow}cursor:pointer;" onclick="openChart('${r.symbol}')">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
       <div style="flex:1;min-width:0;">
         <span style="font-size:14px;font-weight:800;color:var(--txt);">${r.symbol}</span>
@@ -2534,8 +2534,8 @@ function _earningsCard(r) {
     ${tags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">${tags}</div>` : ''}
 
     <div style="display:flex;gap:5px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
-      <button onclick="_scrView('${r.symbol}')" class="scr-action-btn" style="flex:1;">View Chart</button>
-      <button onclick="_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
+      <button onclick="event.stopPropagation();_scrView('${r.symbol}')" class="scr-action-btn" style="flex:1;">View Price Action</button>
+      <button onclick="event.stopPropagation();_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
     </div>
   </div>`;
 }
@@ -3388,7 +3388,7 @@ function _uvCard(r) {
     </div>`;
   }).join('');
 
-  return `<div class="scr-card" style="${glow}">
+  return `<div class="scr-card" style="${glow}cursor:pointer;" onclick="openChart('${r.symbol}')">
     <!-- Header: symbol + verdict badge -->
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
       <div style="flex:1;min-width:0;">
@@ -3438,9 +3438,9 @@ function _uvCard(r) {
 
     <!-- Actions -->
     <div style="display:flex;gap:5px;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);">
-      <button onclick="_scrView('${r.symbol}')" class="scr-action-btn">View</button>
-      <button onclick="_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid ${cfg.color};color:${cfg.color};">Trade</button>
-      <button onclick="_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
+      <button onclick="event.stopPropagation();_scrView('${r.symbol}')" class="scr-action-btn">View</button>
+      <button onclick="event.stopPropagation();_scrTrade('${r.symbol}')" class="scr-action-btn" style="background:transparent;border:1px solid ${cfg.color};color:${cfg.color};">Trade</button>
+      <button onclick="event.stopPropagation();_scrWatchlistToggle('${r.symbol}',this)" class="scr-action-btn" style="padding:6px 10px;font-size:14px;color:${inWL ? 'var(--live)' : 'var(--txt3)'};" title="Watchlist">${inWL ? '♥' : '♡'}</button>
     </div>
   </div>`;
 }
@@ -3908,7 +3908,7 @@ function _intraCard(r) {
   ).join('');
 
   return `
-  <div class="intra-card">
+  <div class="intra-card" style="cursor:pointer;" onclick='openChart("${r.symbol}",${JSON.stringify({entry:r.entry,stop_loss:r.stop_loss,target:r.target1})})'>
     <div class="intra-header">
       <div style="flex:1;min-width:0;">
         <div class="intra-sym">${r.symbol}</div>
@@ -4126,7 +4126,7 @@ function _posCard(r, i) {
     ? `<span style="font-size:10px;color:#FBBF24;">RS +${r.rs_vs_sector}%</span>` : '';
 
   return `
-  <div class="intra-card">
+  <div class="intra-card" style="cursor:pointer;" onclick='openChart("${r.symbol}",${JSON.stringify({entry:r.price,stop_loss:r.stop_loss,target:r.target})})'>
     <div class="intra-header">
       <div style="flex:1;min-width:0;">
         <div class="intra-sym">${r.symbol}</div>
@@ -4279,7 +4279,7 @@ function _swingCard(r) {
   ).join('');
 
   return `
-  <div class="intra-card" style="border-color:rgba(129,140,248,.15);">
+  <div class="intra-card" style="border-color:rgba(129,140,248,.15);cursor:pointer;" onclick='openChart("${r.symbol}",${JSON.stringify({entry:r.price,stop_loss:r.stop_loss,target:r.target})})'>
     <div class="intra-header">
       <div style="flex:1;min-width:0;">
         <div class="intra-sym">${r.symbol}</div>
