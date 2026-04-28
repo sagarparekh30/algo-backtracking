@@ -301,21 +301,23 @@ def _prewarm_caches():
         from db.connection import get_conn
         global _snapshot_cache, _snapshot_cache_ts
         conn = get_conn()
-        with conn.cursor() as cur:
-            cur.execute(f"""
-                SELECT symbol, trade_date, open, high, low, close, volume
-                FROM (
-                    SELECT DISTINCT ON (symbol)
-                        symbol, trade_date, open, high, low, close, volume
-                    FROM {TABLE_NAME}
-                    ORDER BY symbol, trade_date DESC
-                ) latest
-                ORDER BY trade_date DESC
-                LIMIT 10
-            """)
-            cols = [d[0] for d in cur.description]
-            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
-        conn.close()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    SELECT symbol, trade_date, open, high, low, close, volume
+                    FROM (
+                        SELECT DISTINCT ON (symbol)
+                            symbol, trade_date, open, high, low, close, volume
+                        FROM {TABLE_NAME}
+                        ORDER BY symbol, trade_date DESC
+                    ) latest
+                    ORDER BY trade_date DESC
+                    LIMIT 10
+                """)
+                cols = [d[0] for d in cur.description]
+                rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        finally:
+            conn.close()
         _snapshot_cache = rows
         _snapshot_cache_ts = _time.monotonic()
     except Exception:
@@ -323,14 +325,16 @@ def _prewarm_caches():
     try:
         global _db_sources_cache, _db_sources_cache_ts
         conn = get_conn()
-        with conn.cursor() as cur:
-            cur.execute(
-                f"SELECT source, COUNT(*) as rows, COUNT(DISTINCT symbol) as symbols, "
-                f"MIN(trade_date) as from_date, MAX(trade_date) as to_date "
-                f"FROM {TABLE_NAME} GROUP BY source ORDER BY rows DESC"
-            )
-            rows = cur.fetchall()
-        conn.close()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT source, COUNT(*) as rows, COUNT(DISTINCT symbol) as symbols, "
+                    f"MIN(trade_date) as from_date, MAX(trade_date) as to_date "
+                    f"FROM {TABLE_NAME} GROUP BY source ORDER BY rows DESC"
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
         _db_sources_cache = [
             {"source": r[0], "rows": r[1], "symbols": r[2],
              "from_date": str(r[3]) if r[3] else None,
@@ -565,6 +569,7 @@ def get_db_stats():
     now = _time.monotonic()
     if now - _db_stats_cache_ts < _DB_STATS_TTL:
         return   # serve from cached state
+    conn = None
     try:
         conn = get_conn()
         cursor = conn.cursor()
@@ -607,10 +612,12 @@ def get_db_stats():
             state.min_date = str(d1) if d1 else "N/A"
             state.max_date = str(d2) if d2 else "N/A"
 
-        conn.close()
         _db_stats_cache_ts = now   # update cache timestamp only on success
     except Exception as e:
         print(f"DB Stat Error: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 
 _log_cache_ts: float = 0.0
@@ -705,21 +712,23 @@ async def get_latest_snapshot(_: dict = Depends(require_user)):
         return _snapshot_cache
     try:
         conn = get_conn()
-        with conn.cursor() as cur:
-            cur.execute(f"""
-                SELECT symbol, trade_date, open, high, low, close, volume
-                FROM (
-                    SELECT DISTINCT ON (symbol)
-                        symbol, trade_date, open, high, low, close, volume
-                    FROM {TABLE_NAME}
-                    ORDER BY symbol, trade_date DESC
-                ) latest
-                ORDER BY trade_date DESC
-                LIMIT 10
-            """)
-            cols = [d[0] for d in cur.description]
-            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
-        conn.close()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    SELECT symbol, trade_date, open, high, low, close, volume
+                    FROM (
+                        SELECT DISTINCT ON (symbol)
+                            symbol, trade_date, open, high, low, close, volume
+                        FROM {TABLE_NAME}
+                        ORDER BY symbol, trade_date DESC
+                    ) latest
+                    ORDER BY trade_date DESC
+                    LIMIT 10
+                """)
+                cols = [d[0] for d in cur.description]
+                rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        finally:
+            conn.close()
         _snapshot_cache = rows
         _snapshot_cache_ts = now
         return rows
@@ -2415,31 +2424,33 @@ async def stock_search(
     """
     try:
         conn = get_conn()
-        with conn.cursor() as cur:
-            conditions = ["is_active = TRUE"]
-            params: list = []
-            if q:
-                conditions.append("(symbol ILIKE %s OR company_name ILIKE %s)")
-                params += [f"{q}%", f"%{q}%"]
-            if sector:
-                conditions.append("sector = %s")
-                params.append(sector)
-            if index:
-                conditions.append("%s = ANY(indices)")
-                params.append(index)
-            where = " AND ".join(conditions)
-            cur.execute(
-                f"""SELECT symbol, company_name, sector, market_cap_cat, indices
-                    FROM stock_metadata WHERE {where}
-                    ORDER BY symbol LIMIT %s""",
-                params + [limit],
-            )
-            cols = ["symbol", "company_name", "sector", "market_cap_cat", "indices"]
-            results = [dict(zip(cols, row)) for row in cur.fetchall()]
-            for r in results:
-                if isinstance(r.get("indices"), list):
-                    r["indices"] = list(r["indices"])
-        conn.close()
+        try:
+            with conn.cursor() as cur:
+                conditions = ["is_active = TRUE"]
+                params: list = []
+                if q:
+                    conditions.append("(symbol ILIKE %s OR company_name ILIKE %s)")
+                    params += [f"{q}%", f"%{q}%"]
+                if sector:
+                    conditions.append("sector = %s")
+                    params.append(sector)
+                if index:
+                    conditions.append("%s = ANY(indices)")
+                    params.append(index)
+                where = " AND ".join(conditions)
+                cur.execute(
+                    f"""SELECT symbol, company_name, sector, market_cap_cat, indices
+                        FROM stock_metadata WHERE {where}
+                        ORDER BY symbol LIMIT %s""",
+                    params + [limit],
+                )
+                cols = ["symbol", "company_name", "sector", "market_cap_cat", "indices"]
+                results = [dict(zip(cols, row)) for row in cur.fetchall()]
+                for r in results:
+                    if isinstance(r.get("indices"), list):
+                        r["indices"] = list(r["indices"])
+        finally:
+            conn.close()
         return {"results": results, "count": len(results)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2454,14 +2465,16 @@ async def db_sources(_: dict = Depends(require_user)):
         return _db_sources_cache
     try:
         conn = get_conn()
-        with conn.cursor() as cur:
-            cur.execute(
-                f"SELECT source, COUNT(*) as rows, COUNT(DISTINCT symbol) as symbols, "
-                f"MIN(trade_date) as from_date, MAX(trade_date) as to_date "
-                f"FROM {TABLE_NAME} GROUP BY source ORDER BY rows DESC"
-            )
-            rows = cur.fetchall()
-        conn.close()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT source, COUNT(*) as rows, COUNT(DISTINCT symbol) as symbols, "
+                    f"MIN(trade_date) as from_date, MAX(trade_date) as to_date "
+                    f"FROM {TABLE_NAME} GROUP BY source ORDER BY rows DESC"
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
         result = [
             {"source": r[0], "rows": r[1], "symbols": r[2],
              "from_date": str(r[3]) if r[3] else None,
@@ -2557,24 +2570,26 @@ async def symbol_search(q: str = ""):
         return {"symbols": []}
     try:
         conn = get_conn()
-        with conn.cursor() as cur:
-            # Prefix matches first (e.g. "REL" → RELIANCE, RELINFRA)
-            cur.execute(
-                f"SELECT DISTINCT symbol FROM {TABLE_NAME} "
-                "WHERE UPPER(symbol) LIKE %s ORDER BY symbol LIMIT 10",
-                (f"{q}%",),
-            )
-            symbols = [r[0] for r in cur.fetchall()]
-            # If fewer than 5 prefix hits, also search by contains
-            if len(symbols) < 5:
+        try:
+            with conn.cursor() as cur:
+                # Prefix matches first (e.g. "REL" → RELIANCE, RELINFRA)
                 cur.execute(
                     f"SELECT DISTINCT symbol FROM {TABLE_NAME} "
-                    "WHERE UPPER(symbol) LIKE %s AND UPPER(symbol) NOT LIKE %s "
-                    "ORDER BY symbol LIMIT 5",
-                    (f"%{q}%", f"{q}%"),
+                    "WHERE UPPER(symbol) LIKE %s ORDER BY symbol LIMIT 10",
+                    (f"{q}%",),
                 )
-                symbols += [r[0] for r in cur.fetchall()]
-        conn.close()
+                symbols = [r[0] for r in cur.fetchall()]
+                # If fewer than 5 prefix hits, also search by contains
+                if len(symbols) < 5:
+                    cur.execute(
+                        f"SELECT DISTINCT symbol FROM {TABLE_NAME} "
+                        "WHERE UPPER(symbol) LIKE %s AND UPPER(symbol) NOT LIKE %s "
+                        "ORDER BY symbol LIMIT 5",
+                        (f"%{q}%", f"{q}%"),
+                    )
+                    symbols += [r[0] for r in cur.fetchall()]
+        finally:
+            conn.close()
         return {"symbols": symbols[:10]}
     except Exception as e:
         logger.error(f"symbol_search error: {e}")
@@ -3808,10 +3823,12 @@ async def auth_login(body: dict):
     if role != "admin":
         try:
             conn = get_conn()
-            with conn.cursor() as cur:
-                cur.execute("UPDATE users SET last_login=NOW() WHERE username=%s", (actual_username,))
-            conn.commit()
-            conn.close()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE users SET last_login=NOW() WHERE username=%s", (actual_username,))
+                conn.commit()
+            finally:
+                conn.close()
         except Exception:
             pass
 

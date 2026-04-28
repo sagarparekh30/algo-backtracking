@@ -45,7 +45,7 @@ def _get_pool():
                 import psycopg2.pool
                 from config.settings import DATABASE_URL
                 _pool = psycopg2.pool.SimpleConnectionPool(
-                    minconn=2, maxconn=10, dsn=DATABASE_URL
+                    minconn=2, maxconn=20, dsn=DATABASE_URL
                 )
     return _pool
 
