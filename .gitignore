@@ -1,7 +1,5 @@
 # Virtual Environment
 venv/
-env/
-ENV/
 .venv
 
 # Python
@@ -17,7 +15,6 @@ logs/
 
 # Sensitive Data
 auth/token.json
-.env
 .env.local
 
 # Database
